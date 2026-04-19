@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -80,6 +81,40 @@ export async function deleteObject(key: string) {
       Key: key,
     }),
   );
+}
+
+const DEFAULT_GET_MAX_BYTES = 6 * 1024 * 1024;
+
+/**
+ * Read an object using bucket credentials (for private buckets).
+ * Only keys stored by this app (`users/...`) are accepted.
+ */
+export async function getObjectBuffer(
+  key: string,
+  maxBytes = DEFAULT_GET_MAX_BYTES,
+): Promise<Buffer | null> {
+  if (!isS3UploadConfigured()) return null;
+  const trimmed = key?.trim() ?? "";
+  if (!trimmed.startsWith("users/")) return null;
+
+  try {
+    const bucket = getBucketName() || requireEnv("AWS_S3_BUCKET");
+    const client = getS3Client();
+    const res = await client.send(
+      new GetObjectCommand({
+        Bucket: bucket,
+        Key: trimmed,
+      }),
+    );
+    const body = res.Body;
+    if (!body) return null;
+
+    const bytes = await body.transformToByteArray();
+    if (bytes.byteLength === 0 || bytes.byteLength > maxBytes) return null;
+    return Buffer.from(bytes);
+  } catch {
+    return null;
+  }
 }
 
 export async function presignPut({

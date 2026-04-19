@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Sparkles, Trash2 } from "lucide-react";
+import { Loader2, Send, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -60,6 +60,8 @@ export default function EmailsPage() {
   const [profileUrlInput, setProfileUrlInput] = useState("");
   const [working, setWorking] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [sendingViaGmail, setSendingViaGmail] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -70,6 +72,18 @@ export default function EmailsPage() {
 
   useEffect(() => {
     void load();
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch("/api/connectors");
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        connectors: { provider: string; connected: boolean }[];
+      };
+      const g = data.connectors.find((c) => c.provider === "gmail");
+      setGmailConnected(Boolean(g?.connected));
+    })();
   }, []);
 
   useEffect(() => {
@@ -123,6 +137,24 @@ export default function EmailsPage() {
     if (res.ok) await load();
   };
 
+  const sendViaGmail = async (id: string) => {
+    setSendingViaGmail(true);
+    try {
+      const res = await fetch(`/api/prof-emails/${id}/send-via-gmail`, {
+        method: "POST",
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        alert(j.error ?? "Could not send via Gmail.");
+        return;
+      }
+      await load();
+      setGmailConnected(true);
+    } finally {
+      setSendingViaGmail(false);
+    }
+  };
+
   const aiDraft = async (id: string) => {
     setDrafting(id);
     const res = await fetch(`/api/prof-emails/${id}/draft`, {
@@ -155,6 +187,14 @@ export default function EmailsPage() {
           </Link>
           . Edit the manuscript before sending.
         </p>
+        {!gmailConnected ? (
+          <p className="max-w-2xl text-sm text-amber-200/90">
+            <Link href="/settings" className="font-medium text-primary underline-offset-4 hover:underline">
+              Connect Gmail in Settings
+            </Link>{" "}
+            to send drafts from your own mailbox without copying to another client.
+          </p>
+        ) : null}
       </header>
 
       <div className="flex flex-col gap-8 xl:flex-row xl:items-start">
@@ -187,6 +227,32 @@ export default function EmailsPage() {
                     <Badge variant="outline" className="border-primary/40 text-primary">
                       {selected.status.replaceAll("_", " ")}
                     </Badge>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      disabled={
+                        sendingViaGmail ||
+                        !gmailConnected ||
+                        !selected.profEmail?.trim() ||
+                        !selected.emailSubject?.trim() ||
+                        !selected.emailBody?.trim()
+                      }
+                      title={
+                        !gmailConnected
+                          ? "Connect Gmail under Settings first"
+                          : !selected.profEmail?.trim()
+                            ? "Add professor email"
+                            : undefined
+                      }
+                      onClick={() => void sendViaGmail(selected.id)}
+                    >
+                      {sendingViaGmail ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                      ) : (
+                        <Send className="mr-2 h-4 w-4" aria-hidden />
+                      )}
+                      {sendingViaGmail ? "Sending…" : "Send via Gmail"}
+                    </Button>
                     <Button
                       size="sm"
                       variant="secondary"

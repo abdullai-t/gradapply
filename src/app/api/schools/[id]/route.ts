@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { parseDeadlineBody } from "@/lib/school-deadline";
 import { progressFromStatus } from "@/lib/school-progress";
-import { SchoolStatus } from "@prisma/client";
+import { AdmissionTerm, SchoolStatus } from "@prisma/client";
 import { z } from "zod";
 
 const patchSchema = z.object({
@@ -11,6 +11,7 @@ const patchSchema = z.object({
   program: z.string().min(1).optional(),
   degree: z.string().min(1).optional(),
   country: z.string().nullable().optional(),
+  term: z.nativeEnum(AdmissionTerm).nullable().optional(),
   deadline: z.union([z.string(), z.null()]).optional(),
   status: z.nativeEnum(SchoolStatus).optional(),
   funding: z.string().nullable().optional(),

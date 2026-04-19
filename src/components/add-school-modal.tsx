@@ -19,8 +19,11 @@ import {
   optionsWithFallback,
 } from "@/lib/grad-options";
 import { COUNTRY_OPTIONS } from "@/lib/country-options";
+import { ADMISSION_TERM_OPTIONS } from "@/lib/admission-term";
+import type { AdmissionTerm } from "@prisma/client";
 
 const COUNTRY_SELECT_NONE = "__country_none__";
+const TERM_SELECT_NONE = "__term_none__";
 
 type SchoolStatus =
   | "PLANNING"
@@ -44,6 +47,7 @@ const initialForm = {
   program: "",
   degree: "",
   country: "",
+  term: "" as "" | AdmissionTerm,
   deadline: "",
   funding: "",
   notes: "",
@@ -99,7 +103,10 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
       const res = await fetch("/api/schools/infer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+          name,
+          ...(form.term ? { term: form.term } : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -146,6 +153,7 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
           program: form.program,
           degree: form.degree,
           country: form.country || null,
+          term: form.term ? form.term : null,
           deadline: form.deadline ? form.deadline : null,
           funding: form.funding || null,
           notes: form.notes || null,
@@ -242,6 +250,35 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
                   {aiError}
                 </p>
               ) : null}
+              <p className="text-xs text-muted-foreground">
+                Pick an admission term before &quot;Suggest details&quot; so deadlines match
+                Fall / Spring / Summer intake (optional).
+              </p>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="modal-term">Admission term</Label>
+              <Select
+                value={form.term ? form.term : TERM_SELECT_NONE}
+                onValueChange={(v) =>
+                  setForm({
+                    ...form,
+                    term: v === TERM_SELECT_NONE ? "" : (v as AdmissionTerm),
+                  })
+                }
+                disabled={saving || aiLoading}
+              >
+                <SelectTrigger id="modal-term">
+                  <SelectValue placeholder="Term (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TERM_SELECT_NONE}>Not specified</SelectItem>
+                  {ADMISSION_TERM_OPTIONS.map(({ value, label }) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="modal-program">Program</Label>

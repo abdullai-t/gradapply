@@ -4,6 +4,7 @@ import type { School, SchoolStatus } from "@prisma/client";
 import { format } from "date-fns";
 import { Pencil, Trash2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { admissionTermLabel } from "@/lib/admission-term";
 import { progressFromStatus } from "@/lib/school-progress";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +96,7 @@ export function SchoolCard({ school, onEdit, onDelete }: SchoolCardProps) {
               {school.program} · {school.degree}
             </p>
             <p className="mt-1 text-xs text-zinc-500">
+              {school.term ? `${admissionTermLabel(school.term)} · ` : ""}
               {school.deadline
                 ? format(new Date(school.deadline), "MMM d, yyyy")
                 : "No deadline"}{" "}

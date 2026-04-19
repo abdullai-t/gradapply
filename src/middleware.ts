@@ -21,5 +21,6 @@ export const config = {
     "/ai-coach/:path*",
     "/documents/:path*",
     "/profile/:path*",
+    "/settings/:path*",
   ],
 };

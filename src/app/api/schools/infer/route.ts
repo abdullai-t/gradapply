@@ -3,11 +3,14 @@ import { z } from "zod";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { AdmissionTerm } from "@prisma/client";
+
 import { inferSchoolDetailsFromName } from "@/lib/school-from-name-ai";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
 
 const bodySchema = z.object({
   name: z.string().min(1).max(500),
+  term: z.nativeEnum(AdmissionTerm).nullable().optional(),
 });
 
 export async function POST(req: Request) {
@@ -27,6 +30,7 @@ export async function POST(req: Request) {
   try {
     const fields = await inferSchoolDetailsFromName({
       schoolName: parsed.data.name.trim(),
+      term: parsed.data.term ?? null,
       profile,
       userId: session.user.id,
     });

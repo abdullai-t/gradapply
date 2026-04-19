@@ -1,5 +1,7 @@
 import { format } from "date-fns";
-import type { Profile } from "@prisma/client";
+import type { AdmissionTerm, Profile } from "@prisma/client";
+
+import { admissionTermLabel } from "@/lib/admission-term";
 
 import { completeOneShotLlm } from "@/lib/ai";
 import { COUNTRY_OPTIONS } from "@/lib/country-options";
@@ -87,10 +89,13 @@ export type InferredSchoolFields = {
  */
 export async function inferSchoolDetailsFromName({
   schoolName,
+  term,
   profile,
   userId,
 }: {
   schoolName: string;
+  /** When set, deadlines and cycle notes target this intake (Fall / Spring / Summer). */
+  term?: AdmissionTerm | null;
   profile?: Profile | null;
   userId?: string;
 }): Promise<InferredSchoolFields> {
@@ -100,6 +105,10 @@ export async function inferSchoolDetailsFromName({
   const programList = PROGRAM_OPTIONS.join(", ");
   const degreeList = DEGREE_OPTIONS.join(", ");
 
+  const termLine = term
+    ? `The applicant selected intake term: ${admissionTermLabel(term)}. Infer the application deadline and any cycle-specific notes for that intake (typical Fall vs Spring vs Summer start). If the institution does not offer that term, say so briefly in notes and still suggest the closest typical option.`
+    : "Intake term was not specified — infer the next typical application cycle for this institution based on today's date.";
+
   const userMessage = [
     userId
       ? "Applicant background is in the system context above (profile + documents when available)."
@@ -108,6 +117,8 @@ export async function inferSchoolDetailsFromName({
     `Today's date (for inferring the next relevant application cycle): ${format(new Date(), "yyyy-MM-dd")}.`,
     "",
     `Graduate program / institution as entered by the applicant: "${name}".`,
+    "",
+    termLine,
     "",
     "Infer practical application-tracking fields for this institution. Use well-known facts only.",
     "Application deadlines vary by program and year — give your best estimate for the applicant's target degree when possible, otherwise null.",

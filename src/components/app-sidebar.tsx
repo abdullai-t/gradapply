@@ -7,6 +7,7 @@ import {
   Mail,
   MessageSquare,
   School,
+  Settings,
   Upload,
   UserRound,
 } from "lucide-react";
@@ -22,6 +23,7 @@ const nav = [
   { href: "/assistant", label: "AI assistant", icon: MessageSquare },
   { href: "/documents", label: "Documents", icon: Upload },
   { href: "/profile", label: "Profile", icon: UserRound },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function AppSidebar() {

@@ -1,5 +1,6 @@
 import type { Profile, User } from "@prisma/client";
 
+import { getObjectBuffer } from "@/lib/s3";
 import { prisma } from "@/lib/prisma";
 
 const MAX_TOTAL_DOC_CHARS = 22_000;
@@ -61,6 +62,24 @@ async function fetchDocumentBuffer(url: string): Promise<Buffer | null> {
   for (const h of FETCH_HEADER_SETS) {
     const buf = await fetchDocumentBufferOnce(url, h);
     if (buf && buf.length > 0) return buf;
+  }
+  return null;
+}
+
+/**
+ * Prefer HTTP fetch (works for Cloudinary and public URLs). If that fails but the
+ * file lives in our S3 bucket under `users/...`, read it with credentials so private
+ * buckets still yield text for the assistant context.
+ */
+async function fetchDocumentBufferForDoc(doc: {
+  url: string;
+  s3Key: string | null;
+}): Promise<Buffer | null> {
+  const fromUrl = await fetchDocumentBuffer(doc.url);
+  if (fromUrl && fromUrl.length > 0) return fromUrl;
+  if (doc.s3Key?.startsWith("users/")) {
+    const fromS3 = await getObjectBuffer(doc.s3Key, MAX_FETCH_BYTES);
+    if (fromS3 && fromS3.length > 0) return fromS3;
   }
   return null;
 }
@@ -174,7 +193,7 @@ async function formatUploadedDocumentsSection(
     const label = DOC_KIND_LABEL[doc.type] ?? doc.type;
     const meta = `- **${doc.name}** (${label})`;
 
-    const buf = await fetchDocumentBuffer(doc.url);
+    const buf = await fetchDocumentBufferForDoc(doc);
     if (!buf) {
       stats.fetchFailed += 1;
       parts.push(
@@ -226,6 +245,9 @@ export function assistantContextGroundingRules(): string {
     "- When extracts exist, open with **2–3 concrete facts** you are using (quoted or paraphrased from the text above) so the user sees the materials were read.",
     "- At the end, ask **at most one** narrow follow-up only if something essential is **absent** from both profile and extracts (e.g. one named Stanford faculty member). Never stack four separate requests.",
     "- If summary shows **0** usable extracts but files were listed, say that those files could not be read as text (expired URL, scan-only PDF, or Word doc) and suggest export to **selectable-text PDF** or paste key bullets — do not pretend you read a CV you did not receive as text.",
+    "## Profile-first when document text is missing",
+    "- If **usable extracted text** is **0** but **Applicant profile** already lists degree, institutions, GRE, experience, research interests, or bio, you **must still deliver** the user’s requested deliverable in full (e.g. a complete Georgia Tech–oriented SOP) using **only** that profile (and any partial doc hints).",
+    "- **Do not** refuse, hedge, or **lead** with document URL failures. Write the substantive answer first. At most **one brief closing sentence** may note that attached PDFs were not available as machine-readable text on the server and optional re-upload—never substitute that warning for the draft.",
     "- For essays/SOPs: ground claims in profile + extracts; do not invent GPA, GRE, employers, or rankings.",
     "- Verify school spelling (e.g. Stanford vs “Stamford”) when the user names a university.",
   ].join("\n");

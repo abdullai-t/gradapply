@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { auth } from "@/auth";
+import { admissionTermLabel } from "@/lib/admission-term";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -358,6 +359,9 @@ export default async function DashboardPage() {
                         <div className="truncate font-medium">{school.name}</div>
                         <div className="truncate text-xs text-muted-foreground">
                           {school.program}
+                          {school.term
+                            ? ` · ${admissionTermLabel(school.term)}`
+                            : ""}
                         </div>
                         <div
                           className={
@@ -397,7 +401,9 @@ export default async function DashboardPage() {
                       {spotlight.name}
                     </h3>
                     <p className="mt-1 text-sm text-white/75">
-                      {spotlight.country ?? "Location TBD"} · Next deadline{" "}
+                      {spotlight.country ?? "Location TBD"}
+                      {spotlight.term ? ` · ${admissionTermLabel(spotlight.term)}` : ""}{" "}
+                      · Next deadline{" "}
                       {spotlight.deadline
                         ? format(spotlight.deadline, "MMM d, yyyy")
                         : "—"}

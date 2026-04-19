@@ -23,8 +23,13 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { AddSchoolModal } from "@/components/add-school-modal";
+import {
+  ADMISSION_TERM_OPTIONS,
+  admissionTermLabel,
+} from "@/lib/admission-term";
 import { progressFromStatus } from "@/lib/school-progress";
 import { cn } from "@/lib/utils";
+import type { AdmissionTerm } from "@prisma/client";
 
 type SchoolStatus =
   | "PLANNING"
@@ -40,6 +45,7 @@ type SchoolRow = {
   program: string;
   degree: string;
   country: string | null;
+  term: AdmissionTerm | null;
   deadline: string | null;
   status: SchoolStatus;
   funding: string | null;
@@ -57,6 +63,8 @@ const statuses: SchoolStatus[] = [
   "REJECTED",
   "WITHDRAWN",
 ];
+
+const TERM_SELECT_NONE = "__term_none__";
 
 export default function SchoolsPage() {
   const [schools, setSchools] = useState<SchoolRow[]>([]);
@@ -135,6 +143,7 @@ export default function SchoolsPage() {
               const isOpen = expanded[school.id] === true;
               const summaryBits = [
                 school.country,
+                school.term ? admissionTermLabel(school.term) : null,
                 school.deadline
                   ? `Due ${format(new Date(school.deadline), "MMM d, yyyy")}`
                   : null,
@@ -228,6 +237,11 @@ export default function SchoolsPage() {
                           ) : (
                             <span className="italic">No country set</span>
                           )}
+                          {school.term ? (
+                            <span>Term: {admissionTermLabel(school.term)}</span>
+                          ) : (
+                            <span className="italic">No term set</span>
+                          )}
                           {school.deadline ? (
                             <span>
                               Deadline{" "}
@@ -254,6 +268,36 @@ export default function SchoolsPage() {
                         </div>
 
                         <div className="grid gap-3 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Admission term</Label>
+                            <Select
+                              value={
+                                school.term != null ? school.term : TERM_SELECT_NONE
+                              }
+                              onValueChange={(v) =>
+                                patchSchool(school.id, {
+                                  term:
+                                    v === TERM_SELECT_NONE
+                                      ? null
+                                      : (v as AdmissionTerm),
+                                })
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Term" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={TERM_SELECT_NONE}>
+                                  Not specified
+                                </SelectItem>
+                                {ADMISSION_TERM_OPTIONS.map(({ value, label }) => (
+                                  <SelectItem key={value} value={value}>
+                                    {label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                           <div className="space-y-2">
                             <Label>Status</Label>
                             <Select

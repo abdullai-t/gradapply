@@ -11,6 +11,7 @@ const items = [
   { href: "/assistant", label: "AI" },
   { href: "/documents", label: "Files" },
   { href: "/profile", label: "Profile" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export function MobileNav() {

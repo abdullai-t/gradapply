@@ -23,6 +23,30 @@ model User {
   emails        ProfEmail[]
   chatMessages  ChatMessage[]
   documents     Document[]
+  connectors    Connector[]
+}
+
+/// Linked external accounts (e.g. Gmail API for sending outreach).
+model Connector {
+  id              String            @id @default(cuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider        ConnectorProvider
+  /// Linked Google account email shown in UI (Gmail profile or OAuth userinfo).
+  externalEmail   String?
+  refreshToken    String            @db.Text
+  accessToken     String?           @db.Text
+  accessExpiresAt DateTime?
+  scopes          String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([userId, provider])
+}
+
+enum ConnectorProvider {
+  GMAIL
+  GOOGLE_DRIVE
 }
 
 model Account {
@@ -80,21 +104,23 @@ model Profile {
 }
 
 model School {
-  id        String       @id @default(cuid())
+  id        String         @id @default(cuid())
   userId    String
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
   program   String
   degree    String
   country   String?
+  /// Intake term (e.g. Fall 2026)
+  term      AdmissionTerm?
   deadline  DateTime?
-  status    SchoolStatus @default(PLANNING)
+  status    SchoolStatus   @default(PLANNING)
   funding   String?
   notes     String?
   portalUrl String?
-  progress  Int          @default(0)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  progress  Int            @default(0)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
 }
 
 enum SchoolStatus {
@@ -104,6 +130,12 @@ enum SchoolStatus {
   ACCEPTED
   REJECTED
   WITHDRAWN
+}
+
+enum AdmissionTerm {
+  FALL
+  SPRING
+  SUMMER
 }
 
 model ProfEmail {
