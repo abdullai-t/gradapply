@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String?   @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  /// bcrypt hash for email/password sign-in; null for OAuth-only users
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+  accounts      Account[]
+  sessions      Session[]
+  profile       Profile?
+  schools       School[]
+  emails        ProfEmail[]
+  chatMessages  ChatMessage[]
+  documents     Document[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Profile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetDegree      String?
+  focusArea         String?
+  greScore          String?
+  greVerbal         Int?
+  greQuant          Int?
+  greAWA            Float?
+  undergradSchool   String?
+  undergradDegree   String?
+  undergradGPA      Float?
+  yearsExperience   String?
+  researchInterests String?
+  bio               String?
+  updatedAt         DateTime @updatedAt
+}
+
+model School {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  program   String
+  degree    String
+  country   String?
+  deadline  DateTime?
+  status    SchoolStatus @default(PLANNING)
+  funding   String?
+  notes     String?
+  portalUrl String?
+  progress  Int          @default(0)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
+enum SchoolStatus {
+  PLANNING
+  APPLIED
+  WAITING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+model ProfEmail {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Filled by AI from the profile URL when possible; user can edit.
+  profName      String?
+  profEmail     String?
+  university    String?
+  /// Faculty profile / lab / directory page — primary input for AI extraction + drafting
+  profileUrl    String?
+  researchArea  String?
+  emailSubject  String?
+  emailBody     String?
+  status        EmailStatus @default(DRAFT)
+  sentAt        DateTime?
+  repliedAt     DateTime?
+  replySnippet  String?
+  followUpCount Int         @default(0)
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+enum EmailStatus {
+  DRAFT
+  SENT
+  REPLIED
+  NO_REPLY
+  NOT_INTERESTED
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String
+  content   String   @db.Text
+  mode      String?
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  type      String
+  url       String
+  s3Key     String?
+  mimeType  String?
+  size      Int?
+  createdAt DateTime @default(now())
+}
