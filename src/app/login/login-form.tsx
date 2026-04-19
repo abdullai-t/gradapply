@@ -336,14 +336,7 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
                 ) : null}
               </form>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Magic link sign-in needs{" "}
-                <code className="text-xs">EMAIL_SERVER</code> +{" "}
-                <code className="text-xs">EMAIL_FROM</code>, or{" "}
-                <code className="text-xs">SMTP_HOST</code> /{" "}
-                <code className="text-xs">SMTP_USER</code> /{" "}
-                <code className="text-xs">SMTP_PASSWORD</code>.
-              </p>
+        <></>
             )}
           </CardContent>
         </Card>

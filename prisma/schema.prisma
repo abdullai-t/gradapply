@@ -26,7 +26,7 @@ model User {
   connectors    Connector[]
 }
 
-/// Linked external accounts (e.g. Gmail API for sending outreach).
+/// Per-user OAuth links to Google (row per user + provider). Refresh tokens are never shared across users.
 model Connector {
   id              String            @id @default(cuid())
   userId          String

@@ -61,6 +61,8 @@ export default function EmailsPage() {
   const [working, setWorking] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [gmailConnected, setGmailConnected] = useState(false);
+  /** False when deployer omitted GOOGLE_CLIENT_ID / SECRET (connectors unavailable). */
+  const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState(true);
   const [sendingViaGmail, setSendingViaGmail] = useState(false);
 
   const load = async () => {
@@ -79,8 +81,10 @@ export default function EmailsPage() {
       const res = await fetch("/api/connectors");
       if (!res.ok) return;
       const data = (await res.json()) as {
+        googleOAuthConfigured?: boolean;
         connectors: { provider: string; connected: boolean }[];
       };
+      setGoogleOAuthConfigured(data.googleOAuthConfigured !== false);
       const g = data.connectors.find((c) => c.provider === "gmail");
       setGmailConnected(Boolean(g?.connected));
     })();
@@ -187,12 +191,19 @@ export default function EmailsPage() {
           </Link>
           . Edit the manuscript before sending.
         </p>
-        {!gmailConnected ? (
+        {!googleOAuthConfigured ? (
+          <p className="max-w-2xl text-sm text-amber-200/90">
+            This deployment has not set <code className="text-xs">GOOGLE_CLIENT_ID</code> /{" "}
+            <code className="text-xs">GOOGLE_CLIENT_SECRET</code>—ask whoever runs the site.
+            When added, <strong>you</strong> connect <strong>your</strong> Gmail in Settings;
+            tokens stay on your account only.
+          </p>
+        ) : !gmailConnected ? (
           <p className="max-w-2xl text-sm text-amber-200/90">
             <Link href="/settings" className="font-medium text-primary underline-offset-4 hover:underline">
-              Connect Gmail in Settings
+              Connect your Gmail in Settings
             </Link>{" "}
-            to send drafts from your own mailbox without copying to another client.
+            to send drafts from your mailbox (stored only for your user).
           </p>
         ) : null}
       </header>
@@ -232,17 +243,20 @@ export default function EmailsPage() {
                       variant="default"
                       disabled={
                         sendingViaGmail ||
+                        !googleOAuthConfigured ||
                         !gmailConnected ||
                         !selected.profEmail?.trim() ||
                         !selected.emailSubject?.trim() ||
                         !selected.emailBody?.trim()
                       }
                       title={
-                        !gmailConnected
-                          ? "Connect Gmail under Settings first"
-                          : !selected.profEmail?.trim()
-                            ? "Add professor email"
-                            : undefined
+                        !googleOAuthConfigured
+                          ? "Google OAuth not configured on this server"
+                          : !gmailConnected
+                            ? "Connect your Gmail under Settings first"
+                            : !selected.profEmail?.trim()
+                              ? "Add professor email"
+                              : undefined
                       }
                       onClick={() => void sendViaGmail(selected.id)}
                     >

@@ -1,13 +1,23 @@
 /**
  * Shared Google OAuth token exchange (same client as Gmail / Drive connectors).
+ *
+ * The OAuth *client* ID/secret identify GradApply to Google (server env).
+ * Each user’s *refresh token* is stored per-user in `Connector` — not shared.
  */
+
+/** True when the deployment can run Google OAuth (admin-configured env). */
+export function isGoogleOAuthConfigured(): boolean {
+  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+  return Boolean(clientId && clientSecret);
+}
 
 function requireGoogleCreds(): { clientId: string; clientSecret: string } {
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
   if (!clientId || !clientSecret) {
     throw new Error(
-      "Google connectors require GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
+      "Google OAuth is not configured on this server (missing GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).",
     );
   }
   return { clientId, clientSecret };

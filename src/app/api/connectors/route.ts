@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ConnectorProvider } from "@prisma/client";
 
 import { auth } from "@/auth";
+import { isGoogleOAuthConfigured } from "@/lib/google-oauth-tokens";
 import { prisma } from "@/lib/prisma";
 
 /** List linked connectors (no secrets). */
@@ -32,6 +33,8 @@ export async function GET() {
   ]);
 
   return NextResponse.json({
+    /** App-wide Google OAuth client is configured (env). Each user still has their own tokens in `Connector`. */
+    googleOAuthConfigured: isGoogleOAuthConfigured(),
     connectors: [
       {
         provider: "gmail" as const,

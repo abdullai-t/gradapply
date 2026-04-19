@@ -35,6 +35,8 @@ export function ConnectorsSettings() {
   const [disconnecting, setDisconnecting] = useState<
     "gmail" | "google_drive" | null
   >(null);
+  /** null = still loading from API */
+  const [oauthConfigured, setOauthConfigured] = useState<boolean | null>(null);
   const [banner, setBanner] = useState<{
     tone: "ok" | "err";
     message: string;
@@ -46,8 +48,10 @@ export function ConnectorsSettings() {
       const res = await fetch("/api/connectors");
       if (!res.ok) throw new Error("failed");
       const data = (await res.json()) as {
+        googleOAuthConfigured?: boolean;
         connectors: ConnectorRow[];
       };
+      setOauthConfigured(data.googleOAuthConfigured !== false);
       const g = data.connectors.find((c) => c.provider === "gmail");
       const d = data.connectors.find((c) => c.provider === "google_drive");
       if (g) setGmail(g);
@@ -123,11 +127,6 @@ export function ConnectorsSettings() {
           <PlugZap className="h-5 w-5 text-primary" aria-hidden />
           <CardTitle className="font-display text-xl">Connectors</CardTitle>
         </div>
-        <CardDescription>
-          Link Google services with the same OAuth client as “Sign in with Google”.
-          Gmail sends outreach from your mailbox; Drive enables future imports of CVs
-          and drafts.
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {banner ? (
@@ -180,14 +179,25 @@ export function ConnectorsSettings() {
               >
                 {disconnecting === "gmail" ? "Disconnecting…" : "Disconnect"}
               </Button>
+            ) : oauthConfigured === false ||
+              oauthConfigured === null ||
+              loading ? (
+              <Button
+                type="button"
+                disabled
+                title={
+                  oauthConfigured === false
+                    ? "Server missing Google OAuth env vars"
+                    : undefined
+                }
+              >
+                Connect Gmail
+              </Button>
             ) : (
-              <Button type="button" asChild disabled={loading}>
+              <Button type="button" asChild>
                 <a href="/api/connectors/gmail/start">Connect Gmail</a>
               </Button>
             )}
-            <Button type="button" variant="secondary" asChild>
-              <Link href="/emails">Professor emails</Link>
-            </Button>
           </div>
         </div>
 
@@ -230,30 +240,22 @@ export function ConnectorsSettings() {
               >
                 {disconnecting === "google_drive" ? "Disconnecting…" : "Disconnect"}
               </Button>
+            ) : oauthConfigured === false ||
+              oauthConfigured === null ||
+              loading ? (
+              <Button type="button" disabled>
+                Connect Google Drive
+              </Button>
             ) : (
-              <Button type="button" asChild disabled={loading}>
-                <a href="/api/connectors/google-drive/start">Connect Google Drive</a>
+              <Button type="button" asChild>
+                <a href="/api/connectors/google-drive/start">
+                  Connect Google Drive
+                </a>
               </Button>
             )}
-            <Button type="button" variant="secondary" asChild>
-              <Link href="/documents">Documents</Link>
-            </Button>
           </div>
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          In Google Cloud Console, enable <strong>Gmail API</strong> and{" "}
-          <strong>Google Drive API</strong>, and add authorized redirect URIs (see{" "}
-          <code className="text-[11px]">.env.example</code>): login callback,{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
-            …/api/connectors/gmail/callback
-          </code>
-          , and{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
-            …/api/connectors/google-drive/callback
-          </code>
-          .
-        </p>
       </CardContent>
     </Card>
   );
