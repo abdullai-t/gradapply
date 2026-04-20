@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { auth } from "@/auth";
+import {
+  billingPrecheckResponse,
+  finalizeAiConsumption,
+} from "@/lib/billing-allowance";
 import { prisma } from "@/lib/prisma";
 import { AdmissionTerm } from "@prisma/client";
 
@@ -23,6 +27,9 @@ export async function POST(req: Request) {
   if (!parsed.success)
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
+  const quota = await billingPrecheckResponse(session.user.id);
+  if (quota) return quota;
+
   const profile = await prisma.profile.findUnique({
     where: { userId: session.user.id },
   });
@@ -34,6 +41,7 @@ export async function POST(req: Request) {
       profile,
       userId: session.user.id,
     });
+    await finalizeAiConsumption(session.user.id);
     return NextResponse.json(fields);
   } catch (e) {
     return NextResponse.json(

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 
+import { BillingSettings } from "@/components/billing-settings";
 import { ConnectorsSettings } from "@/components/connectors-settings";
 
 export default function SettingsPage() {
@@ -17,6 +18,16 @@ export default function SettingsPage() {
           accounts.
         </p>
       </div>
+
+      <Suspense
+        fallback={
+          <div className="rounded-xl border border-white/10 bg-muted/20 p-8 text-sm text-muted-foreground">
+            Loading billing…
+          </div>
+        }
+      >
+        <BillingSettings />
+      </Suspense>
 
       <Suspense
         fallback={

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { auth } from "@/auth";
+import { billingPrecheckResponse, finalizeAiConsumption } from "@/lib/billing-allowance";
 import { discoverFacultyFromSchoolPrograms } from "@/lib/faculty-discovery-ai";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
 import {
@@ -26,6 +27,9 @@ export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success)
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+
+  const quota = await billingPrecheckResponse(session.user.id);
+  if (quota) return quota;
 
   try {
     assertProfEmailLlmAllowed(session.user.id);
@@ -79,6 +83,7 @@ export async function POST(req: Request) {
       userId: session.user.id,
     });
 
+    await finalizeAiConsumption(session.user.id);
     markProfEmailLlmSuccess(session.user.id);
     return NextResponse.json(result);
   } catch (e) {

@@ -4,8 +4,8 @@ export type LlmProvider = "anthropic" | "openrouter" | "openai";
  * Global default backend for one-shot LLM calls (school infer, professor extract, etc.).
  *
  * - Set `AI_PROVIDER=openrouter`, `anthropic`, or `openai` to force when multiple keys exist.
- * - Otherwise: **OpenAI is the default** whenever `OPENAI_API_KEY` is set (even alongside other keys).
- *   If OpenAI is not configured: OpenRouter beats Anthropic when both exist.
+ * - Otherwise: **OpenRouter is preferred** whenever `OPENROUTER_API_KEY` is set alongside other keys.
+ *   If OpenRouter is not configured: native OpenAI beats Anthropic when both exist.
  *
  * @see https://openrouter.ai/docs/quickstart
  */
@@ -46,10 +46,11 @@ export function getLlmProvider(): LlmProvider {
   if (hasAnthropic && !hasOpenRouter && !hasOpenAi) return "anthropic";
   if (hasOpenAi && !hasOpenRouter && !hasAnthropic) return "openai";
 
-  /** Prefer native OpenAI whenever that key exists. */
-  if (hasOpenAi) return "openai";
+  /** Prefer OpenRouter whenever that key exists with other providers. */
+  if (hasOpenRouter) return "openrouter";
 
-  if (hasAnthropic && hasOpenRouter) return "openrouter";
+  /** OpenAI + Anthropic only: prefer native OpenAI. */
+  if (hasOpenAi) return "openai";
 
   throw new Error(
     "No LLM configured. Set OPENROUTER_API_KEY, ANTHROPIC_API_KEY, and/or OPENAI_API_KEY (see .env.example).",

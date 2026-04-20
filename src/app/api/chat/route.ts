@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import {
+  billingPrecheckResponse,
+  finalizeAiConsumption,
+} from "@/lib/billing-allowance";
 import { prisma } from "@/lib/prisma";
 import { runAssistantChat, type ChatMode } from "@/lib/ai";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
@@ -22,6 +26,9 @@ export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success)
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+
+  const quota = await billingPrecheckResponse(session.user.id);
+  if (quota) return quota;
 
   const mode = parsed.data.mode as ChatMode;
   const message = parsed.data.message;
@@ -98,6 +105,8 @@ export async function POST(req: Request) {
       },
     }),
   ]);
+
+  await finalizeAiConsumption(session.user.id);
 
   return NextResponse.json({ reply, agent });
 }

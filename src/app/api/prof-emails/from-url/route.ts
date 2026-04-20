@@ -8,6 +8,10 @@ import { fetchProfilePagePlainText } from "@/lib/profile-page-fetch";
 import { extractProfessorAndDraftFromPage } from "@/lib/professor-from-url-ai";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
 import {
+  billingPrecheckResponse,
+  finalizeAiConsumption,
+} from "@/lib/billing-allowance";
+import {
   assertProfEmailLlmAllowed,
   markProfEmailLlmAttempt,
   markProfEmailLlmSuccess,
@@ -27,6 +31,9 @@ export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success)
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+
+  const quota = await billingPrecheckResponse(session.user.id);
+  if (quota) return quota;
 
   try {
     assertProfEmailLlmAllowed(session.user.id);
@@ -94,6 +101,7 @@ export async function POST(req: Request) {
     },
   });
 
+  await finalizeAiConsumption(session.user.id);
   markProfEmailLlmSuccess(session.user.id);
   return NextResponse.json(row);
 }

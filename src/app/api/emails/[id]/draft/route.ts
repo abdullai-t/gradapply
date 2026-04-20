@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 
 import { draftProfessorEmail } from "@/lib/ai";
 import { auth } from "@/auth";
+import {
+  billingPrecheckResponse,
+  finalizeAiConsumption,
+} from "@/lib/billing-allowance";
 import { prisma } from "@/lib/prisma";
 import { fetchProfilePagePlainText } from "@/lib/profile-page-fetch";
 import { extractProfessorAndDraftFromPage } from "@/lib/professor-from-url-ai";
@@ -19,6 +23,9 @@ export async function POST(
     where: { id: params.id, userId: session.user.id },
   });
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const quota = await billingPrecheckResponse(session.user.id);
+  if (quota) return quota;
 
   const profile = await prisma.profile.findUnique({
     where: { userId: session.user.id },
@@ -53,6 +60,7 @@ export async function POST(
           profileUrl: fetched.url,
         },
       });
+      await finalizeAiConsumption(session.user.id);
       return NextResponse.json(updated);
     } catch (e) {
       return NextResponse.json(
@@ -88,6 +96,8 @@ export async function POST(
       emailBody: draft.body,
     },
   });
+
+  await finalizeAiConsumption(session.user.id);
 
   return NextResponse.json(updated);
 }
