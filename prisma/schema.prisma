@@ -7,6 +7,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum PlanTier {
+  FREE
+  PLUS
+  PRO
+}
+
+/// Dedupe Stripe webhook deliveries (same event id must not apply twice).
+model StripeEventLog {
+  eventId   String   @id
+  createdAt DateTime @default(now())
+}
+
+/// Dedupe Paystack fulfillment (callback + webhook) per transaction reference.
+model PaystackEventLog {
+  reference String   @id
+  createdAt DateTime @default(now())
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String?   @unique
@@ -16,6 +34,22 @@ model User {
   /// bcrypt hash for email/password sign-in; null for OAuth-only users
   passwordHash  String?
   createdAt     DateTime  @default(now())
+
+  /// Subscription & AI allowance. Enforced when Stripe and/or Paystack keys are set (see billing-config).
+  planTier             PlanTier @default(FREE)
+  stripeCustomerId     String?  @unique
+  stripeSubscriptionId String?
+  stripePriceId        String?
+  subscriptionStatus   String?
+  currentPeriodEnd     DateTime?
+  /// Paystack customer id (numeric string from API) and subscription code for renewals / portal.
+  paystackCustomerId       String? @unique
+  paystackSubscriptionCode String?
+  /// Successful AI actions counted against monthly tier allowance this billing period.
+  aiUsageUsed          Int      @default(0)
+  /// Bonus credits from one-time packs; consumed before monthly allowance.
+  aiCreditsBalance     Int      @default(0)
+
   accounts      Account[]
   sessions      Session[]
   profile       Profile?

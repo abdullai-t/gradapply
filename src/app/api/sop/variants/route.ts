@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { auth } from "@/auth";
+import {
+  billingPrecheckResponse,
+  finalizeAiConsumption,
+} from "@/lib/billing-allowance";
 import { prisma } from "@/lib/prisma";
 import { extractPlainTextFromStoredDocument } from "@/lib/llm-user-context";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
@@ -81,6 +85,9 @@ export async function POST(req: Request) {
     where: { id: parsed.data.schoolId, userId: session.user.id },
   });
   if (!school) return NextResponse.json({ error: "School not found" }, { status: 404 });
+
+  const quota = await billingPrecheckResponse(session.user.id);
+  if (quota) return quota;
 
   try {
     assertSopGenerateAllowed(session.user.id);
@@ -170,6 +177,7 @@ export async function POST(req: Request) {
     },
   });
 
+  await finalizeAiConsumption(session.user.id);
   markSopGenerateSuccess(session.user.id);
 
   return NextResponse.json({ variant });

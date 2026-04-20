@@ -23,6 +23,43 @@ Recommended optional variables:
 - Uploads: `CLOUDINARY_URL` (or S3-compatible vars your repo documents for storage)
 - Google auth/connectors: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 
+### Stripe billing (optional)
+
+When `STRIPE_SECRET_KEY` is set, the app enforces **per-user monthly AI allowances** by plan and optional **credit packs**. If `STRIPE_SECRET_KEY` is unset, billing checks are skipped (useful for self-hosted / dev).
+
+**Server env:**
+
+- `STRIPE_SECRET_KEY` — Stripe secret API key
+- `STRIPE_WEBHOOK_SECRET` — signing secret from the Stripe webhook endpoint (dashboard → Developers → Webhooks)
+- `STRIPE_PRICE_PLUS_MONTHLY`, `STRIPE_PRICE_PRO_MONTHLY` — recurring Price IDs for Plus / Pro
+- `STRIPE_PRICE_CREDITS_PACK` — one-time Price ID for a credit bundle
+
+**Webhook URL (production):** `https://<your-domain>/api/webhooks/stripe` — enable events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`.
+
+**Optional tuning:**
+
+- `BILLING_FREE_MONTHLY_AI` (default `35`), `BILLING_PLUS_MONTHLY_AI` (default `200`), `BILLING_PRO_MONTHLY_AI` (default `600`)
+- `STRIPE_CREDITS_PACK_SIZE` — credits granted per successful credit-pack checkout (default `50`)
+
+Users manage plans from **Settings** (checkout + billing portal).
+
+### Paystack billing (optional)
+
+When `PAYSTACK_SECRET_KEY` is set (with or without Stripe), the same **monthly AI allowances** and **credit packs** apply. Checkout uses **Stripe first** when the secret key and price IDs for that product are configured; otherwise it uses Paystack.
+
+**Server env:**
+
+- `PAYSTACK_SECRET_KEY` — Paystack secret key (Dashboard → Settings → API Keys & Webhooks)
+- `PAYSTACK_CURRENCY` — ISO code (default `GHS`). Amounts below are in the **smallest currency unit** (pesewas, kobo, etc.).
+- `PAYSTACK_PLAN_CODE_PLUS`, `PAYSTACK_PLAN_CODE_PRO` — plan codes from Paystack Plans (for subscriptions)
+- `PAYSTACK_AMOUNT_CREDITS_MINOR` — one-time credit-pack amount in minor units (default `5000` = e.g. 50.00 in GHS)
+
+**Webhook URL (production):** `https://<your-domain>/api/webhooks/paystack` — enable **`charge.success`**. Paystack signs payloads; the raw body must match what was sent (already handled in the route handler).
+
+**Callback:** `https://<your-domain>/api/billing/paystack/callback` — set automatically on `POST /api/billing/checkout` for Paystack checkouts (`callback_url`). Users must have an **email** on their account for Paystack checkout.
+
+Optional: `PAYSTACK_CREDITS_PACK_SIZE` aliases the same credit count as `STRIPE_CREDITS_PACK_SIZE` / `CREDITS_PACK_SIZE` (see `billing-config`).
+
 ### Rate limits (optional tuning)
 
 Abuse protection uses **in-memory** counters per server instance (see `src/lib/sop-generate-rate-limit.ts` and `src/lib/prof-email-llm-rate-limit.ts`). Defaults are sensible for a single-node or low-traffic deploy; for **multiple Vercel regions / instances**, consider Redis-backed limits later.
@@ -111,6 +148,25 @@ Requirements: production `DATABASE_URL` must be available at build time (normal 
 ### GitHub Actions
 
 CI runs `pnpm lint` and `pnpm typecheck` on pushes and pull requests to `main` / `master` (see `.github/workflows/ci.yml`). Fix failures before merging to avoid broken production builds.
+
+### Stop production when CI fails
+
+This repo’s workflow is **`CI`** with a required job named **`Lint and typecheck`**. Wire it up in two places so failing lint/typecheck cannot ship to users:
+
+**1. GitHub (merge gate)** — Settings → **Branches** → branch protection rule for `main` (and `master` if you use it):
+
+- Enable **Require status checks to pass before merging**.
+- Add the required check **`Lint and typecheck`** (it appears under the **`CI`** workflow after at least one successful run).
+
+This blocks merging broken commits into the default branch.
+
+**2. Vercel (production domain gate)** — Project → **Settings** → **Deployment Checks** → **Add Checks**:
+
+- Choose **GitHub** and select the same check (**`Lint and typecheck`** / **`CI`**), per [Vercel Deployment Checks](https://vercel.com/docs/deployment-checks).
+
+Vercel may still **build** the deployment, but it will **not assign your production domain** until that GitHub check passes. Admins can **Force Promote** in Vercel only if you explicitly bypass (avoid for routine deploys).
+
+**Preview deployments** from pull requests are not replaced by this alone; the merge gate + production checks cover the usual “don’t ship bad `main`” path. To avoid preview builds entirely until CI passes, you would need a custom flow (for example deploy only from a GitHub Action after CI).
 
 ## 6) Post-deploy smoke test
 

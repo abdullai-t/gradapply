@@ -16,9 +16,9 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "GradApply — Applications & outreach",
+  title: "GradApply — Graduate applications, organized",
   description:
-    "Track graduate school applications, professor emails, and prep with AI.",
+    "The calm command center for grad school: track programs and deadlines, draft professor outreach, version your SOP and CV, and use AI as an editor — not a replacement for your voice.",
   icons: {
     icon: [{ url: "/favicon.ico", sizes: "any" }],
     apple: "/apple-icon.png",

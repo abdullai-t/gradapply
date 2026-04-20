@@ -6,6 +6,10 @@ import { fetchProfilePagePlainText } from "@/lib/profile-page-fetch";
 import { extractProfessorAndDraftFromPage } from "@/lib/professor-from-url-ai";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
 import {
+  billingPrecheckResponse,
+  finalizeAiConsumption,
+} from "@/lib/billing-allowance";
+import {
   assertProfEmailLlmAllowed,
   markProfEmailLlmAttempt,
   markProfEmailLlmSuccess,
@@ -26,6 +30,9 @@ export async function POST(
     return NextResponse.json({ error: "Invalid id." }, { status: 400 });
 
   const id = idParsed.data;
+
+  const quota = await billingPrecheckResponse(session.user.id);
+  if (quota) return quota;
 
   try {
     assertProfEmailLlmAllowed(session.user.id);
@@ -85,6 +92,7 @@ export async function POST(
           profileUrl: fetched.url,
         },
       });
+      await finalizeAiConsumption(session.user.id);
       markProfEmailLlmSuccess(session.user.id);
       return NextResponse.json(updated);
     } catch (e) {
@@ -122,6 +130,7 @@ export async function POST(
     },
   });
 
+  await finalizeAiConsumption(session.user.id);
   markProfEmailLlmSuccess(session.user.id);
   return NextResponse.json(updated);
 }
