@@ -86,6 +86,65 @@ export function buildPlainTextRfc822(args: {
   return lines.join("\r\n");
 }
 
+export type GmailAttachment = {
+  filename: string;
+  contentType: string;
+  data: Buffer;
+};
+
+function wrapBase64(raw: string): string {
+  return raw.replace(/.{1,76}/g, "$&\r\n").trimEnd();
+}
+
+/** RFC822 message with optional binary attachments. */
+export function buildRfc822WithAttachments(args: {
+  from: string;
+  to: string;
+  subject: string;
+  body: string;
+  attachments: GmailAttachment[];
+}): string {
+  if (!args.attachments.length) {
+    return buildPlainTextRfc822(args);
+  }
+
+  const subj = args.subject.replace(/\r?\n/g, " ").trim();
+  const boundary = `ga-boundary-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+  const bodyText = args.body.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
+
+  const parts: string[] = [
+    `From: ${args.from}`,
+    `To: ${args.to}`,
+    `Subject: ${subj}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    bodyText,
+  ];
+
+  for (const file of args.attachments) {
+    const safeName = file.filename.replace(/"/g, "");
+    parts.push(
+      "",
+      `--${boundary}`,
+      `Content-Type: ${file.contentType}; name="${safeName}"`,
+      `Content-Disposition: attachment; filename="${safeName}"`,
+      "Content-Transfer-Encoding: base64",
+      "",
+      wrapBase64(file.data.toString("base64")),
+    );
+  }
+
+  parts.push("", `--${boundary}--`, "");
+  return parts.join("\r\n");
+}
+
 export function rfc822ToGmailRaw(rfc822: string): string {
   return Buffer.from(rfc822, "utf8")
     .toString("base64")
