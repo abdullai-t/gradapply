@@ -37,7 +37,7 @@ const FETCH_HEADER_SETS: Record<string, string>[] = [
 async function fetchUrlBufferOnce(
   url: string,
   headers: Record<string, string>,
-): Promise<Buffer | null> {
+): Promise<{ buffer: Buffer | null; tooLarge: boolean }> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -46,36 +46,59 @@ async function fetchUrlBufferOnce(
       redirect: "follow",
       headers,
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { buffer: null, tooLarge: false };
     const len = res.headers.get("content-length");
-    if (len && Number(len) > MAX_SINGLE_ATTACHMENT_BYTES) return null;
+    if (len && Number(len) > MAX_SINGLE_ATTACHMENT_BYTES) {
+      return { buffer: null, tooLarge: true };
+    }
     const ab = await res.arrayBuffer();
     if (ab.byteLength === 0 || ab.byteLength > MAX_SINGLE_ATTACHMENT_BYTES) {
-      return null;
+      return { buffer: null, tooLarge: ab.byteLength > MAX_SINGLE_ATTACHMENT_BYTES };
     }
-    return Buffer.from(ab);
+    return { buffer: Buffer.from(ab), tooLarge: false };
   } catch {
-    return null;
+    return { buffer: null, tooLarge: false };
   } finally {
     clearTimeout(timer);
   }
 }
 
+function inferS3KeyFromUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const path = decodeURIComponent(u.pathname).replace(/^\/+/, "");
+    if (path.startsWith("users/")) return path;
+
+    const m = path.match(/(?:^|\/)(users\/.+)$/);
+    if (m?.[1]) return m[1];
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 async function fetchDocumentBuffer(doc: {
   url: string;
   s3Key: string | null;
-}): Promise<Buffer | null> {
+}): Promise<{ buffer: Buffer | null; reason: "ok" | "too_large" | "unreachable" }> {
+  let tooLarge = false;
   for (const headers of FETCH_HEADER_SETS) {
     const fromUrl = await fetchUrlBufferOnce(doc.url, headers);
-    if (fromUrl && fromUrl.length > 0) return fromUrl;
+    if (fromUrl.buffer && fromUrl.buffer.length > 0) {
+      return { buffer: fromUrl.buffer, reason: "ok" };
+    }
+    if (fromUrl.tooLarge) tooLarge = true;
   }
 
-  if (doc.s3Key?.startsWith("users/")) {
-    const fromS3 = await getObjectBuffer(doc.s3Key, MAX_SINGLE_ATTACHMENT_BYTES);
-    if (fromS3 && fromS3.length > 0) return fromS3;
+  const maybeKey = doc.s3Key?.startsWith("users/")
+    ? doc.s3Key
+    : inferS3KeyFromUrl(doc.url);
+  if (maybeKey?.startsWith("users/")) {
+    const fromS3 = await getObjectBuffer(maybeKey, MAX_SINGLE_ATTACHMENT_BYTES);
+    if (fromS3 && fromS3.length > 0) return { buffer: fromS3, reason: "ok" };
   }
 
-  return null;
+  return { buffer: null, reason: tooLarge ? "too_large" : "unreachable" };
 }
 
 export async function POST(
@@ -192,11 +215,16 @@ export async function POST(
             { status: 400 },
           );
         }
-        const buf = await fetchDocumentBuffer(doc);
+        const fetched = await fetchDocumentBuffer(doc);
+        const buf = fetched.buffer;
         if (!buf) {
+          const reasonText =
+            fetched.reason === "too_large"
+              ? "The file is larger than the per-attachment limit (10MB)."
+              : "The file URL is not reachable from the server.";
           return NextResponse.json(
             {
-              error: `Could not download attachment "${doc.name}". Re-upload the file and try again.`,
+              error: `Could not download attachment "${doc.name}". ${reasonText} Re-upload the file and try again.`,
             },
             { status: 400 },
           );
