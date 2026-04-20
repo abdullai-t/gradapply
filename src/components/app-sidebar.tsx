@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  CalendarDays,
   LayoutDashboard,
   Mail,
   MessageSquare,
@@ -18,6 +19,7 @@ import { UserMenu } from "@/components/user-menu";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/timeline", label: "Timeline", icon: CalendarDays },
   { href: "/schools", label: "Schools", icon: School },
   { href: "/emails", label: "Professor emails", icon: Mail },
   { href: "/assistant", label: "AI assistant", icon: MessageSquare },

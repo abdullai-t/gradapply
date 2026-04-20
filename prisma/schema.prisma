@@ -22,8 +22,36 @@ model User {
   schools       School[]
   emails        ProfEmail[]
   chatMessages  ChatMessage[]
-  documents     Document[]
-  connectors    Connector[]
+  documents       Document[]
+  connectors      Connector[]
+  contentVersions ContentVersion[]
+  sopVariants     SopVariant[]
+}
+
+enum ContentEntityType {
+  SOP
+  CV
+  PROF_EMAIL
+  OTHER
+}
+
+/// Named snapshots for drafts (email text, SOP text, or file URL pointers).
+model ContentVersion {
+  id              String             @id @default(cuid())
+  userId          String
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entityType      ContentEntityType
+  entityId        String?
+  label           String
+  /// Plain text, or JSON for PROF_EMAIL: {"emailSubject":"...","emailBody":"..."}
+  body            String?            @db.Text
+  fileUrl         String?
+  createdAt       DateTime           @default(now())
+  parentVersionId String?
+  parentVersion   ContentVersion?    @relation("ContentVersionChain", fields: [parentVersionId], references: [id], onDelete: SetNull)
+  childVersions   ContentVersion[]   @relation("ContentVersionChain")
+
+  @@index([userId, entityType, entityId])
 }
 
 /// Per-user OAuth links to Google (row per user + provider). Refresh tokens are never shared across users.
@@ -119,8 +147,12 @@ model School {
   notes     String?
   portalUrl String?
   progress  Int            @default(0)
+  /// Optional nudge before/on the application deadline (email-style reminder in data model only).
+  reminderAt   DateTime?
+  reminderNote String?
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
+  sopVariant   SopVariant?
 }
 
 enum SchoolStatus {
@@ -152,9 +184,14 @@ model ProfEmail {
   emailSubject  String?
   emailBody     String?
   status        EmailStatus @default(DRAFT)
-  sentAt        DateTime?
-  repliedAt     DateTime?
-  replySnippet  String?
+  sentAt       DateTime?
+  repliedAt    DateTime?
+  /// Latest pasted or synced excerpt of the professor's reply (replaces legacy replySnippet).
+  lastReplySnippet String?
+  replyIntent               ReplyIntent?
+  suggestedReplyDraft       String?    @db.Text
+  replyRationale            String?    @db.Text
+  lastClassifiedAt DateTime?
   followUpCount Int         @default(0)
   notes         String?
   createdAt     DateTime    @default(now())
@@ -167,6 +204,13 @@ enum EmailStatus {
   REPLIED
   NO_REPLY
   NOT_INTERESTED
+}
+
+enum ReplyIntent {
+  INTERESTED
+  NEUTRAL
+  DECLINED
+  UNKNOWN
 }
 
 model ChatMessage {
@@ -190,4 +234,21 @@ model Document {
   mimeType  String?
   size      Int?
   createdAt DateTime @default(now())
+}
+
+/// Per-school tailored SOP derived from a master draft (uploaded `sop_draft` or pasted text).
+model SopVariant {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schoolId       String   @unique
+  school         School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  title          String
+  body           String   @db.Text
+  /// Master `Document.id` when the draft came from the library (`sop_draft`); null when pasted only.
+  sourceMasterId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { differenceInDays, format, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import {
   ArrowRight,
   Bell,
@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { SchoolStatus } from "@prisma/client";
+import { deadlineUrgency } from "@/lib/deadline-urgency";
 
 const DOC_TYPE_LABEL: Record<string, string> = {
   cv: "CV",
@@ -54,24 +55,6 @@ function firstName(name: string | null | undefined): string {
   return name.trim().split(/\s+/)[0] ?? "there";
 }
 
-function deadlineUrgency(deadline: Date): {
-  label: string;
-  tone: "muted" | "amber" | "destructive";
-} {
-  const d0 = startOfDay(deadline);
-  const today = startOfDay(new Date());
-  const diff = differenceInDays(d0, today);
-  if (diff < 0)
-    return {
-      label: `${Math.abs(diff)}d past`,
-      tone: "destructive",
-    };
-  if (diff === 0) return { label: "Due today", tone: "destructive" };
-  if (diff <= 3) return { label: `${diff}d left`, tone: "destructive" };
-  if (diff <= 14) return { label: `${diff}d left`, tone: "amber" };
-  return { label: `${diff}d left`, tone: "muted" };
-}
-
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) return null;
@@ -82,6 +65,7 @@ export default async function DashboardPage() {
     documents,
     profile,
     upcomingSchools,
+    reminderSchools,
   ] = await Promise.all([
     prisma.school.findMany({
       where: { userId: session.user.id },
@@ -110,6 +94,11 @@ export default async function DashboardPage() {
       },
       orderBy: { deadline: "asc" },
       take: 6,
+    }),
+    prisma.school.findMany({
+      where: { userId: session.user.id, reminderAt: { not: null } },
+      orderBy: [{ reminderAt: "asc" }, { name: "asc" }],
+      take: 8,
     }),
   ]);
 
@@ -382,9 +371,78 @@ export default async function DashboardPage() {
             </ul>
             <div className="border-t border-dashed border-white/15 px-5 py-4">
               <Button variant="outline" size="sm" className="w-full border-dashed" asChild>
-                <Link href="/schools">Add reminder — schools</Link>
+                <Link href="/timeline">Full timeline & reminders</Link>
               </Button>
             </div>
+          </section>
+
+          <section className="glass-panel rounded-2xl border border-white/10">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <Bell className="h-4 w-4 text-primary" aria-hidden />
+                <h2 className="font-display text-lg font-semibold">
+                  Reminder pings
+                </h2>
+              </div>
+              <Button variant="ghost" size="sm" className="text-primary" asChild>
+                <Link href="/timeline">Manage</Link>
+              </Button>
+            </div>
+            <ul className="divide-y divide-white/[0.06] px-2 py-2">
+              {reminderSchools.length === 0 ? (
+                <li className="px-3 py-8 text-center text-sm text-muted-foreground">
+                  No reminders yet.{" "}
+                  <Link href="/timeline" className="text-primary underline-offset-4 hover:underline">
+                    Schedule on the timeline
+                  </Link>
+                  .
+                </li>
+              ) : (
+                reminderSchools.map((school) => {
+                  const r = school.reminderAt!;
+                  const miss = r.getTime() < Date.now();
+                  return (
+                    <li key={school.id} className="flex gap-3 px-3 py-3.5">
+                      <div
+                        className={`flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg border text-center ${
+                          miss
+                            ? "border-amber-500/35 bg-amber-500/10"
+                            : "border-white/10 bg-white/[0.04]"
+                        }`}
+                      >
+                        <span className="text-[10px] font-medium uppercase text-muted-foreground">
+                          {format(r, "MMM")}
+                        </span>
+                        <span className="text-lg font-semibold leading-none">
+                          {format(r, "d")}
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium">{school.name}</div>
+                        {school.reminderNote?.trim() ? (
+                          <div className="line-clamp-2 text-xs text-muted-foreground">
+                            {school.reminderNote.trim()}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-muted-foreground">
+                            Ping scheduled
+                          </div>
+                        )}
+                        {miss ? (
+                          <div className="mt-1 text-xs font-medium text-amber-300">
+                            Check in
+                          </div>
+                        ) : (
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {format(r, "MMM d, yyyy")}
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
           </section>
 
           <section className="glass-panel overflow-hidden rounded-2xl border border-white/10">

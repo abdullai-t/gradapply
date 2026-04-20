@@ -2,6 +2,7 @@ import { BrandLogoMark } from "@/components/brand-logo";
 import { AppSidebar } from "@/components/app-sidebar";
 import { MainShellBackdrop } from "@/components/layout/glass-scene";
 import { MobileNav } from "@/components/mobile-nav";
+import { ReminderBanner } from "@/components/reminder-banner";
 import { UserMenu } from "@/components/user-menu";
 
 export default function MainLayout({
@@ -25,6 +26,7 @@ export default function MainLayout({
           <UserMenu />
         </header>
         <MobileNav />
+        <ReminderBanner />
         <main className="flex-1 px-4 py-8 md:px-10">{children}</main>
       </div>
     </div>

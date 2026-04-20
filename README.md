@@ -115,4 +115,4 @@ Run `**make help`** for a short description of each target (`install`, `dev`, `b
 
 Use any Node host that supports Next.js 14; set environment variables from `.env.example`, run `pnpm prisma migrate deploy`, `pnpm build`, and `pnpm start`. Point `AUTH_URL` / `NEXTAUTH_URL` at your public URL and add the same origin to Google OAuth redirect URIs if you use Google sign-in or connectors.
 
-For a full production checklist and repeatable migration workflow, see [`DEPLOY.md`](DEPLOY.md).
+For a full production checklist and repeatable migration workflow, see `[DEPLOY.md](DEPLOY.md)`.
