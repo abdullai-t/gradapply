@@ -1,23 +1,103 @@
 import { NextResponse } from "next/server";
 import { ConnectorProvider, EmailStatus } from "@prisma/client";
+import { z } from "zod";
 
 import { auth } from "@/auth";
 import {
-  buildPlainTextRfc822,
+  buildRfc822WithAttachments,
   ensureFreshGmailAccess,
   fetchGmailProfileEmail,
+  type GmailAttachment,
   gmailSendRawMessage,
   rfc822ToGmailRaw,
 } from "@/lib/gmail-connector";
 import { prisma } from "@/lib/prisma";
+import { getObjectBuffer } from "@/lib/s3";
+
+const sendBodySchema = z.object({
+  attachmentDocumentIds: z.array(z.string().min(1)).max(6).optional(),
+});
+
+const ALLOWED_ATTACHMENT_TYPES = new Set(["cv", "transcript", "gre"]);
+const MAX_SINGLE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const MAX_TOTAL_ATTACHMENT_BYTES = 18 * 1024 * 1024;
+const FETCH_TIMEOUT_MS = 20_000;
+const FETCH_HEADER_SETS: Record<string, string>[] = [
+  {
+    Accept: "*/*",
+    "User-Agent":
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+  },
+  {
+    Accept: "*/*",
+    "User-Agent": "GradApply/1.0 (gmail attachment fetch)",
+  },
+];
+
+async function fetchUrlBufferOnce(
+  url: string,
+  headers: Record<string, string>,
+): Promise<Buffer | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      redirect: "follow",
+      headers,
+    });
+    if (!res.ok) return null;
+    const len = res.headers.get("content-length");
+    if (len && Number(len) > MAX_SINGLE_ATTACHMENT_BYTES) return null;
+    const ab = await res.arrayBuffer();
+    if (ab.byteLength === 0 || ab.byteLength > MAX_SINGLE_ATTACHMENT_BYTES) {
+      return null;
+    }
+    return Buffer.from(ab);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchDocumentBuffer(doc: {
+  url: string;
+  s3Key: string | null;
+}): Promise<Buffer | null> {
+  for (const headers of FETCH_HEADER_SETS) {
+    const fromUrl = await fetchUrlBufferOnce(doc.url, headers);
+    if (fromUrl && fromUrl.length > 0) return fromUrl;
+  }
+
+  if (doc.s3Key?.startsWith("users/")) {
+    const fromS3 = await getObjectBuffer(doc.s3Key, MAX_SINGLE_ATTACHMENT_BYTES);
+    if (fromS3 && fromS3.length > 0) return fromS3;
+  }
+
+  return null;
+}
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string } },
 ) {
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const bodyJson = await req.json().catch(() => ({}));
+  const parsedBody = sendBodySchema.safeParse(bodyJson);
+  if (!parsedBody.success) {
+    return NextResponse.json(
+      { error: "Invalid attachment request payload." },
+      { status: 400 },
+    );
+  }
+
+  const attachmentIds = Array.from(
+    new Set(parsedBody.data.attachmentDocumentIds ?? []),
+  );
 
   const row = await prisma.profEmail.findFirst({
     where: { id: params.id, userId: session.user.id },
@@ -86,11 +166,67 @@ export async function POST(
       );
     }
 
-    const rfc822 = buildPlainTextRfc822({
+    const attachments: GmailAttachment[] = [];
+    if (attachmentIds.length > 0) {
+      const docs = await prisma.document.findMany({
+        where: {
+          id: { in: attachmentIds },
+          userId: session.user.id,
+        },
+      });
+
+      const docsById = new Map(docs.map((d) => [d.id, d]));
+      let totalBytes = 0;
+
+      for (const id of attachmentIds) {
+        const doc = docsById.get(id);
+        if (!doc) {
+          return NextResponse.json(
+            { error: "One or more selected attachments were not found." },
+            { status: 400 },
+          );
+        }
+        if (!ALLOWED_ATTACHMENT_TYPES.has(doc.type)) {
+          return NextResponse.json(
+            { error: `Unsupported attachment type for ${doc.name}.` },
+            { status: 400 },
+          );
+        }
+        const buf = await fetchDocumentBuffer(doc);
+        if (!buf) {
+          return NextResponse.json(
+            {
+              error: `Could not download attachment "${doc.name}". Re-upload the file and try again.`,
+            },
+            { status: 400 },
+          );
+        }
+
+        totalBytes += buf.length;
+        if (totalBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+          return NextResponse.json(
+            {
+              error:
+                "Attachments are too large for a single email. Use fewer or smaller files.",
+            },
+            { status: 400 },
+          );
+        }
+
+        attachments.push({
+          filename: doc.name,
+          contentType: doc.mimeType || "application/octet-stream",
+          data: buf,
+        });
+      }
+    }
+
+    const rfc822 = buildRfc822WithAttachments({
       from: externalEmail,
       to,
       subject,
       body,
+      attachments,
     });
     const raw = rfc822ToGmailRaw(rfc822);
     await gmailSendRawMessage(accessToken, raw);

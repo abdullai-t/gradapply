@@ -71,10 +71,6 @@ export default function ProfilePage() {
     () => optionsWithFallback(PROGRAM_OPTIONS, form.focusArea),
     [form.focusArea],
   );
-  const undergradDegreeItems = useMemo(
-    () => optionsWithFallback(DEGREE_OPTIONS, form.undergradDegree),
-    [form.undergradDegree],
-  );
 
   useEffect(() => {
     const load = async () => {
@@ -232,30 +228,11 @@ export default function ProfilePage() {
                   value={form.undergradSchool}
                   onChange={(v) => setForm({ ...form, undergradSchool: v })}
                 />
-                <div className="space-y-2">
-                  <Label>Undergrad degree</Label>
-                  <Select
-                    value={form.undergradDegree ? form.undergradDegree : SELECT_NONE}
-                    onValueChange={(v) =>
-                      setForm({
-                        ...form,
-                        undergradDegree: v === SELECT_NONE ? "" : v,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Not specified" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SELECT_NONE}>Not specified</SelectItem>
-                      {undergradDegreeItems.map((d) => (
-                        <SelectItem key={d} value={d}>
-                          {d}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Field
+                  label="Undergrad degree"
+                  value={form.undergradDegree}
+                  onChange={(v) => setForm({ ...form, undergradDegree: v })}
+                />
                 <Field
                   label="Undergrad GPA"
                   value={form.undergradGPA}

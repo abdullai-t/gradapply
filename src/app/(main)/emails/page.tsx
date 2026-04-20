@@ -45,6 +45,14 @@ type EmailRow = {
   notes: string | null;
 };
 
+type DocType = "cv" | "transcript" | "gre";
+type DocumentRow = {
+  id: string;
+  name: string;
+  type: string;
+};
+
+const ATTACHMENT_NONE = "__none__";
 const statuses: EmailStatus[] = [
   "DRAFT",
   "SENT",
@@ -55,6 +63,7 @@ const statuses: EmailStatus[] = [
 
 export default function EmailsPage() {
   const [rows, setRows] = useState<EmailRow[]>([]);
+  const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [drafting, setDrafting] = useState<string | null>(null);
   const [profileUrlInput, setProfileUrlInput] = useState("");
@@ -64,6 +73,15 @@ export default function EmailsPage() {
   /** False when deployer omitted GOOGLE_CLIENT_ID / SECRET (connectors unavailable). */
   const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState(true);
   const [sendingViaGmail, setSendingViaGmail] = useState(false);
+  const [attachmentSelection, setAttachmentSelection] = useState<{
+    cv: string;
+    transcript: string;
+    gre: string;
+  }>({
+    cv: ATTACHMENT_NONE,
+    transcript: ATTACHMENT_NONE,
+    gre: ATTACHMENT_NONE,
+  });
 
   const load = async () => {
     setLoading(true);
@@ -72,8 +90,16 @@ export default function EmailsPage() {
     setLoading(false);
   };
 
+  const loadDocuments = async () => {
+    const res = await fetch("/api/documents");
+    if (!res.ok) return;
+    const rows = (await res.json()) as DocumentRow[];
+    setDocuments(rows);
+  };
+
   useEffect(() => {
     void load();
+    void loadDocuments();
   }, []);
 
   useEffect(() => {
@@ -141,11 +167,22 @@ export default function EmailsPage() {
     if (res.ok) await load();
   };
 
+  const docsForType = (type: DocType) =>
+    documents.filter((d) => d.type === type);
+
   const sendViaGmail = async (id: string) => {
     setSendingViaGmail(true);
     try {
+      const attachmentDocumentIds = [
+        attachmentSelection.cv,
+        attachmentSelection.transcript,
+        attachmentSelection.gre,
+      ].filter((v) => v !== ATTACHMENT_NONE);
+
       const res = await fetch(`/api/prof-emails/${id}/send-via-gmail`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attachmentDocumentIds }),
       });
       const j = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
@@ -384,6 +421,82 @@ export default function EmailsPage() {
                     defaultValue={selected.emailBody ?? ""}
                     onBlur={(e) => patch(selected.id, { emailBody: e.target.value })}
                   />
+                </div>
+
+                <div className="space-y-3 rounded-lg border border-white/10 bg-black/15 p-3">
+                  <Label className="text-sm font-medium">Attachments (optional)</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Pick files to attach when sending via Gmail. Supported here: CV,
+                    transcript, GRE.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">CV</Label>
+                      <Select
+                        value={attachmentSelection.cv}
+                        onValueChange={(v) =>
+                          setAttachmentSelection((prev) => ({ ...prev, cv: v }))
+                        }
+                      >
+                        <SelectTrigger className="border-white/15 bg-black/20">
+                          <SelectValue placeholder="Select CV" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={ATTACHMENT_NONE}>No attachment</SelectItem>
+                          {docsForType("cv").map((doc) => (
+                            <SelectItem key={doc.id} value={doc.id}>
+                              {doc.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Transcript</Label>
+                      <Select
+                        value={attachmentSelection.transcript}
+                        onValueChange={(v) =>
+                          setAttachmentSelection((prev) => ({
+                            ...prev,
+                            transcript: v,
+                          }))
+                        }
+                      >
+                        <SelectTrigger className="border-white/15 bg-black/20">
+                          <SelectValue placeholder="Select transcript" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={ATTACHMENT_NONE}>No attachment</SelectItem>
+                          {docsForType("transcript").map((doc) => (
+                            <SelectItem key={doc.id} value={doc.id}>
+                              {doc.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">GRE score</Label>
+                      <Select
+                        value={attachmentSelection.gre}
+                        onValueChange={(v) =>
+                          setAttachmentSelection((prev) => ({ ...prev, gre: v }))
+                        }
+                      >
+                        <SelectTrigger className="border-white/15 bg-black/20">
+                          <SelectValue placeholder="Select GRE file" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={ATTACHMENT_NONE}>No attachment</SelectItem>
+                          {docsForType("gre").map((doc) => (
+                            <SelectItem key={doc.id} value={doc.id}>
+                              {doc.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
