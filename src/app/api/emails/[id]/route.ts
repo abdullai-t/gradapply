@@ -25,7 +25,7 @@ const patchSchema = z
     notes: z.string().nullable().optional(),
     sentAt: z.string().nullable().optional(),
     repliedAt: z.string().nullable().optional(),
-    replySnippet: z.string().nullable().optional(),
+    lastReplySnippet: z.string().nullable().optional(),
     followUpCount: z.number().int().min(0).optional(),
     markReplied: z.boolean().optional(),
   })
@@ -77,7 +77,8 @@ export async function PATCH(
   if (body.status !== undefined) data.status = body.status;
   if (body.notes !== undefined) data.notes = body.notes;
   if (body.followUpCount !== undefined) data.followUpCount = body.followUpCount;
-  if (body.replySnippet !== undefined) data.replySnippet = body.replySnippet;
+  if (body.lastReplySnippet !== undefined)
+    data.lastReplySnippet = body.lastReplySnippet;
 
   const sAt = parseDate(body.sentAt);
   if (sAt !== undefined) data.sentAt = sAt;

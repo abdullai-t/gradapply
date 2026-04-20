@@ -13,20 +13,26 @@ const createSchema = z.object({
   country: z.string().nullable().optional(),
   term: z.nativeEnum(AdmissionTerm).nullable().optional(),
   deadline: z.union([z.string(), z.null()]).optional(),
+  reminderAt: z.union([z.string(), z.null()]).optional(),
+  reminderNote: z.string().nullable().optional(),
   status: z.nativeEnum(SchoolStatus).optional(),
   funding: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   portalUrl: z.string().nullable().optional(),
 });
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const sort = new URL(req.url).searchParams.get("sort");
   const schools = await prisma.school.findMany({
     where: { userId: session.user.id },
-    orderBy: { updatedAt: "desc" },
+    orderBy:
+      sort === "timeline"
+        ? [{ deadline: "asc" }, { name: "asc" }]
+        : [{ updatedAt: "desc" }],
   });
 
   return NextResponse.json(schools);
@@ -42,7 +48,7 @@ export async function POST(req: Request) {
   if (!parsed.success)
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { deadline, ...rest } = parsed.data;
+  const { deadline, reminderAt, ...rest } = parsed.data;
   const status = rest.status ?? SchoolStatus.PLANNING;
 
   const school = await prisma.school.create({
@@ -57,6 +63,12 @@ export async function POST(req: Request) {
           : deadline === null || deadline === ""
             ? null
             : parseDeadlineBody(deadline),
+      reminderAt:
+        reminderAt === undefined
+          ? undefined
+          : reminderAt === null || reminderAt === ""
+            ? null
+            : parseDeadlineBody(reminderAt),
     },
   });
 

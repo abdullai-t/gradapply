@@ -20,8 +20,24 @@ Set these in **Vercel Project → Settings → Environment Variables**:
 Recommended optional variables:
 
 - AI providers (at least one): `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`
-- Uploads: `CLOUDINARY_URL` (or S3-compatible vars from `.env.example`)
+- Uploads: `CLOUDINARY_URL` (or S3-compatible vars your repo documents for storage)
 - Google auth/connectors: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+
+### Rate limits (optional tuning)
+
+Abuse protection uses **in-memory** counters per server instance (see `src/lib/sop-generate-rate-limit.ts` and `src/lib/prof-email-llm-rate-limit.ts`). Defaults are sensible for a single-node or low-traffic deploy; for **multiple Vercel regions / instances**, consider Redis-backed limits later.
+
+**SOP generation** (`POST /api/sop/variants`):
+
+- `SOP_GENERATE_MIN_INTERVAL_MS` — default `20000`
+- `SOP_GENERATE_COOLDOWN_MS` — default `60000`
+- `SOP_GENERATE_DAILY_MAX` — default `30`
+
+**Professor-email AI** (`from-url`, `discover`, `discover-by-schools`, draft, analyze-reply):
+
+- `PROF_EMAIL_LLM_MIN_INTERVAL_MS` — default `8000`
+- `PROF_EMAIL_LLM_COOLDOWN_MS` — default `12000`
+- `PROF_EMAIL_LLM_DAILY_MAX` — default `80`
 
 ## 3) Google OAuth setup (optional)
 
@@ -59,25 +75,42 @@ npx prisma migrate dev --name <short-change-name>
 ```
 
 3. Commit both:
+
    - `prisma/schema.prisma`
    - `prisma/migrations/...`
+
 4. Deploy app.
-5. Run:
+5. Run migrations against production (same `DATABASE_URL` as Vercel):
 
 ```bash
 pnpm prisma migrate deploy
 ```
 
-You can run step 5 from CI or manually before/after Vercel deployment, but always against the same production `DATABASE_URL`.
+You can run step 5 from CI or manually before/after Vercel deployment.
+
+#### Optional: run migrations during Vercel build
+
+To apply migrations automatically on each production build (no separate shell step), set **Build Command** to:
+
+```bash
+pnpm exec prisma migrate deploy && pnpm run build
+```
+
+Requirements: production `DATABASE_URL` must be available at build time (normal on Vercel). Caveat: overlapping production deploys can race on migrations—usually acceptable if deploys are serialized; otherwise keep manual `migrate deploy` or a dedicated migration job.
 
 ## 5) Vercel deployment steps
 
 1. Import repo on [Vercel](https://vercel.com/new).
-2. Confirm framework is Next.js.
-3. Add environment variables.
-4. Deploy.
-5. Run `pnpm prisma migrate deploy` against production DB.
-6. Open app URL and verify login + dashboard.
+2. Confirm framework is Next.js and **Install Command** is `pnpm install` (or leave default if the project uses `packageManager` in `package.json`).
+3. Node: use **20.x** or newer (see `engines` in `package.json` and `.nvmrc`).
+4. Add environment variables.
+5. Deploy.
+6. Unless build runs `prisma migrate deploy` (see above), run `pnpm prisma migrate deploy` against the production DB after deploy.
+7. Open app URL and verify login + dashboard.
+
+### GitHub Actions
+
+CI runs `pnpm lint` and `pnpm typecheck` on pushes and pull requests to `main` / `master` (see `.github/workflows/ci.yml`). Fix failures before merging to avoid broken production builds.
 
 ## 6) Post-deploy smoke test
 
@@ -91,3 +124,4 @@ You can run step 5 from CI or manually before/after Vercel deployment, but alway
 
 - Seed login (`test@gradapply.local` / `password123`) is for local development/testing, not production access.
 - Connector tokens are per-user in the `Connector` table; OAuth client ID/secret are app-level server configuration.
+

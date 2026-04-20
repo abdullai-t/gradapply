@@ -49,6 +49,8 @@ const initialForm = {
   country: "",
   term: "" as "" | AdmissionTerm,
   deadline: "",
+  reminderAt: "",
+  reminderNote: "",
   funding: "",
   notes: "",
   portalUrl: "",
@@ -155,6 +157,8 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
           country: form.country || null,
           term: form.term ? form.term : null,
           deadline: form.deadline ? form.deadline : null,
+          reminderAt: form.reminderAt ? form.reminderAt : null,
+          reminderNote: form.reminderNote?.trim() ? form.reminderNote : null,
           funding: form.funding || null,
           notes: form.notes || null,
           portalUrl: form.portalUrl || null,
@@ -357,6 +361,38 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
                 disabled={saving}
                 className="glass-input min-h-11"
               />
+            </div>
+            <div className="space-y-2 md:col-span-2 rounded-lg border border-white/10 bg-white/[0.02] p-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                Reminder (optional)
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="modal-reminder-at">Remind me on</Label>
+                  <Input
+                    id="modal-reminder-at"
+                    type="date"
+                    value={form.reminderAt}
+                    onChange={(e) =>
+                      setForm({ ...form, reminderAt: e.target.value })
+                    }
+                    disabled={saving}
+                    className="glass-input min-h-11"
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="modal-reminder-note">Reminder note</Label>
+                  <Input
+                    id="modal-reminder-note"
+                    placeholder="Short note"
+                    value={form.reminderNote}
+                    onChange={(e) =>
+                      setForm({ ...form, reminderNote: e.target.value })
+                    }
+                    disabled={saving}
+                  />
+                </div>
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Status</Label>

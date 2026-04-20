@@ -1,10 +1,17 @@
 import { stringifyLlmError } from "@/lib/llm-credits";
 
+/** Reduce accidental disclosure of server filesystem paths in API error JSON. */
+function scrubPathsForClient(s: string): string {
+  return s
+    .replace(/\/(?:Users|home|var)\/[A-Za-z0-9._/-]+/g, "[path]")
+    .replace(/[a-z]:\\[^\s]+/gi, "[path]");
+}
+
 /**
  * Maps known LLM billing/provider errors into actionable UI text.
  */
 export function formatLlmFailureMessage(error: unknown): string {
-  const raw = stringifyLlmError(error);
+  const raw = scrubPathsForClient(stringifyLlmError(error));
 
   if (
     /credit balance is too low/i.test(raw) ||

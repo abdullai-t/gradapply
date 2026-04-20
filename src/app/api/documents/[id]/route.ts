@@ -23,6 +23,13 @@ export async function DELETE(
   });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  await prisma.contentVersion.deleteMany({
+    where: {
+      userId: session.user.id,
+      entityId: id,
+    },
+  });
+
   if (existing.s3Key) {
     if (isCloudinaryConfigured()) {
       await destroyStoredAsset(existing.s3Key);

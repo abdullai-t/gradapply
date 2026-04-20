@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { ChevronRight, ExternalLink, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronRight,
+  ExternalLink,
+  Plus,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,6 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
@@ -23,11 +30,13 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { AddSchoolModal } from "@/components/add-school-modal";
+import { SopTailorDialog } from "@/components/sop-tailor-dialog";
 import {
   ADMISSION_TERM_OPTIONS,
   admissionTermLabel,
 } from "@/lib/admission-term";
 import { progressFromStatus } from "@/lib/school-progress";
+import { formatDeadlineDateInput } from "@/lib/school-deadline";
 import { cn } from "@/lib/utils";
 import type { AdmissionTerm } from "@prisma/client";
 
@@ -52,6 +61,8 @@ type SchoolRow = {
   notes: string | null;
   portalUrl: string | null;
   progress: number;
+  reminderAt: string | null;
+  reminderNote: string | null;
   updatedAt: string;
 };
 
@@ -72,6 +83,10 @@ export default function SchoolsPage() {
   const [addOpen, setAddOpen] = useState(false);
   /** Expanded school cards — omitted id = collapsed (minimal). */
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [tailorTarget, setTailorTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -93,7 +108,10 @@ export default function SchoolsPage() {
     [schools],
   );
 
-  const patchSchool = async (id: string, body: Partial<SchoolRow>) => {
+  const patchSchool = async (
+    id: string,
+    body: Partial<SchoolRow> & Record<string, unknown>,
+  ) => {
     const res = await fetch(`/api/schools/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -147,6 +165,9 @@ export default function SchoolsPage() {
                 school.deadline
                   ? `Due ${format(new Date(school.deadline), "MMM d, yyyy")}`
                   : null,
+                school.reminderAt
+                  ? `Ping ${format(new Date(school.reminderAt), "MMM d")}`
+                  : null,
               ].filter(Boolean);
 
               return (
@@ -199,6 +220,18 @@ export default function SchoolsPage() {
                       <Badge variant="outline" className="hidden sm:inline-flex">
                         {school.status.replaceAll("_", " ")}
                       </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0"
+                        aria-label="Tailor statement of purpose"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTailorTarget({ id: school.id, name: school.name });
+                        }}
+                      >
+                        <Sparkles className="h-4 w-4" aria-hidden />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -335,6 +368,91 @@ export default function SchoolsPage() {
                               }
                             />
                           </div>
+                          <div className="space-y-3 md:col-span-2 rounded-xl border border-primary/20 bg-primary/[0.04] p-4">
+                            <div className="text-sm font-medium">
+                              School-specific statement of purpose
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Generate a tailored draft from one master SOP (library file or
+                              paste). One saved variant per school — edit after generation.
+                            </p>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              className="gap-2"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTailorTarget({
+                                  id: school.id,
+                                  name: school.name,
+                                });
+                              }}
+                            >
+                              <Sparkles className="h-4 w-4" aria-hidden />
+                              Tailor for this school
+                            </Button>
+                          </div>
+                          <div className="space-y-2 md:col-span-2 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                            <div className="text-sm font-medium">Reminder</div>
+                            <p className="text-xs text-muted-foreground">
+                              Optional follow-up date (one per school). Cleared when you remove the date.
+                            </p>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label htmlFor={`reminder-at-${school.id}`}>
+                                  Remind me on
+                                </Label>
+                                <Input
+                                  id={`reminder-at-${school.id}`}
+                                  type="date"
+                                  key={`${school.id}-ra-${school.reminderAt ?? "none"}`}
+                                  className="glass-input min-h-11"
+                                  defaultValue={formatDeadlineDateInput(
+                                    school.reminderAt,
+                                  )}
+                                  onBlur={(e) =>
+                                    patchSchool(school.id, {
+                                      reminderAt: e.target.value || null,
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div className="space-y-2 sm:col-span-2">
+                                <Label htmlFor={`reminder-note-${school.id}`}>
+                                  Reminder note
+                                </Label>
+                                <Textarea
+                                  id={`reminder-note-${school.id}`}
+                                  key={`${school.id}-rn-${school.reminderNote ?? ""}`}
+                                  placeholder="e.g. Submit GRE scores"
+                                  defaultValue={school.reminderNote ?? ""}
+                                  onBlur={(e) =>
+                                    patchSchool(school.id, {
+                                      reminderNote: e.target.value || null,
+                                    })
+                                  }
+                                />
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="border-dashed"
+                              disabled={
+                                !school.reminderAt &&
+                                !(school.reminderNote?.trim())
+                              }
+                              onClick={() =>
+                                patchSchool(school.id, {
+                                  reminderAt: null,
+                                  reminderNote: null,
+                                })
+                              }
+                            >
+                              Clear reminder
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -359,6 +477,16 @@ export default function SchoolsPage() {
       <AddSchoolModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
+        onSaved={() => void load()}
+      />
+
+      <SopTailorDialog
+        open={tailorTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setTailorTarget(null);
+        }}
+        schoolId={tailorTarget?.id ?? ""}
+        schoolName={tailorTarget?.name ?? ""}
         onSaved={() => void load()}
       />
     </div>

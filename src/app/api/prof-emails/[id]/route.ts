@@ -29,7 +29,8 @@ const patchSchema = z.object({
   status: z.nativeEnum(EmailStatus).optional(),
   sentAt: z.string().datetime().nullable().optional(),
   repliedAt: z.string().datetime().nullable().optional(),
-  replySnippet: z.string().nullable().optional(),
+  lastReplySnippet: z.string().nullable().optional(),
+  suggestedReplyDraft: z.string().nullable().optional(),
   followUpCount: z.number().int().min(0).optional(),
   notes: z.string().nullable().optional(),
 });
@@ -85,6 +86,14 @@ export async function DELETE(
     where: { id, userId: session.user.id },
   });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  await prisma.contentVersion.deleteMany({
+    where: {
+      userId: session.user.id,
+      entityType: "PROF_EMAIL",
+      entityId: id,
+    },
+  });
 
   await prisma.profEmail.delete({ where: { id } });
 

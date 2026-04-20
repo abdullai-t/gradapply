@@ -5,6 +5,13 @@ import { draftProfessorEmail } from "@/lib/ai";
 import { fetchProfilePagePlainText } from "@/lib/profile-page-fetch";
 import { extractProfessorAndDraftFromPage } from "@/lib/professor-from-url-ai";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
+import {
+  assertProfEmailLlmAllowed,
+  markProfEmailLlmAttempt,
+  markProfEmailLlmSuccess,
+  type ProfEmailLlmDenial,
+} from "@/lib/prof-email-llm-rate-limit";
+import { zPrismaRecordId } from "@/lib/prisma-record-id-zod";
 
 export async function POST(
   _req: Request,
@@ -14,7 +21,31 @@ export async function POST(
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = params;
+  const idParsed = zPrismaRecordId.safeParse(params.id);
+  if (!idParsed.success)
+    return NextResponse.json({ error: "Invalid id." }, { status: 400 });
+
+  const id = idParsed.data;
+
+  try {
+    assertProfEmailLlmAllowed(session.user.id);
+  } catch (e) {
+    const denial = (
+      e as Error & { denial?: ProfEmailLlmDenial }
+    ).denial;
+    if (denial) {
+      const headers: Record<string, string> = {};
+      if (denial.retryAfterSec != null)
+        headers.RetryAfter = String(denial.retryAfterSec);
+      return NextResponse.json(
+        { error: denial.message },
+        { status: denial.status, headers },
+      );
+    }
+    throw e;
+  }
+
+  markProfEmailLlmAttempt(session.user.id);
 
   const row = await prisma.profEmail.findFirst({
     where: { id, userId: session.user.id },
@@ -54,6 +85,7 @@ export async function POST(
           profileUrl: fetched.url,
         },
       });
+      markProfEmailLlmSuccess(session.user.id);
       return NextResponse.json(updated);
     } catch (e) {
       return NextResponse.json(
@@ -90,5 +122,6 @@ export async function POST(
     },
   });
 
+  markProfEmailLlmSuccess(session.user.id);
   return NextResponse.json(updated);
 }

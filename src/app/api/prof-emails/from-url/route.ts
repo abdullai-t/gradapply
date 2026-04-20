@@ -7,6 +7,12 @@ import { EmailStatus } from "@prisma/client";
 import { fetchProfilePagePlainText } from "@/lib/profile-page-fetch";
 import { extractProfessorAndDraftFromPage } from "@/lib/professor-from-url-ai";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
+import {
+  assertProfEmailLlmAllowed,
+  markProfEmailLlmAttempt,
+  markProfEmailLlmSuccess,
+  type ProfEmailLlmDenial,
+} from "@/lib/prof-email-llm-rate-limit";
 
 const bodySchema = z.object({
   profileUrl: z.string().url().max(2000),
@@ -21,6 +27,26 @@ export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success)
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+
+  try {
+    assertProfEmailLlmAllowed(session.user.id);
+  } catch (e) {
+    const denial = (
+      e as Error & { denial?: ProfEmailLlmDenial }
+    ).denial;
+    if (denial) {
+      const headers: Record<string, string> = {};
+      if (denial.retryAfterSec != null)
+        headers.RetryAfter = String(denial.retryAfterSec);
+      return NextResponse.json(
+        { error: denial.message },
+        { status: denial.status, headers },
+      );
+    }
+    throw e;
+  }
+
+  markProfEmailLlmAttempt(session.user.id);
 
   const rawUrl = parsed.data.profileUrl.trim();
 
@@ -68,5 +94,6 @@ export async function POST(req: Request) {
     },
   });
 
+  markProfEmailLlmSuccess(session.user.id);
   return NextResponse.json(row);
 }

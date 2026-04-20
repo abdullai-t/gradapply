@@ -42,7 +42,7 @@ export function ProfEmailCard({
   onMarkReplied,
 }: Props) {
   const snippet =
-    row.replySnippet?.slice(0, 160) ??
+    row.lastReplySnippet?.slice(0, 160) ??
     row.emailBody?.slice(0, 160) ??
     "";
 
@@ -110,7 +110,7 @@ export function ProfEmailCard({
       {snippet ? (
         <p className="mt-3 line-clamp-3 text-sm text-zinc-600 dark:text-zinc-400">
           {snippet}
-          {(row.replySnippet?.length ?? 0) > 160 ||
+          {(row.lastReplySnippet?.length ?? 0) > 160 ||
           (row.emailBody?.length ?? 0) > 160
             ? "…"
             : ""}

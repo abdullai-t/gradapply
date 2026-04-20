@@ -256,6 +256,21 @@ export function assistantContextGroundingRules(): string {
 /**
  * Rich applicant context: full profile + text extracted from uploaded documents.
  */
+/**
+ * Extract machine-readable text from a stored document (same pipeline as assistant context).
+ */
+export async function extractPlainTextFromStoredDocument(doc: {
+  url: string;
+  s3Key: string | null;
+  mimeType: string | null;
+}): Promise<string | null> {
+  const buf = await fetchDocumentBufferForDoc(doc);
+  if (!buf) return null;
+  const text = await bufferToPlainText(buf, doc.mimeType);
+  if (!text || text.length < 20) return null;
+  return text;
+}
+
 export async function buildApplicantKnowledgeBlock(userId: string): Promise<string> {
   try {
     const user = await prisma.user.findUnique({
