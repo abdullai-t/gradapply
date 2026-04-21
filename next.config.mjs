@@ -1,5 +1,30 @@
+import { withSentryConfig } from "@sentry/nextjs";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    instrumentationHook: true,
+  },
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          {
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
+          },
+          {
+            key: "Permissions-Policy",
+            value:
+              "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+          },
+        ],
+      },
+    ];
+  },
   async redirects() {
     return [
       { source: "/tracker", destination: "/schools", permanent: false },
@@ -37,4 +62,10 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+/** Init is gated in `sentry.*.config.ts`; wrap stays enabled so client/server instrumentation matches Sentry’s Next.js docs. */
+export default withSentryConfig(nextConfig, {
+  silent: true,
+  sourcemaps: {
+    disable: true,
+  },
+});

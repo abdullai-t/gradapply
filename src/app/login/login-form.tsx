@@ -343,6 +343,13 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
 
         <p className="text-center text-sm text-muted-foreground">
           <Link
+            href="/support"
+            className="rounded-lg px-2 py-1 underline-offset-4 backdrop-blur-sm hover:bg-white/40 hover:underline dark:hover:bg-white/[0.07]"
+          >
+            Support
+          </Link>
+          {" · "}
+          <Link
             href="/"
             className="rounded-lg px-2 py-1 underline-offset-4 backdrop-blur-sm hover:bg-white/40 hover:underline dark:hover:bg-white/[0.07]"
           >

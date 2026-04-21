@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import {
+  assertRegisterAllowedByIp,
+  getClientIpFromRequest,
+} from "@/lib/upstash-rate-limit";
 
 export const runtime = "nodejs";
 
@@ -25,6 +29,21 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: "Invalid input", details: parsed.error.flatten() },
       { status: 400 },
+    );
+  }
+
+  const clientIp = getClientIpFromRequest(req);
+  const registerCap = await assertRegisterAllowedByIp(clientIp);
+  if (!registerCap.ok) {
+    return NextResponse.json(
+      {
+        error:
+          "Too many registration attempts from this network. Try again later.",
+      },
+      {
+        status: 429,
+        headers: { RetryAfter: String(registerCap.retryAfterSec) },
+      },
     );
   }
 

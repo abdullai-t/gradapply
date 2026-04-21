@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 const ILLUSTR_PLUS_USD = "14";
 const ILLUSTR_PRO_USD = "39";
 
-export function HomeLanding() {
+export function HomeLanding({ showPricing }: { showPricing: boolean }) {
   const aiFree = monthlyAiAllowanceForTier("FREE");
   const aiPlus = monthlyAiAllowanceForTier("PLUS");
   const aiPro = monthlyAiAllowanceForTier("PRO");
@@ -50,9 +50,11 @@ export function HomeLanding() {
             <a href="#how" className="transition-colors hover:text-foreground">
               How it works
             </a>
-            <a href="#pricing" className="transition-colors hover:text-foreground">
-              Pricing
-            </a>
+            {showPricing ? (
+              <a href="#pricing" className="transition-colors hover:text-foreground">
+                Pricing
+              </a>
+            ) : null}
             <a href="#faq" className="transition-colors hover:text-foreground">
               FAQ
             </a>
@@ -86,9 +88,11 @@ export function HomeLanding() {
               <a href="#how" className="py-1 hover:text-foreground">
                 How it works
               </a>
-              <a href="#pricing" className="py-1 hover:text-foreground">
-                Pricing
-              </a>
+              {showPricing ? (
+                <a href="#pricing" className="py-1 hover:text-foreground">
+                  Pricing
+                </a>
+              ) : null}
               <a href="#faq" className="py-1 hover:text-foreground">
                 FAQ
               </a>
@@ -258,74 +262,75 @@ export function HomeLanding() {
           </div>
         </section>
 
-        {/* Pricing */}
-        <section id="pricing" className="scroll-mt-24 py-20 md:py-28">
-          <div className="mx-auto max-w-6xl px-6">
-            <div className="mx-auto max-w-2xl text-center">
-              <h2 className="font-display text-3xl font-semibold tracking-tight md:text-4xl">
-                Pricing
-              </h2>
-              <p className="mt-4 text-pretty text-muted-foreground md:text-lg">
-                Start free. Upgrade when you want higher monthly AI allowances and more
-                room for drafts, discovery, and polish. Exact charges depend on how your
-                deployment configures Stripe or Paystack.
+        {showPricing ? (
+          <section id="pricing" className="scroll-mt-24 py-20 md:py-28">
+            <div className="mx-auto max-w-6xl px-6">
+              <div className="mx-auto max-w-2xl text-center">
+                <h2 className="font-display text-3xl font-semibold tracking-tight md:text-4xl">
+                  Pricing
+                </h2>
+                <p className="mt-4 text-pretty text-muted-foreground md:text-lg">
+                  Start free. Upgrade when you want higher monthly AI allowances and more
+                  room for drafts, discovery, and polish. Exact charges depend on how your
+                  deployment configures Stripe or Paystack.
+                </p>
+              </div>
+
+              <div className="mt-14 grid gap-6 lg:grid-cols-3 lg:items-stretch">
+                <PricingCard
+                  name="Free"
+                  price="$0"
+                  period=""
+                  description="Explore the workspace and stay organized."
+                  cta={{ href: "/register", label: "Create account" }}
+                  variant="default"
+                  bullets={[
+                    `${aiFree} AI actions / month (included pool)`,
+                    "School pipeline & timeline",
+                    "Professor email drafting",
+                    "Documents & basic assistant",
+                  ]}
+                />
+                <PricingCard
+                  name="Plus"
+                  price={`$${ILLUSTR_PLUS_USD}`}
+                  period="/ mo · illustrative"
+                  description="For applicants running several serious apps."
+                  cta={{ href: "/register", label: "Start with Plus" }}
+                  variant="highlight"
+                  bullets={[
+                    `${aiPlus} AI actions / month`,
+                    "Everything in Free",
+                    "Higher throughput for drafts & iterations",
+                    `Credit packs available (+${creditsPack} credits per pack where billing is set up)`,
+                  ]}
+                />
+                <PricingCard
+                  name="Pro"
+                  price={`$${ILLUSTR_PRO_USD}`}
+                  period="/ mo · illustrative"
+                  description="Heavy usage: many schools, many drafts, tight timelines."
+                  cta={{ href: "/register", label: "Start with Pro" }}
+                  variant="default"
+                  bullets={[
+                    `${aiPro} AI actions / month`,
+                    "Everything in Plus",
+                    "Best for parallel programs and frequent AI passes",
+                    "Same credit packs where checkout is enabled",
+                  ]}
+                />
+              </div>
+
+              <p className="mx-auto mt-10 max-w-2xl text-center text-xs leading-relaxed text-muted-foreground">
+                AI “actions” cover assistant work like drafts, chat turns, and discovery
+                flows; bonus credits spend first. Dollar amounts are{" "}
+                <strong className="font-medium text-foreground/90">examples</strong> only —
+                your administrator sets real prices and providers. Without billing keys,
+                limits may not be enforced.
               </p>
             </div>
-
-            <div className="mt-14 grid gap-6 lg:grid-cols-3 lg:items-stretch">
-              <PricingCard
-                name="Free"
-                price="$0"
-                period=""
-                description="Explore the workspace and stay organized."
-                cta={{ href: "/register", label: "Create account" }}
-                variant="default"
-                bullets={[
-                  `${aiFree} AI actions / month (included pool)`,
-                  "School pipeline & timeline",
-                  "Professor email drafting",
-                  "Documents & basic assistant",
-                ]}
-              />
-              <PricingCard
-                name="Plus"
-                price={`$${ILLUSTR_PLUS_USD}`}
-                period="/ mo · illustrative"
-                description="For applicants running several serious apps."
-                cta={{ href: "/register", label: "Start with Plus" }}
-                variant="highlight"
-                bullets={[
-                  `${aiPlus} AI actions / month`,
-                  "Everything in Free",
-                  "Higher throughput for drafts & iterations",
-                  `Credit packs available (+${creditsPack} credits per pack where billing is set up)`,
-                ]}
-              />
-              <PricingCard
-                name="Pro"
-                price={`$${ILLUSTR_PRO_USD}`}
-                period="/ mo · illustrative"
-                description="Heavy usage: many schools, many drafts, tight timelines."
-                cta={{ href: "/register", label: "Start with Pro" }}
-                variant="default"
-                bullets={[
-                  `${aiPro} AI actions / month`,
-                  "Everything in Plus",
-                  "Best for parallel programs and frequent AI passes",
-                  "Same credit packs where checkout is enabled",
-                ]}
-              />
-            </div>
-
-            <p className="mx-auto mt-10 max-w-2xl text-center text-xs leading-relaxed text-muted-foreground">
-              AI “actions” cover assistant work like drafts, chat turns, and discovery
-              flows; bonus credits spend first. Dollar amounts are{" "}
-              <strong className="font-medium text-foreground/90">examples</strong> only —
-              your administrator sets real prices and providers. Without billing keys,
-              limits may not be enforced.
-            </p>
-          </div>
-        </section>
+          </section>
+        ) : null}
 
         {/* FAQ */}
         <section
@@ -388,14 +393,19 @@ export function HomeLanding() {
                 <a href="#features" className="hover:text-foreground">
                   Features
                 </a>
-                <a href="#pricing" className="hover:text-foreground">
-                  Pricing
-                </a>
+                {showPricing ? (
+                  <a href="#pricing" className="hover:text-foreground">
+                    Pricing
+                  </a>
+                ) : null}
                 <Link href="/login" className="hover:text-foreground">
                   Sign in
                 </Link>
                 <Link href="/register" className="hover:text-foreground">
                   Register
+                </Link>
+                <Link href="/support" className="hover:text-foreground">
+                  Support
                 </Link>
               </div>
               <p className="text-xs">

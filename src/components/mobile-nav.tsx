@@ -14,6 +14,7 @@ const baseItems = [
   { href: "/assistant", label: "AI" },
   { href: "/documents", label: "Files" },
   { href: "/profile", label: "Profile" },
+  { href: "/support", label: "Help" },
   { href: "/settings", label: "Settings" },
 ];
 
