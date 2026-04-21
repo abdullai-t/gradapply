@@ -3,6 +3,7 @@ import { DM_Sans, Fraunces } from "next/font/google";
 
 import "./globals.css";
 
+import { BuildVersionBadge } from "@/components/build-version-badge";
 import { SessionProvider } from "@/components/providers/session-provider";
 
 const dmSans = DM_Sans({
@@ -36,6 +37,7 @@ export default function RootLayout({
         className={`${dmSans.variable} ${fraunces.variable} font-sans antialiased`}
       >
         <SessionProvider>{children}</SessionProvider>
+        <BuildVersionBadge />
       </body>
     </html>
   );
