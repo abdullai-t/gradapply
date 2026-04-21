@@ -17,7 +17,7 @@ type ConnectorRow = {
   email: string | null;
 };
 
-export function ConnectorsSettings() {
+export function ConnectorsSettings({ planTier }: { planTier: string }) {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [gmail, setGmail] = useState<ConnectorRow>({
@@ -117,6 +117,25 @@ export function ConnectorsSettings() {
       setDisconnecting(null);
     }
   };
+
+  if (planTier === "FREE") {
+    return (
+      <Card className="glass-panel border-white/10">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <PlugZap className="h-5 w-5 text-primary" aria-hidden />
+            <CardTitle className="font-display text-xl">Connectors</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+            Connectors are available on PLUS and PRO plans. Upgrade to connect
+            Gmail and Google Drive.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="glass-panel border-white/10">

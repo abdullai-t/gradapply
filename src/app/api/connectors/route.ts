@@ -3,6 +3,7 @@ import { ConnectorProvider } from "@prisma/client";
 
 import { auth } from "@/auth";
 import { isGoogleOAuthConfigured } from "@/lib/google-oauth-tokens";
+import { requireNonFreeForFeature } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
 
 /** List linked connectors (no secrets). */
@@ -10,6 +11,9 @@ export async function GET() {
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const locked = await requireNonFreeForFeature(session.user.id, "connectors");
+  if (locked) return locked;
 
   const [gmail, drive] = await Promise.all([
     prisma.connector.findUnique({

@@ -30,6 +30,29 @@ type BillingStatus = {
   hasSubscription: boolean;
 };
 
+function toErrorMessage(value: unknown, fallback: string): string {
+  if (typeof value === "string" && value.trim()) return value;
+  if (value && typeof value === "object") {
+    const maybe = value as {
+      message?: unknown;
+      formErrors?: unknown;
+      fieldErrors?: unknown;
+    };
+    if (typeof maybe.message === "string" && maybe.message.trim()) {
+      return maybe.message;
+    }
+    if (Array.isArray(maybe.formErrors) || maybe.fieldErrors) {
+      return "Some billing fields are invalid. Please review your configuration and try again.";
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+}
+
 export function BillingSettings() {
   const [status, setStatus] = useState<BillingStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,7 +64,8 @@ export function BillingSettings() {
     setError(null);
     const res = await fetch("/api/billing/status");
     if (!res.ok) {
-      setError("Could not load billing status.");
+      const data = (await res.json().catch(() => null)) as { error?: unknown } | null;
+      setError(toErrorMessage(data?.error, "Could not load billing status."));
       setLoading(false);
       return;
     }
@@ -62,12 +86,14 @@ export function BillingSettings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tier }),
       });
-      const data = (await res.json()) as { url?: string; error?: string };
+      const data = (await res.json().catch(() => null)) as
+        | { url?: string; error?: unknown }
+        | null;
       if (!res.ok) {
-        setError(data.error ?? "Checkout failed.");
+        setError(toErrorMessage(data?.error, "Checkout failed."));
         return;
       }
-      if (data.url) {
+      if (data?.url) {
         window.location.href = data.url;
         return;
       }
@@ -82,12 +108,14 @@ export function BillingSettings() {
     setError(null);
     try {
       const res = await fetch("/api/billing/portal", { method: "POST" });
-      const data = (await res.json()) as { url?: string; error?: string };
+      const data = (await res.json().catch(() => null)) as
+        | { url?: string; error?: unknown }
+        | null;
       if (!res.ok) {
-        setError(data.error ?? "Portal failed.");
+        setError(toErrorMessage(data?.error, "Portal failed."));
         return;
       }
-      if (data.url) {
+      if (data?.url) {
         window.location.href = data.url;
         return;
       }
@@ -128,6 +156,9 @@ export function BillingSettings() {
   const pct = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
 
   const showPortal = status.hasStripeCustomer && status.stripeEnabled;
+  const currentPlan = status.planTier.toUpperCase();
+  const plusIsCurrent = currentPlan === "PLUS";
+  const proIsCurrent = currentPlan === "PRO";
 
   return (
     <Card className="glass-panel border-emerald-500/15">
@@ -185,42 +216,82 @@ export function BillingSettings() {
           <strong className="text-foreground">{status.aiCreditsBalance}</strong>
         </p>
 
-        {!status.checkoutConfigured ? (
-          <p className="text-xs text-amber-200/85">
-            Set Stripe price IDs and/or Paystack plans in the server environment —{" "}
-            <code className="text-[10px]">STRIPE_PRICE_*</code>,{" "}
-            <code className="text-[10px]">PAYSTACK_PLAN_CODE_*</code>,{" "}
-            <code className="text-[10px]">PAYSTACK_AMOUNT_CREDITS_MINOR</code> — to enable
-            checkout buttons.
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              disabled={
-                checkoutLoading !== null || !status.canCheckoutPlus
-              }
-              onClick={() => void startCheckout("plus")}
-            >
-              {checkoutLoading === "plus" ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+        <div className="space-y-3 rounded-lg border border-white/10 bg-black/20 p-4">
+          <p className="text-sm font-medium text-foreground">Upgrade your plan</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+              <p className="text-sm font-medium text-foreground">Plus</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Best for steady outreach and drafting.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                className="mt-3 w-full"
+                variant={plusIsCurrent ? "secondary" : "default"}
+                disabled={
+                  checkoutLoading !== null || plusIsCurrent || !status.canCheckoutPlus
+                }
+                onClick={() => void startCheckout("plus")}
+              >
+                {checkoutLoading === "plus" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                ) : null}
+                {plusIsCurrent
+                  ? "Current plan"
+                  : status.canCheckoutPlus
+                    ? "Upgrade to Plus"
+                    : "Plus unavailable"}
+              </Button>
+              {!plusIsCurrent && !status.canCheckoutPlus ? (
+                <p className="mt-2 text-xs text-amber-200/90">
+                  Plus checkout is temporarily unavailable.
+                </p>
               ) : null}
-              Plus
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              disabled={checkoutLoading !== null || !status.canCheckoutPro}
-              onClick={() => void startCheckout("pro")}
-            >
-              {checkoutLoading === "pro" ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+            </div>
+
+            <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+              <p className="text-sm font-medium text-foreground">Pro</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Highest monthly AI allowance for heavy usage.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                className="mt-3 w-full"
+                variant={proIsCurrent ? "secondary" : "default"}
+                disabled={checkoutLoading !== null || proIsCurrent || !status.canCheckoutPro}
+                onClick={() => void startCheckout("pro")}
+              >
+                {checkoutLoading === "pro" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                ) : null}
+                {proIsCurrent
+                  ? "Current plan"
+                  : status.canCheckoutPro
+                    ? "Upgrade to Pro"
+                    : "Pro unavailable"}
+              </Button>
+              {!proIsCurrent && !status.canCheckoutPro ? (
+                <p className="mt-2 text-xs text-amber-200/90">
+                  Pro checkout is temporarily unavailable.
+                </p>
               ) : null}
-              Pro
-            </Button>
+            </div>
+          </div>
+          {!status.canCheckoutPlus && !status.canCheckoutPro ? (
+            <p className="text-xs text-amber-200/90">
+              Plan upgrades are not available right now. Please try again shortly or contact support.
+            </p>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {!status.checkoutConfigured ? (
+            <p className="text-xs text-amber-200/85">
+              Checkout setup is incomplete. You can still refresh usage while this is being fixed.
+            </p>
+          ) : (
             <Button
               type="button"
               size="sm"
@@ -235,22 +306,22 @@ export function BillingSettings() {
               ) : null}
               Buy credits
             </Button>
-            {showPortal ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                disabled={checkoutLoading !== null}
-                onClick={() => void openPortal()}
-              >
-                {checkoutLoading === "portal" ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                ) : null}
-                Manage billing (Stripe)
-              </Button>
-            ) : null}
-          </div>
-        )}
+          )}
+          {showPortal ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={checkoutLoading !== null}
+              onClick={() => void openPortal()}
+            >
+              {checkoutLoading === "portal" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+              ) : null}
+              Manage billing (Stripe)
+            </Button>
+          ) : null}
+        </div>
 
         <Button
           type="button"

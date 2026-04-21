@@ -71,10 +71,27 @@ export function isLikelyAuthOrConfigError(error: unknown): boolean {
   );
 }
 
+export function classifyLlmErrorClass(error: unknown): string {
+  const raw = stringifyLlmError(error);
+  if (/LLM_PROVIDER_CIRCUIT_OPEN/.test(raw)) return "circuit_open";
+  if (/LLM_PROVIDER_SATURATED/.test(raw)) return "provider_saturated";
+  if (isLikelyAuthOrConfigError(error)) return "auth_or_config";
+  if (isInsufficientCreditsError(error)) return "insufficient_credits";
+  if (/\b429\b|too many requests|rate[_ ]limit/i.test(raw)) return "rate_limited";
+  if (/\b503\b|overloaded|capacity/i.test(raw)) return "provider_overloaded";
+  if (/\b5\d\d\b/.test(raw)) return "provider_5xx";
+  if (/timeout|timed out|ETIMEDOUT|ECONNRESET|EAI_AGAIN|socket hang up/i.test(raw)) {
+    return "timeout_or_network";
+  }
+  return "unknown";
+}
+
 /**
  * Provider/billing/quota/status conditions where trying another configured LLM may succeed.
  */
 export function shouldFallbackToAlternateProvider(error: unknown): boolean {
+  const kind = classifyLlmErrorClass(error);
+  if (kind === "circuit_open" || kind === "provider_saturated") return true;
   if (isLikelyAuthOrConfigError(error)) return false;
 
   const raw = stringifyLlmError(error);
@@ -98,6 +115,9 @@ export function shouldFallbackToAlternateProvider(error: unknown): boolean {
 
   // Over capacity — another provider might work
   if (/\b503\b|overloaded|capacity/i.test(raw)) return true;
+  if (/timeout|timed out|ETIMEDOUT|ECONNRESET|EAI_AGAIN|socket hang up/i.test(raw)) {
+    return true;
+  }
 
   return false;
 }
@@ -116,13 +136,15 @@ export function parseAffordableMaxTokens(error: unknown): number | null {
 
 /**
  * Providers that have env keys, in **fallback rotation order** after the primary fails.
- * OpenRouter first (matches primary preference), then OpenAI, then Anthropic.
+ * Anthropic first, then OpenAI, Gemini, OpenRouter, Groq.
  */
 export function providersWithKeysOrdered(): LlmProvider[] {
   const list: LlmProvider[] = [];
-  if (process.env.OPENROUTER_API_KEY?.trim()) list.push("openrouter");
-  if (process.env.OPENAI_API_KEY?.trim()) list.push("openai");
   if (process.env.ANTHROPIC_API_KEY?.trim()) list.push("anthropic");
+  if (process.env.OPENAI_API_KEY?.trim()) list.push("openai");
+  if (process.env.GEMINI_API_KEY?.trim()) list.push("gemini");
+  if (process.env.OPENROUTER_API_KEY?.trim()) list.push("openrouter");
+  if (process.env.GROQ_API_KEY?.trim()) list.push("groq");
   return list;
 }
 
@@ -131,7 +153,7 @@ export function orderedFallbackProviders(primary: LlmProvider): LlmProvider[] {
   const all = providersWithKeysOrdered();
   if (all.length === 0) {
     throw new Error(
-      "No LLM configured. Set OPENROUTER_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY.",
+      "No LLM configured. Set GEMINI_API_KEY, OPENROUTER_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, or GROQ_API_KEY.",
     );
   }
   const rest = all.filter((p) => p !== primary);

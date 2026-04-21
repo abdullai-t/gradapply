@@ -11,6 +11,7 @@ import {
   gmailSendRawMessage,
   rfc822ToGmailRaw,
 } from "@/lib/gmail-connector";
+import { requireNonFreeForFeature } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
 import { getObjectBuffer } from "@/lib/s3";
 
@@ -108,6 +109,9 @@ export async function POST(
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const locked = await requireNonFreeForFeature(session.user.id, "connectors");
+  if (locked) return locked;
 
   const bodyJson = await req.json().catch(() => ({}));
   const parsedBody = sendBodySchema.safeParse(bodyJson);

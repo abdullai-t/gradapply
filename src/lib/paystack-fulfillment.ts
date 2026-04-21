@@ -1,7 +1,7 @@
 import type { PlanTier } from "@prisma/client";
 
 import { grantCreditsPackToUser } from "@/lib/billing-stripe-sync";
-import { tierForPaystackPlanCode } from "@/lib/billing-config";
+import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import {
   paystackVerifyTransaction,
   type PaystackSubscriptionData,
@@ -22,7 +22,8 @@ export async function processPaystackReference(reference: string): Promise<{
   });
   if (dup) return { duplicate: true, applied: false };
 
-  const tx = await paystackVerifyTransaction(reference);
+  const cfg = await getBillingAdminConfig();
+  const tx = await paystackVerifyTransaction(reference, cfg.paystackSecretKey);
   if (!tx?.status || tx.status !== "success")
     return { duplicate: false, applied: false };
 
@@ -57,7 +58,14 @@ export async function processPaystackReference(reference: string): Promise<{
   const cid = tx.customer?.id;
   const planCode =
     typeof tx.plan?.plan_code === "string" ? tx.plan.plan_code : undefined;
-  const tier = tierForPaystackPlanCode(planCode);
+  const tier =
+    planCode && cfg.paystackPlanCodePlus && planCode === cfg.paystackPlanCodePlus
+      ? ("PLUS" as const)
+      : planCode &&
+          cfg.paystackPlanCodePro &&
+          planCode === cfg.paystackPlanCodePro
+        ? ("PRO" as const)
+        : null;
 
   if (tier && cid != null) {
     const user = await prisma.user.findFirst({

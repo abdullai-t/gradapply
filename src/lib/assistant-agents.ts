@@ -1,5 +1,8 @@
 import type { ChatMode } from "@/lib/ai";
+import { geminiDefaultModel, geminiGrammarModel } from "@/lib/gemini";
+import { groqDefaultModel, groqGrammarModel } from "@/lib/groq";
 import type { LlmProvider } from "@/lib/llm-provider";
+import { isProviderUnderHighLoad } from "@/lib/llm-router";
 import { getLlmProvider } from "@/lib/llm-provider";
 import { openAiGrammarModel, openAiDefaultModel } from "@/lib/openai-direct";
 import { openRouterModel } from "@/lib/openrouter";
@@ -56,25 +59,54 @@ export function inferTaskFromGeneralMessage(text: string): ChatMode | null {
 }
 
 function grammarExecution(): { provider: LlmProvider; model?: string } {
-  if (process.env.OPENAI_API_KEY?.trim()) {
+  const p = getLlmProvider();
+  if (p === "openai") {
     return { provider: "openai", model: openAiGrammarModel() };
   }
-
-  const p = getLlmProvider();
   if (p === "openrouter") {
     const override = process.env.OPENROUTER_MODEL_GRAMMAR?.trim();
     return { provider: "openrouter", model: override || openRouterModel() };
   }
+  if (p === "gemini") {
+    return { provider: "gemini", model: geminiGrammarModel() };
+  }
+  if (p === "groq") {
+    return { provider: "groq", model: groqGrammarModel() };
+  }
   return { provider: p };
 }
 
-function qualityExecution(): { provider: LlmProvider; model?: string } {
+function qualityExecution(effectiveMode: ChatMode): {
+  provider: LlmProvider;
+  model?: string;
+} {
   const p = getLlmProvider();
+  const highLoad = isProviderUnderHighLoad(p);
+  const lowComplexity = effectiveMode === "general" || effectiveMode === "feedback";
   if (p === "openai") {
-    return { provider: "openai", model: openAiDefaultModel() };
+    return {
+      provider: "openai",
+      model: highLoad && lowComplexity ? openAiGrammarModel() : openAiDefaultModel(),
+    };
   }
   if (p === "openrouter") {
-    return { provider: "openrouter", model: openRouterModel() };
+    const grammarModel = process.env.OPENROUTER_MODEL_GRAMMAR?.trim();
+    return {
+      provider: "openrouter",
+      model: highLoad && lowComplexity ? grammarModel || openRouterModel() : openRouterModel(),
+    };
+  }
+  if (p === "gemini") {
+    return {
+      provider: "gemini",
+      model: highLoad && lowComplexity ? geminiGrammarModel() : geminiDefaultModel(),
+    };
+  }
+  if (p === "groq") {
+    return {
+      provider: "groq",
+      model: highLoad && lowComplexity ? groqGrammarModel() : groqDefaultModel(),
+    };
   }
   return { provider: "anthropic" };
 }
@@ -104,7 +136,7 @@ export function routeAssistantAgent(
     provider = ex.provider;
     model = ex.model;
   } else {
-    const ex = qualityExecution();
+    const ex = qualityExecution(effectiveMode);
     provider = ex.provider;
     model = ex.model;
   }

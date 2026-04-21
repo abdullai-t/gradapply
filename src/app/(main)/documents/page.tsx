@@ -33,6 +33,7 @@ export default function DocumentsPage() {
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
+  const [planTier, setPlanTier] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -43,6 +44,26 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     void load();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/billing/status", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return (await res.json()) as { planTier?: string };
+      })
+      .then((json) => {
+        if (!active) return;
+        setPlanTier(json?.planTier ?? null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setPlanTier(null);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const sorted = useMemo(
@@ -59,6 +80,24 @@ export default function DocumentsPage() {
     const res = await fetch(`/api/documents/${id}`, { method: "DELETE" });
     if (res.ok) await load();
   };
+
+  if (planTier === "FREE") {
+    return (
+      <Card className="glass-panel border-white/10">
+        <CardHeader>
+          <CardTitle className="font-display text-lg">Documents</CardTitle>
+          <CardDescription>
+            Documents are available on PLUS and PRO plans.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+            Upgrade your plan in Settings to access your document library.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 pb-24">

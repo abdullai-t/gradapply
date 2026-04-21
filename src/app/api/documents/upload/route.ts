@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { requireNonFreeForFeature } from "@/lib/plan-gates";
 import {
   isCloudinaryConfigured,
   uploadDocumentBuffer,
@@ -26,6 +27,9 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const locked = await requireNonFreeForFeature(session.user.id, "documents");
+  if (locked) return locked;
 
   let form: FormData;
   try {

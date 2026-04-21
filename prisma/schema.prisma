@@ -13,6 +13,12 @@ enum PlanTier {
   PRO
 }
 
+enum UserRole {
+  USER
+  ADMIN
+  SUPERADMIN
+}
+
 /// Dedupe Stripe webhook deliveries (same event id must not apply twice).
 model StripeEventLog {
   eventId   String   @id
@@ -25,6 +31,23 @@ model PaystackEventLog {
   createdAt DateTime @default(now())
 }
 
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  enabled     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AppSetting {
+  key       String   @id
+  value     String   @db.Text
+  isSecret  Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String?   @unique
@@ -34,6 +57,7 @@ model User {
   /// bcrypt hash for email/password sign-in; null for OAuth-only users
   passwordHash  String?
   createdAt     DateTime  @default(now())
+  role          UserRole  @default(USER)
 
   /// Subscription & AI allowance. Enforced when Stripe and/or Paystack keys are set (see billing-config).
   planTier             PlanTier @default(FREE)

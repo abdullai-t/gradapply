@@ -11,11 +11,22 @@ import {
   type LlmProvider,
 } from "@/lib/llm-provider";
 import {
+  classifyLlmErrorClass,
   orderedFallbackProviders,
   parseAffordableMaxTokens,
   shouldFallbackToAlternateProvider,
 } from "@/lib/llm-credits";
 import { executeChatTurnWithCreditFallback } from "@/lib/llm-execute-chat";
+import { createGeminiClient, geminiDefaultModel } from "@/lib/gemini";
+import { createGroqClient, groqDefaultModel } from "@/lib/groq";
+import {
+  acquireProviderLease,
+  getProviderRuntimeStatus,
+  recordProviderFailure,
+  recordProviderSuccess,
+  reduceTokensForProviderLoad,
+  releaseProviderLease,
+} from "@/lib/llm-router";
 import { createDirectOpenAIClient, openAiDefaultModel } from "@/lib/openai-direct";
 import {
   assistantContextGroundingRules,
@@ -88,48 +99,89 @@ async function completeOneShotWithProvider(
     maxTokens: number;
   },
 ): Promise<string> {
-  if (provider === "openai") {
-    const client = createDirectOpenAIClient();
+  const lease = await acquireProviderLease(provider);
+  const startedAt = Date.now();
+  const done = (text: string): string => {
+    recordProviderSuccess(provider, Date.now() - startedAt);
+    return text;
+  };
+  try {
+    if (provider === "openai") {
+      const client = createDirectOpenAIClient();
+      const completion = await client.chat.completions.create({
+        model: openAiDefaultModel(),
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        max_tokens: maxTokens,
+      });
+      const content = completion.choices[0]?.message?.content;
+      return done(typeof content === "string" ? content : "");
+    }
+
+    if (provider === "anthropic") {
+      const key = process.env.ANTHROPIC_API_KEY?.trim();
+      if (!key) throw new Error("ANTHROPIC_API_KEY is not configured");
+
+      const client = new Anthropic({ apiKey: key });
+      const response = await client.messages.create({
+        model: anthropicModel(),
+        max_tokens: maxTokens,
+        system,
+        messages: [{ role: "user", content: user }],
+      });
+
+      const textBlock = response.content.find((b) => b.type === "text");
+      return done(textBlock && textBlock.type === "text" ? textBlock.text : "");
+    }
+
+    if (provider === "gemini") {
+      const client = createGeminiClient();
+      const completion = await client.chat.completions.create({
+        model: geminiDefaultModel(),
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        max_tokens: maxTokens,
+      });
+      const content = completion.choices[0]?.message?.content;
+      return done(typeof content === "string" ? content : "");
+    }
+
+    if (provider === "groq") {
+      const client = createGroqClient();
+      const completion = await client.chat.completions.create({
+        model: groqDefaultModel(),
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        max_tokens: maxTokens,
+      });
+      const content = completion.choices[0]?.message?.content;
+      return done(typeof content === "string" ? content : "");
+    }
+
+    const client = createOpenRouterClient();
     const completion = await client.chat.completions.create({
-      model: openAiDefaultModel(),
+      model: openRouterModel(),
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
       ],
       max_tokens: maxTokens,
     });
+
     const content = completion.choices[0]?.message?.content;
-    return typeof content === "string" ? content : "";
+    return done(typeof content === "string" ? content : "");
+  } catch (error) {
+    recordProviderFailure(provider, classifyLlmErrorClass(error));
+    throw error;
+  } finally {
+    releaseProviderLease(lease);
   }
-
-  if (provider === "anthropic") {
-    const key = process.env.ANTHROPIC_API_KEY?.trim();
-    if (!key) throw new Error("ANTHROPIC_API_KEY is not configured");
-
-    const client = new Anthropic({ apiKey: key });
-    const response = await client.messages.create({
-      model: anthropicModel(),
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: "user", content: user }],
-    });
-
-    const textBlock = response.content.find((b) => b.type === "text");
-    return textBlock && textBlock.type === "text" ? textBlock.text : "";
-  }
-
-  const client = createOpenRouterClient();
-  const completion = await client.chat.completions.create({
-    model: openRouterModel(),
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-    max_tokens: maxTokens,
-  });
-
-  const content = completion.choices[0]?.message?.content;
-  return typeof content === "string" ? content : "";
 }
 
 /**
@@ -168,14 +220,39 @@ export async function completeOneShotLlm({
   for (const provider of chain) {
     let tokens = maxTokens;
     for (let attempt = 0; attempt < 12; attempt++) {
+      const status = getProviderRuntimeStatus(provider);
+      const shapedTokens = reduceTokensForProviderLoad(provider, tokens);
+      const startedAt = Date.now();
       try {
-        return await completeOneShotWithProvider(provider, {
+        const text = await completeOneShotWithProvider(provider, {
           system: fullSystem,
           user,
-          maxTokens: tokens,
+          maxTokens: shapedTokens,
         });
+        console.info("[llm][oneshot]", {
+          provider,
+          inFlight: status.inFlight,
+          attempt: attempt + 1,
+          fallbackUsed: provider !== primary,
+          circuitState: status.circuitState,
+          latencyMs: Date.now() - startedAt,
+          errorClass: null,
+          maxTokens: shapedTokens,
+        });
+        return text;
       } catch (e) {
         lastErr = e;
+        const errorClass = classifyLlmErrorClass(e);
+        console.warn("[llm][oneshot]", {
+          provider,
+          inFlight: status.inFlight,
+          attempt: attempt + 1,
+          fallbackUsed: provider !== primary,
+          circuitState: status.circuitState,
+          latencyMs: Date.now() - startedAt,
+          errorClass,
+          maxTokens: shapedTokens,
+        });
         if (!shouldFallbackToAlternateProvider(e)) throw e;
         const affordable = parseAffordableMaxTokens(e);
         if (affordable !== null) {

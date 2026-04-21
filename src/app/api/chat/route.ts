@@ -4,6 +4,7 @@ import {
   billingPrecheckResponse,
   finalizeAiConsumption,
 } from "@/lib/billing-allowance";
+import { requireNonFreeForFeature } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
 import { runAssistantChat, type ChatMode } from "@/lib/ai";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
@@ -21,6 +22,9 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const locked = await requireNonFreeForFeature(session.user.id, "assistant");
+  if (locked) return locked;
 
   const json = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
@@ -80,6 +84,15 @@ export async function POST(req: Request) {
       routedFromGeneral: result.routing.routedFromGeneral,
       creditFallback: result.routing.creditFallback ?? false,
     };
+    console.info("[chat][response-ai]", {
+      userId: session.user.id,
+      mode,
+      provider: agent.provider,
+      model: agent.model,
+      effectiveMode: agent.effectiveMode,
+      routedFromGeneral: agent.routedFromGeneral,
+      creditFallback: agent.creditFallback,
+    });
   } catch (e) {
     return NextResponse.json(
       { error: formatLlmFailureMessage(e) },
@@ -115,6 +128,9 @@ export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const locked = await requireNonFreeForFeature(session.user.id, "assistant");
+  if (locked) return locked;
 
   const url = new URL(req.url);
   const mode = url.searchParams.get("mode");

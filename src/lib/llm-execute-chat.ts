@@ -2,10 +2,21 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import type { LlmProvider } from "@/lib/llm-provider";
 import {
+  classifyLlmErrorClass,
   orderedFallbackProviders,
   parseAffordableMaxTokens,
   shouldFallbackToAlternateProvider,
 } from "@/lib/llm-credits";
+import { createGeminiClient, geminiDefaultModel } from "@/lib/gemini";
+import { createGroqClient, groqDefaultModel } from "@/lib/groq";
+import {
+  acquireProviderLease,
+  getProviderRuntimeStatus,
+  recordProviderFailure,
+  recordProviderSuccess,
+  reduceTokensForProviderLoad,
+  releaseProviderLease,
+} from "@/lib/llm-router";
 import { createDirectOpenAIClient } from "@/lib/openai-direct";
 import { createOpenRouterClient } from "@/lib/openrouter";
 
@@ -22,6 +33,13 @@ function openRouterDefaultModel(): string {
 function openAiFallbackModel(): string {
   return process.env.OPENAI_MODEL?.trim() || "gpt-4o";
 }
+function geminiFallbackModel(): string {
+  return geminiDefaultModel();
+}
+
+function groqFallbackModel(): string {
+  return groqDefaultModel();
+}
 
 /**
  * Runs one assistant turn using the chosen provider + model.
@@ -35,30 +53,86 @@ export async function executeChatTurn(opts: {
   maxTokens: number;
 }): Promise<string> {
   const { provider, model, system, turns, maxTokens } = opts;
+  const lease = await acquireProviderLease(provider);
+  const startedAt = Date.now();
+  const done = (text: string): string => {
+    recordProviderSuccess(provider, Date.now() - startedAt);
+    return text;
+  };
+  try {
+    if (provider === "anthropic") {
+      const key = process.env.ANTHROPIC_API_KEY?.trim();
+      if (!key) throw new Error("ANTHROPIC_API_KEY is not configured");
 
-  if (provider === "anthropic") {
-    const key = process.env.ANTHROPIC_API_KEY?.trim();
-    if (!key) throw new Error("ANTHROPIC_API_KEY is not configured");
+      const client = new Anthropic({ apiKey: key });
+      const response = await client.messages.create({
+        model: model ?? anthropicDefaultModel(),
+        max_tokens: maxTokens,
+        system,
+        messages: turns.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+      });
 
-    const client = new Anthropic({ apiKey: key });
-    const response = await client.messages.create({
-      model: model ?? anthropicDefaultModel(),
-      max_tokens: maxTokens,
-      system,
-      messages: turns.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
-    });
+      const textBlock = response.content.find((b) => b.type === "text");
+      return done(textBlock && textBlock.type === "text" ? textBlock.text : "");
+    }
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    return textBlock && textBlock.type === "text" ? textBlock.text : "";
-  }
+    if (provider === "openrouter") {
+      const client = createOpenRouterClient();
+      const completion = await client.chat.completions.create({
+        model: model ?? openRouterDefaultModel(),
+        messages: [
+          { role: "system", content: system },
+          ...turns.map((m) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          })),
+        ],
+        max_tokens: maxTokens,
+      });
+      const content = completion.choices[0]?.message?.content;
+      return done(typeof content === "string" ? content : "");
+    }
 
-  if (provider === "openrouter") {
-    const client = createOpenRouterClient();
+    if (provider === "gemini") {
+      const client = createGeminiClient();
+      const completion = await client.chat.completions.create({
+        model: model ?? geminiFallbackModel(),
+        messages: [
+          { role: "system", content: system },
+          ...turns.map((m) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          })),
+        ],
+        max_tokens: maxTokens,
+      });
+      const content = completion.choices[0]?.message?.content;
+      return done(typeof content === "string" ? content : "");
+    }
+
+    if (provider === "groq") {
+      const client = createGroqClient();
+      const completion = await client.chat.completions.create({
+        model: model ?? groqFallbackModel(),
+        messages: [
+          { role: "system", content: system },
+          ...turns.map((m) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          })),
+        ],
+        max_tokens: maxTokens,
+      });
+      const content = completion.choices[0]?.message?.content;
+      return done(typeof content === "string" ? content : "");
+    }
+
+    const client = createDirectOpenAIClient();
     const completion = await client.chat.completions.create({
-      model: model ?? openRouterDefaultModel(),
+      model: model ?? openAiFallbackModel(),
       messages: [
         { role: "system", content: system },
         ...turns.map((m) => ({
@@ -69,23 +143,13 @@ export async function executeChatTurn(opts: {
       max_tokens: maxTokens,
     });
     const content = completion.choices[0]?.message?.content;
-    return typeof content === "string" ? content : "";
+    return done(typeof content === "string" ? content : "");
+  } catch (error) {
+    recordProviderFailure(provider, classifyLlmErrorClass(error));
+    throw error;
+  } finally {
+    releaseProviderLease(lease);
   }
-
-  const client = createDirectOpenAIClient();
-  const completion = await client.chat.completions.create({
-    model: model ?? openAiFallbackModel(),
-    messages: [
-      { role: "system", content: system },
-      ...turns.map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      })),
-    ],
-    max_tokens: maxTokens,
-  });
-  const content = completion.choices[0]?.message?.content;
-  return typeof content === "string" ? content : "";
 }
 
 /**
@@ -113,13 +177,27 @@ export async function executeChatTurnWithCreditFallback(opts: {
       provider === preferredProvider ? preferredModel : undefined;
 
     for (let attempt = 0; attempt < 12; attempt++) {
+      const status = getProviderRuntimeStatus(provider);
+      const shapedTokens = reduceTokensForProviderLoad(provider, tokens);
+      const startedAt = Date.now();
       try {
         const text = await executeChatTurn({
           provider,
           model: useModel,
           system,
           turns,
-          maxTokens: tokens,
+          maxTokens: shapedTokens,
+        });
+        console.info("[llm][attempt]", {
+          provider,
+          model: useModel ?? null,
+          inFlight: status.inFlight,
+          attempt: attempt + 1,
+          fallbackUsed: provider !== preferredProvider,
+          circuitState: status.circuitState,
+          latencyMs: Date.now() - startedAt,
+          errorClass: null,
+          maxTokens: shapedTokens,
         });
         return {
           text,
@@ -129,6 +207,18 @@ export async function executeChatTurnWithCreditFallback(opts: {
         };
       } catch (e) {
         lastErr = e;
+        const errorClass = classifyLlmErrorClass(e);
+        console.warn("[llm][attempt]", {
+          provider,
+          model: useModel ?? null,
+          inFlight: status.inFlight,
+          attempt: attempt + 1,
+          fallbackUsed: provider !== preferredProvider,
+          circuitState: status.circuitState,
+          latencyMs: Date.now() - startedAt,
+          errorClass,
+          maxTokens: shapedTokens,
+        });
         if (!shouldFallbackToAlternateProvider(e)) throw e;
         const affordable = parseAffordableMaxTokens(e);
         if (affordable !== null) {

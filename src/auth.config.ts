@@ -39,12 +39,24 @@ export const authConfig = {
     jwt({ token, user }) {
       if (user) {
         token.sub = user.id;
+        if ("role" in user) {
+          const role =
+            typeof user.role === "string" ? user.role.toUpperCase() : null;
+          if (role === "USER" || role === "ADMIN" || role === "SUPERADMIN") {
+            token.role = role;
+          } else if (!token.role) {
+            token.role = "USER";
+          }
+        }
       }
       return token;
     },
     session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
+        if (token.role) {
+          session.user.role = token.role;
+        }
       }
       return session;
     },

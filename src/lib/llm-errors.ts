@@ -1,4 +1,4 @@
-import { stringifyLlmError } from "@/lib/llm-credits";
+import { classifyLlmErrorClass, stringifyLlmError } from "@/lib/llm-credits";
 
 /** Reduce accidental disclosure of server filesystem paths in API error JSON. */
 function scrubPathsForClient(s: string): string {
@@ -12,6 +12,20 @@ function scrubPathsForClient(s: string): string {
  */
 export function formatLlmFailureMessage(error: unknown): string {
   const raw = scrubPathsForClient(stringifyLlmError(error));
+  const errorClass = classifyLlmErrorClass(error);
+
+  if (errorClass === "rate_limited" || errorClass === "provider_overloaded") {
+    return "The AI provider is currently busy. Please retry in a few moments.";
+  }
+  if (errorClass === "timeout_or_network") {
+    return "The AI request timed out. Please try again.";
+  }
+  if (errorClass === "provider_saturated" || errorClass === "circuit_open") {
+    return "AI capacity is temporarily constrained. Please retry shortly.";
+  }
+  if (errorClass === "auth_or_config") {
+    return "AI service is temporarily unavailable due to provider configuration.";
+  }
 
   if (
     /credit balance is too low/i.test(raw) ||
@@ -37,5 +51,5 @@ export function formatLlmFailureMessage(error: unknown): string {
     );
   }
 
-  return raw.length > 2000 ? `${raw.slice(0, 2000)}…` : raw;
+  return "The AI request failed. Please try again shortly.";
 }

@@ -7,6 +7,7 @@ import {
   documentTypeToEntityType,
   serializeProfEmailSnapshot,
 } from "@/lib/content-version";
+import { requireNonFreeForFeature } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
 
 const createSchema = z.object({
@@ -27,6 +28,9 @@ export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const locked = await requireNonFreeForFeature(session.user.id, "documents");
+  if (locked) return locked;
 
   const { searchParams } = new URL(req.url);
   const entityTypeRaw = searchParams.get("entityType");
@@ -82,6 +86,9 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const locked = await requireNonFreeForFeature(session.user.id, "documents");
+  if (locked) return locked;
 
   const json = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(json);

@@ -5,6 +5,7 @@ import { appOrigin } from "@/lib/app-origin";
 import { buildGoogleDriveAuthorizeUrl } from "@/lib/google-drive-connector";
 import { isGoogleOAuthConfigured } from "@/lib/google-oauth-tokens";
 import { signOAuthState } from "@/lib/oauth-state";
+import { requireNonFreeForFeature } from "@/lib/plan-gates";
 
 /** Redirects to Google OAuth consent for Drive API scopes. */
 export async function GET(req: NextRequest) {
@@ -14,6 +15,9 @@ export async function GET(req: NextRequest) {
     login.searchParams.set("callbackUrl", "/settings");
     return NextResponse.redirect(login);
   }
+
+  const locked = await requireNonFreeForFeature(session.user.id, "connectors");
+  if (locked) return locked;
 
   if (!isGoogleOAuthConfigured()) {
     return NextResponse.redirect(

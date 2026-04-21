@@ -20,9 +20,10 @@ export function paystackCurrency(): string {
 
 async function paystackFetch<T>(
   path: string,
+  secretKey: string | undefined,
   init?: RequestInit,
 ): Promise<{ ok: boolean; json: T }> {
-  const key = paystackSecretKey();
+  const key = secretKey?.trim() || paystackSecretKey();
   if (!key) throw new Error("PAYSTACK_SECRET_KEY is not configured");
 
   const res = await fetch(`${BASE}${path}`, {
@@ -51,18 +52,23 @@ export async function paystackInitializeTransaction(opts: {
   currency: string;
   metadata: Record<string, string>;
   callbackUrl: string;
+  secretKey?: string;
 }): Promise<PaystackInitializeData> {
   type Res = { status: boolean; message: string; data?: PaystackInitializeData };
-  const { ok, json } = await paystackFetch<Res>("/transaction/initialize", {
-    method: "POST",
-    body: JSON.stringify({
-      email: opts.email,
-      amount: opts.amountMinor,
-      currency: opts.currency,
-      metadata: opts.metadata,
-      callback_url: opts.callbackUrl,
-    }),
-  });
+  const { ok, json } = await paystackFetch<Res>(
+    "/transaction/initialize",
+    opts.secretKey,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        email: opts.email,
+        amount: opts.amountMinor,
+        currency: opts.currency,
+        metadata: opts.metadata,
+        callback_url: opts.callbackUrl,
+      }),
+    },
+  );
 
   if (!ok || !json.status || !json.data?.authorization_url) {
     throw new Error(json.message || "Paystack initialize failed");
@@ -81,6 +87,7 @@ export type PaystackVerifyData = {
 
 export async function paystackVerifyTransaction(
   reference: string,
+  secretKey?: string,
 ): Promise<PaystackVerifyData | null> {
   type Res = {
     status: boolean;
@@ -95,6 +102,7 @@ export async function paystackVerifyTransaction(
   };
   const { ok, json } = await paystackFetch<Res>(
     `/transaction/verify/${encodeURIComponent(reference)}`,
+    secretKey,
     { method: "GET" },
   );
 
@@ -117,13 +125,14 @@ export type PaystackCustomerData = {
 export async function paystackCreateCustomer(opts: {
   email: string;
   metadata?: Record<string, string>;
+  secretKey?: string;
 }): Promise<PaystackCustomerData> {
   type Res = {
     status: boolean;
     message: string;
     data?: PaystackCustomerData;
   };
-  const { ok, json } = await paystackFetch<Res>("/customer", {
+  const { ok, json } = await paystackFetch<Res>("/customer", opts.secretKey, {
     method: "POST",
     body: JSON.stringify({
       email: opts.email,
@@ -150,19 +159,24 @@ export async function paystackCreateSubscription(opts: {
   /** Numeric customer id from Paystack */
   customerId: number;
   planCode: string;
+  secretKey?: string;
 }): Promise<PaystackSubscriptionData> {
   type Res = {
     status: boolean;
     message: string;
     data?: PaystackSubscriptionData;
   };
-  const { ok, json } = await paystackFetch<Res>("/subscription", {
-    method: "POST",
-    body: JSON.stringify({
-      customer: opts.customerId,
-      plan: opts.planCode,
-    }),
-  });
+  const { ok, json } = await paystackFetch<Res>(
+    "/subscription",
+    opts.secretKey,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        customer: opts.customerId,
+        plan: opts.planCode,
+      }),
+    },
+  );
 
   if (!ok || !json.status || !json.data) {
     throw new Error(json.message || "Paystack subscription failed");
@@ -170,8 +184,11 @@ export async function paystackCreateSubscription(opts: {
   return json.data;
 }
 
-export function computePaystackSignature(rawBody: string): string {
-  const secret = paystackSecretKey();
+export function computePaystackSignature(
+  rawBody: string,
+  secretKey?: string,
+): string {
+  const secret = secretKey?.trim() || paystackSecretKey();
   if (!secret) throw new Error("No Paystack secret");
   return createHmac("sha512", secret).update(rawBody).digest("hex");
 }
@@ -179,10 +196,11 @@ export function computePaystackSignature(rawBody: string): string {
 export function verifyPaystackWebhookSignature(
   rawBody: string,
   signatureHeader: string | null,
+  secretKey?: string,
 ): boolean {
   if (!signatureHeader) return false;
   try {
-    return computePaystackSignature(rawBody) === signatureHeader;
+    return computePaystackSignature(rawBody, secretKey) === signatureHeader;
   } catch {
     return false;
   }

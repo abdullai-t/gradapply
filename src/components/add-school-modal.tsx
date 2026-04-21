@@ -92,6 +92,11 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     () => optionsWithFallback(COUNTRY_OPTIONS, form.country),
     [form.country],
   );
+  const canSubmit =
+    form.name.trim().length > 0 &&
+    form.program.trim().length > 0 &&
+    form.degree.trim().length > 0 &&
+    !saving;
 
   const suggestFromAi = async () => {
     const name = form.name.trim();
@@ -193,7 +198,7 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
       }}
     >
       <div
-        className="glass-panel max-h-[90vh] w-full max-w-lg overflow-hidden rounded-2xl border shadow-xl"
+        className="glass-panel max-h-[92vh] w-full max-w-2xl overflow-hidden rounded-2xl border shadow-xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-school-title"
@@ -212,8 +217,12 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="max-h-[calc(90vh-4.5rem)] overflow-y-auto px-5 py-4">
-          <form className="grid gap-4 md:grid-cols-2" onSubmit={submit}>
+        <div className="max-h-[calc(92vh-8.5rem)] overflow-y-auto px-5 py-4">
+          <form
+            id="add-school-form"
+            className="grid gap-5 md:grid-cols-2"
+            onSubmit={submit}
+          >
             {error ? (
               <p
                 className="md:col-span-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
@@ -222,245 +231,262 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
                 {error}
               </p>
             ) : null}
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="modal-school-name">School name</Label>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-                <Input
-                  id="modal-school-name"
-                  required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="e.g. Carnegie Mellon University"
-                  className="sm:flex-1"
-                  disabled={aiLoading || saving}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="shrink-0 gap-2 sm:w-auto"
-                  disabled={aiLoading || saving || !form.name.trim()}
-                  onClick={() => void suggestFromAi()}
-                >
-                  {aiLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  ) : (
-                    <Sparkles className="h-4 w-4" aria-hidden />
-                  )}
-                  Suggest details
-                </Button>
-              </div>
-              {aiError ? (
-                <p className="text-sm text-destructive" role="alert">
-                  {aiError}
+
+            <div className="md:col-span-2 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+              <div className="mb-4 space-y-1">
+                <p className="text-sm font-medium text-foreground">Basics</p>
+                <p className="text-xs text-muted-foreground">
+                  Start with school name, term, and program details. Fields marked with * are required.
                 </p>
-              ) : null}
-              <p className="text-xs text-muted-foreground">
-                Pick an admission term before &quot;Suggest details&quot; so deadlines match
-                Fall / Spring / Summer intake (optional).
-              </p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="modal-school-name">School name *</Label>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                    <Input
+                      id="modal-school-name"
+                      required
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      placeholder="e.g. Carnegie Mellon University"
+                      className="sm:flex-1"
+                      disabled={aiLoading || saving}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="shrink-0 gap-2 sm:w-auto"
+                      disabled={aiLoading || saving || !form.name.trim()}
+                      onClick={() => void suggestFromAi()}
+                    >
+                      {aiLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      ) : (
+                        <Sparkles className="h-4 w-4" aria-hidden />
+                      )}
+                      Suggest details
+                    </Button>
+                  </div>
+                  {aiError ? (
+                    <p className="text-sm text-destructive" role="alert">
+                      {aiError}
+                    </p>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground">
+                    Pick an admission term before &quot;Suggest details&quot; so deadlines match
+                    Fall / Spring / Summer intake (optional).
+                  </p>
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="modal-term">Admission term</Label>
+                  <Select
+                    value={form.term ? form.term : TERM_SELECT_NONE}
+                    onValueChange={(v) =>
+                      setForm({
+                        ...form,
+                        term: v === TERM_SELECT_NONE ? "" : (v as AdmissionTerm),
+                      })
+                    }
+                    disabled={saving || aiLoading}
+                  >
+                    <SelectTrigger id="modal-term">
+                      <SelectValue placeholder="Term (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={TERM_SELECT_NONE}>Not specified</SelectItem>
+                      {ADMISSION_TERM_OPTIONS.map(({ value, label }) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="modal-program">Program *</Label>
+                  <Select
+                    value={form.program || undefined}
+                    onValueChange={(v) => setForm({ ...form, program: v })}
+                    disabled={saving}
+                  >
+                    <SelectTrigger id="modal-program">
+                      <SelectValue placeholder="Select program" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROGRAM_OPTIONS.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {p}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="modal-degree">Degree *</Label>
+                  <Select
+                    value={form.degree || undefined}
+                    onValueChange={(v) => setForm({ ...form, degree: v })}
+                    disabled={saving}
+                  >
+                    <SelectTrigger id="modal-degree">
+                      <SelectValue placeholder="Select degree" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DEGREE_OPTIONS.map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {d}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="modal-country">Country</Label>
+                  <Select
+                    value={form.country ? form.country : COUNTRY_SELECT_NONE}
+                    onValueChange={(v) =>
+                      setForm({
+                        ...form,
+                        country: v === COUNTRY_SELECT_NONE ? "" : v,
+                      })
+                    }
+                    disabled={saving}
+                  >
+                    <SelectTrigger id="modal-country">
+                      <SelectValue placeholder="Country (optional)" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[min(22rem,60vh)]">
+                      <SelectItem value={COUNTRY_SELECT_NONE}>Not specified</SelectItem>
+                      {countryChoices.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={form.status}
+                    onValueChange={(v) => setForm({ ...form, status: v as SchoolStatus })}
+                    disabled={saving}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statuses.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s.replaceAll("_", " ")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="modal-term">Admission term</Label>
-              <Select
-                value={form.term ? form.term : TERM_SELECT_NONE}
-                onValueChange={(v) =>
-                  setForm({
-                    ...form,
-                    term: v === TERM_SELECT_NONE ? "" : (v as AdmissionTerm),
-                  })
-                }
-                disabled={saving || aiLoading}
-              >
-                <SelectTrigger id="modal-term">
-                  <SelectValue placeholder="Term (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={TERM_SELECT_NONE}>Not specified</SelectItem>
-                  {ADMISSION_TERM_OPTIONS.map(({ value, label }) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="modal-program">Program</Label>
-              <Select
-                value={form.program || undefined}
-                onValueChange={(v) => setForm({ ...form, program: v })}
-                disabled={saving}
-              >
-                <SelectTrigger id="modal-program">
-                  <SelectValue placeholder="Select program" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PROGRAM_OPTIONS.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="modal-degree">Degree</Label>
-              <Select
-                value={form.degree || undefined}
-                onValueChange={(v) => setForm({ ...form, degree: v })}
-                disabled={saving}
-              >
-                <SelectTrigger id="modal-degree">
-                  <SelectValue placeholder="Select degree" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DEGREE_OPTIONS.map((d) => (
-                    <SelectItem key={d} value={d}>
-                      {d}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="modal-country">Country</Label>
-              <Select
-                value={form.country ? form.country : COUNTRY_SELECT_NONE}
-                onValueChange={(v) =>
-                  setForm({
-                    ...form,
-                    country: v === COUNTRY_SELECT_NONE ? "" : v,
-                  })
-                }
-                disabled={saving}
-              >
-                <SelectTrigger id="modal-country">
-                  <SelectValue placeholder="Country (optional)" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[min(22rem,60vh)]">
-                  <SelectItem value={COUNTRY_SELECT_NONE}>
-                    Not specified
-                  </SelectItem>
-                  {countryChoices.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="modal-deadline">Deadline</Label>
-              <Input
-                id="modal-deadline"
-                type="date"
-                value={form.deadline}
-                onChange={(e) =>
-                  setForm({ ...form, deadline: e.target.value })
-                }
-                disabled={saving}
-                className="glass-input min-h-11"
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2 rounded-lg border border-white/10 bg-white/[0.02] p-3">
-              <p className="text-xs font-medium text-muted-foreground">
-                Reminder (optional)
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2">
+
+            <div className="md:col-span-2 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+              <div className="mb-4 space-y-1">
+                <p className="text-sm font-medium text-foreground">Deadlines & reminders</p>
+                <p className="text-xs text-muted-foreground">
+                  Add timeline context now, or come back and fill later.
+                </p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="modal-deadline">Deadline</Label>
+                  <Input
+                    id="modal-deadline"
+                    type="date"
+                    value={form.deadline}
+                    onChange={(e) => setForm({ ...form, deadline: e.target.value })}
+                    disabled={saving}
+                    className="glass-input min-h-11"
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="modal-reminder-at">Remind me on</Label>
                   <Input
                     id="modal-reminder-at"
                     type="date"
                     value={form.reminderAt}
-                    onChange={(e) =>
-                      setForm({ ...form, reminderAt: e.target.value })
-                    }
+                    onChange={(e) => setForm({ ...form, reminderAt: e.target.value })}
                     disabled={saving}
                     className="glass-input min-h-11"
                   />
                 </div>
-                <div className="space-y-2 sm:col-span-2">
+                <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="modal-reminder-note">Reminder note</Label>
                   <Input
                     id="modal-reminder-note"
-                    placeholder="Short note"
+                    placeholder="e.g. Submit fee waiver before deadline"
                     value={form.reminderNote}
-                    onChange={(e) =>
-                      setForm({ ...form, reminderNote: e.target.value })
-                    }
+                    onChange={(e) => setForm({ ...form, reminderNote: e.target.value })}
                     disabled={saving}
                   />
                 </div>
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select
-                value={form.status}
-                onValueChange={(v) =>
-                  setForm({ ...form, status: v as SchoolStatus })
-                }
-                disabled={saving}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {statuses.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s.replaceAll("_", " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="modal-funding">Funding notes</Label>
-              <Input
-                id="modal-funding"
-                value={form.funding}
-                onChange={(e) =>
-                  setForm({ ...form, funding: e.target.value })
-                }
-                disabled={saving}
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="modal-portal">Portal URL</Label>
-              <Input
-                id="modal-portal"
-                placeholder="https://..."
-                value={form.portalUrl}
-                onChange={(e) =>
-                  setForm({ ...form, portalUrl: e.target.value })
-                }
-                disabled={saving}
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="modal-notes">Notes</Label>
-              <Textarea
-                id="modal-notes"
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                disabled={saving}
-              />
-            </div>
-            <div className="flex flex-wrap justify-end gap-2 md:col-span-2">
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={
-                  saving || !form.program.trim() || !form.degree.trim()
-                }
-              >
-                {saving ? "Saving…" : "Save school"}
-              </Button>
+
+            <div className="md:col-span-2 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+              <div className="mb-4 space-y-1">
+                <p className="text-sm font-medium text-foreground">Additional details</p>
+                <p className="text-xs text-muted-foreground">
+                  Optional metadata to keep your school tracker complete.
+                </p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="modal-funding">Funding notes</Label>
+                  <Input
+                    id="modal-funding"
+                    value={form.funding}
+                    onChange={(e) => setForm({ ...form, funding: e.target.value })}
+                    disabled={saving}
+                    placeholder="e.g. RA/TA preference, scholarship notes"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="modal-portal">Portal URL</Label>
+                  <Input
+                    id="modal-portal"
+                    placeholder="https://..."
+                    value={form.portalUrl}
+                    onChange={(e) => setForm({ ...form, portalUrl: e.target.value })}
+                    disabled={saving}
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="modal-notes">Notes</Label>
+                  <Textarea
+                    id="modal-notes"
+                    value={form.notes}
+                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                    disabled={saving}
+                    placeholder="Anything you want to remember for this school"
+                  />
+                </div>
+              </div>
             </div>
           </form>
+        </div>
+        <div className="flex items-center justify-between border-t border-white/10 bg-black/20 px-5 py-3">
+          <p className="text-xs text-muted-foreground">Required: school name, program, degree.</p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" form="add-school-form" disabled={!canSubmit}>
+              {saving ? "Saving…" : "Save school"}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

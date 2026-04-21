@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 import {
+  Shield,
   CalendarDays,
   LayoutDashboard,
   Mail,
@@ -30,6 +33,44 @@ const nav = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { data } = useSession();
+  const role = data?.user?.role;
+  const showAdmin = role === "ADMIN" || role === "SUPERADMIN";
+  const [isFreePlan, setIsFreePlan] = useState<boolean>(false);
+  const [settingsEnabled, setSettingsEnabled] = useState<boolean>(false);
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/billing/status", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return (await res.json()) as { planTier?: string; settingsEnabled?: boolean };
+      })
+      .then((data) => {
+        if (!active) return;
+        setIsFreePlan(data?.planTier === "FREE");
+        setSettingsEnabled(data?.settingsEnabled === true);
+      })
+      .catch(() => {
+        if (!active) return;
+        setIsFreePlan(false);
+        setSettingsEnabled(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const baseNav = nav.filter((item) => {
+    if (isFreePlan && (item.href === "/assistant" || item.href === "/documents")) {
+      return false;
+    }
+    if (!settingsEnabled && item.href === "/settings") return false;
+    return true;
+  });
+  const navItems = showAdmin
+    ? [...baseNav, { href: "/admin", label: "Admin", icon: Shield }]
+    : baseNav;
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-white/10 bg-[hsl(232_32%_11%/0.75)] backdrop-blur-2xl md:flex">
@@ -47,7 +88,7 @@ export function AppSidebar() {
       </div>
       <Separator />
       <nav className="flex flex-1 flex-col gap-1 p-3">
-        {nav.map((item) => {
+        {navItems.map((item) => {
           const Icon = item.icon;
           const active =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
