@@ -2,6 +2,19 @@
 
 This guide is the production checklist for deploying GradApply on Vercel with PostgreSQL and Prisma migrations.
 
+### DevOps quick reference
+
+| Task | Command |
+|------|---------|
+| **Release gate** (generate + lint + typecheck + `next build`) | `pnpm run predeploy` or `make predeploy` |
+| **Fast gate** (same checks as CI + Prisma generate; skips full Next build) | `pnpm run ops:release-check` or `make ops-check` |
+| **Apply migrations** against the DB in `DATABASE_URL` | `pnpm run db:migrate` or `make migrate` |
+| **Environment template** (copy to `.env`, never commit secrets) | copy **`.env.example`** or `make env` |
+
+**Runtime probes:** **`GET /api/health`** (JSON, 503 if DB down) · **`/status`** · **`/support`** (needs **`NEXT_PUBLIC_SUPPORT_EMAIL`** for a visible address).
+
+**Platform:** Configure Vercel env vars (§3), GitHub branch protection + **Lint and typecheck**, optional Vercel **Deployment Checks**, external uptime monitoring → **`/api/health`**.
+
 ## 1) Prerequisites
 
 - A Vercel account connected to this GitHub repo
@@ -61,9 +74,22 @@ Secrets stored in **`AppSetting`** (admin pricing/API keys) are encrypted with a
 
 Some UI is gated by DB-backed flags (for example key `user_settings_page` for `/settings` and related navigation). Defaults apply when a flag row is missing; enable or create flags under **`/admin/feature-flags`** after at least one elevated user exists.
 
+- **`homepage_pricing_section`** — when enabled, the marketing homepage shows the **Pricing** section and footer/nav links to `#pricing`. Default is **off** until the flag exists and is enabled (or set env **`FEATURE_FLAG_HOMEPAGE_PRICING_SECTION=true`** for an emergency override without DB).
+
 ### Observability for LLM traffic
 
 Production logs may include structured lines **`[llm][attempt]`**, **`[llm][oneshot]`**, and **`[chat][response-ai]`** for capacity and provider debugging. Ensure log retention and access policies match your compliance needs.
+
+### Sentry error reporting (optional)
+
+The app includes `@sentry/nextjs` behind environment variables. Without a DSN, Sentry stays uninitialized and adds no runtime noise.
+
+**Environment variables:**
+
+- `SENTRY_DSN` — server and edge initialization (recommended for secrets)
+- `NEXT_PUBLIC_SENTRY_DSN` — browser/client initialization (required for client-side events; often the same DSN value as public project DSN in Sentry)
+
+Set at least one DSN for your target surfaces. SDK initialization is skipped when no DSN is set, so local runs stay quiet. For **client-side** reporting, expose `NEXT_PUBLIC_SENTRY_DSN` at **build time** as well as runtime so the browser bundle initializes correctly on Vercel. Source map upload is disabled in config by default; add `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT` later if you want upload-enabled releases.
 
 ## 3) Required environment variables
 
@@ -81,6 +107,8 @@ Recommended optional variables:
 - Uploads: `CLOUDINARY_URL` (or S3-compatible vars your repo documents for storage)
 - Google auth/connectors: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 - `SUPERADMIN_EMAILS` — optional bootstrap allowlist for the first superadmin (see §2)
+- **`NEXT_PUBLIC_SUPPORT_EMAIL`** — optional; shown on **`/support`**, sidebar “Support”, and marketing footer so users can reach you (rebuild after changing)
+- **`UPSTASH_REDIS_REST_URL`** and **`UPSTASH_REDIS_REST_TOKEN`** — optional; together they enable **distributed** API rate limits across Vercel instances (see **Distributed rate limiting** under §2)
 
 ### Stripe billing (optional)
 
@@ -119,9 +147,31 @@ When `PAYSTACK_SECRET_KEY` is set (with or without Stripe), the same **monthly A
 
 Optional: `PAYSTACK_CREDITS_PACK_SIZE` aliases the same credit count as `STRIPE_CREDITS_PACK_SIZE` / `CREDITS_PACK_SIZE` (see `billing-config`).
 
-### Rate limits (optional tuning)
+### Distributed rate limiting (recommended for production)
 
-Abuse protection uses **in-memory** counters per server instance (see `src/lib/sop-generate-rate-limit.ts` and `src/lib/prof-email-llm-rate-limit.ts`). Defaults are sensible for a single-node or low-traffic deploy; for **multiple Vercel regions / instances**, consider Redis-backed limits later.
+For a **public** deployment on Vercel with multiple regions or instances, configure **Upstash Redis** so API rate limits are **shared across all lambdas**. Create a Redis database in the [Upstash console](https://console.upstash.com/) and add the REST credentials to the project environment.
+
+**Environment variables:**
+
+| Variable | Purpose |
+| --- | --- |
+| `UPSTASH_REDIS_REST_URL` | REST API URL from Upstash (required together with token for distributed limits) |
+| `UPSTASH_REDIS_REST_TOKEN` | REST token from Upstash |
+
+When **both** are set:
+
+- **`POST /api/auth/register`** — sliding window per **client IP** (Vercel sets `x-forwarded-for` / `x-real-ip` so the app can read the first hop).
+- **SOP + professor-email LLM routes** — interval, post-success cooldown, and **UTC daily** success counts use Redis keys (same `utcDayKey` behavior as before), with tunable thresholds below.
+- **`POST /api/chat`** — sliding window per **authenticated user** (see `RATE_LIMIT_CHAT_PER_USER_PER_MINUTE`).
+
+If either Upstash variable is missing, the app **does not crash**: SOP/prof-email fall back to **in-memory** guards (per-instance), registration uses a **small in-memory** IP map with pruning, and chat skips the extra user limit so users are not double-penalized versus billing/LLM routing.
+
+**Additional tuning (optional):**
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `RATE_LIMIT_REGISTER_PER_IP_PER_HOUR` | `5` | Registration attempts per IP per hour (Upstash sliding window, or in-memory fallback) |
+| `RATE_LIMIT_CHAT_PER_USER_PER_MINUTE` | `30` | Chat POST messages per user per minute; only enforced when Upstash is configured |
 
 **SOP generation** (`POST /api/sop/variants`):
 
@@ -173,6 +223,8 @@ Use migrations for deploys (not `db push`).
 ```bash
 pnpm prisma migrate deploy
 ```
+
+Equivalent npm script: **`pnpm run db:migrate`**.
 
 ### Ongoing deploys
 
@@ -250,6 +302,49 @@ Vercel may still **build** the deployment, but it will **not assign your product
 - Billing: start a test checkout or portal session only from the deployed origin (CSRF); confirm Stripe/Paystack webhooks receive events in provider dashboards
 - If connectors enabled: from `/settings` (when available), Gmail/Drive connect without env errors
 - If uploads enabled: document upload succeeds
+- **`/status`** — public status page (reflects `/api/health`); **`/api/health`** returns JSON for monitors
+- **`/support`** — contact page (requires **`NEXT_PUBLIC_SUPPORT_EMAIL`** for a visible support address)
+
+## 8) Operations (Phase 3): uptime, database recovery, migration discipline
+
+Target audience: **public launch** operators. This section is process + platform configuration; the app exposes probes you can wire to external tools.
+
+### Health probes
+
+| Endpoint | Use |
+| --- | --- |
+| **`GET /api/health`** | Machine-readable probe: **`200`** JSON `{ ok: true, version }` when the database responds; **`503`** `{ ok: false, error: "database" }` when not. Use for load balancers, synthetic monitors, and status aggregators. |
+| **`/status`** | Human-readable page for users and support; polls `/api/health` every 30s and allows manual refresh. |
+
+Configure an **external uptime monitor** (Better Stack, Checkly, UptimeRobot, Pingdom, etc.) to request **`https://<your-domain>/api/health`** on a **1–5 minute** interval. Alert on **non-200**, timeouts, or SSL failures. Keep the check in the **same region** as most users if you care about regional routing; otherwise a single global probe is fine for “is the app up.”
+
+### Neon / Postgres backups and recovery
+
+Neon and most managed Postgres providers offer **continuous archiving / point-in-time recovery (PITR)** on paid tiers. Before going public:
+
+1. In the provider console, confirm **backup / PITR** is enabled for production and note the **retention window** (your effective **RPO**).
+2. **Restore drill (quarterly):** create a **branch** or **fork** from a backup / timestamp (Neon: branch from history), connect with a temporary `DATABASE_URL`, and verify the app can run read-only smoke queries or `pnpm prisma migrate status`. Document who ran it and the outcome.
+3. Store **runbook steps** for “restore production from backup” (even if the final step is “open a support ticket with the provider”). Include **who approves** production writes after a restore.
+
+For non-Neon Postgres, substitute your vendor’s backup and PITR documentation; the drill concept is the same.
+
+### Migration discipline (avoid races)
+
+`pnpm prisma migrate deploy` is safe when **one migration run finishes** before another starts against the same database. Risks:
+
+- **Concurrent production deploys** both running migrate at build time — two builds can overlap.
+- **Manual + automatic** migrate (CI and Vercel build) at the same time.
+
+**Mitigations:**
+
+- Prefer **one** migration path: e.g. only **`pnpm exec prisma migrate deploy && pnpm run build`** on Vercel **or** only a **GitHub Action** that deploys after migrate, not both blindly.
+- Turn off **parallel production deployments** in Vercel if your team frequently ships twice at once, **or** run migrations in a **single predeploy job** that completes before traffic shifts.
+- For high-churn teams, use a **dedicated migration step** (protected environment, manual approval) before promoting the release.
+
+### Incident pointers
+
+- **Db down:** `/api/health` goes **503**; alerts should fire from your uptime tool and from **Sentry** / logs if configured.
+- **Rollback:** redeploy the previous **Vercel deployment**; migrations already applied **forward-only** — do not delete migration rows manually unless you understand Prisma’s migration table.
 
 ## Notes
 

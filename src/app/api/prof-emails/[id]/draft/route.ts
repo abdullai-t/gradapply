@@ -35,7 +35,7 @@ export async function POST(
   if (quota) return quota;
 
   try {
-    assertProfEmailLlmAllowed(session.user.id);
+    await assertProfEmailLlmAllowed(session.user.id);
   } catch (e) {
     const denial = (
       e as Error & { denial?: ProfEmailLlmDenial }
@@ -52,7 +52,7 @@ export async function POST(
     throw e;
   }
 
-  markProfEmailLlmAttempt(session.user.id);
+  await markProfEmailLlmAttempt(session.user.id);
 
   const row = await prisma.profEmail.findFirst({
     where: { id, userId: session.user.id },
@@ -93,7 +93,7 @@ export async function POST(
         },
       });
       await finalizeAiConsumption(session.user.id);
-      markProfEmailLlmSuccess(session.user.id);
+      await markProfEmailLlmSuccess(session.user.id);
       return NextResponse.json(updated);
     } catch (e) {
       return NextResponse.json(
@@ -131,6 +131,6 @@ export async function POST(
   });
 
   await finalizeAiConsumption(session.user.id);
-  markProfEmailLlmSuccess(session.user.id);
+  await markProfEmailLlmSuccess(session.user.id);
   return NextResponse.json(updated);
 }

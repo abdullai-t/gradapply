@@ -8,6 +8,7 @@ import {
   Shield,
   CalendarDays,
   LayoutDashboard,
+  LifeBuoy,
   Mail,
   MessageSquare,
   School,
@@ -28,6 +29,7 @@ const nav = [
   { href: "/assistant", label: "AI assistant", icon: MessageSquare },
   { href: "/documents", label: "Documents", icon: Upload },
   { href: "/profile", label: "Profile", icon: UserRound },
+  { href: "/support", label: "Support", icon: LifeBuoy },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

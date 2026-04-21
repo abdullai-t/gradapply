@@ -1,7 +1,7 @@
 # GradApply — common tasks (requires GNU Make; uses pnpm).
 PNPM ?= pnpm
 
-.PHONY: help install dev build lint start clean env db-push db-seed db-studio migrate
+.PHONY: help install dev build lint predeploy start clean env db-push db-seed db-studio migrate ops-check
 
 help: ## Show available targets
 	@echo "GradApply — try: make install && make env && make db-push && make db-seed && make dev"
@@ -23,6 +23,12 @@ build: ## Production build (Prisma generate + next build)
 lint: ## Run ESLint
 	$(PNPM) lint
 
+predeploy: ## Same checks as CI + production build (before ship)
+	$(PNPM) run predeploy
+
+ops-check: ## Fast gate: prisma generate + lint + typecheck (no full build)
+	$(PNPM) run ops:release-check
+
 start: ## Start production server (run make build first)
 	$(PNPM) start
 
@@ -38,8 +44,8 @@ db-seed: ## Create/update seed user (prints test login — see README)
 db-studio: ## Open Prisma Studio (browse DB in browser)
 	$(PNPM) db:studio
 
-migrate: ## Apply SQL migrations (use for prod-like / CI)
-	npx prisma migrate deploy
+migrate: ## Apply SQL migrations (production / staging DATABASE_URL)
+	$(PNPM) exec prisma migrate deploy
 
 setup: ## Install deps + copy .env if missing (then edit .env; db-push + db-seed + dev)
 	@$(MAKE) env

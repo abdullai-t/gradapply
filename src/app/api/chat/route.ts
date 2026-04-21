@@ -8,6 +8,7 @@ import { requireNonFreeForFeature } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
 import { runAssistantChat, type ChatMode } from "@/lib/ai";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
+import { assertChatPostAllowedForUser } from "@/lib/upstash-rate-limit";
 import { z } from "zod";
 
 const bodySchema = z.object({
@@ -30,6 +31,17 @@ export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success)
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+
+  const chatCap = await assertChatPostAllowedForUser(session.user.id);
+  if (!chatCap.ok) {
+    return NextResponse.json(
+      { error: "Too many assistant messages. Please wait and try again." },
+      {
+        status: 429,
+        headers: { RetryAfter: String(chatCap.retryAfterSec) },
+      },
+    );
+  }
 
   const quota = await billingPrecheckResponse(session.user.id);
   if (quota) return quota;

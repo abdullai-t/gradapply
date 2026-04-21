@@ -34,7 +34,7 @@ export async function POST(req: Request) {
   if (quota) return quota;
 
   try {
-    assertProfEmailLlmAllowed(session.user.id);
+    await assertProfEmailLlmAllowed(session.user.id);
   } catch (e) {
     const denial = (
       e as Error & { denial?: ProfEmailLlmDenial }
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     throw e;
   }
 
-  markProfEmailLlmAttempt(session.user.id);
+  await markProfEmailLlmAttempt(session.user.id);
 
   const rawUrl = parsed.data.profileUrl.trim();
 
@@ -99,7 +99,7 @@ export async function POST(req: Request) {
     });
 
     await finalizeAiConsumption(session.user.id);
-    markProfEmailLlmSuccess(session.user.id);
+    await markProfEmailLlmSuccess(session.user.id);
     return NextResponse.json({
       ...result,
       pageFetchedUrl: page.url,

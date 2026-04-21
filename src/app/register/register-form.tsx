@@ -158,6 +158,13 @@ export function RegisterForm() {
             >
               Home
             </Link>
+            {" · "}
+            <Link
+              href="/support"
+              className="rounded-lg px-1 underline-offset-4 hover:bg-white/40 hover:underline dark:hover:bg-white/[0.07]"
+            >
+              Support
+            </Link>
           </p>
         </div>
       </div>

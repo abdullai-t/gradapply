@@ -90,7 +90,7 @@ export async function POST(req: Request) {
   if (quota) return quota;
 
   try {
-    assertSopGenerateAllowed(session.user.id);
+    await assertSopGenerateAllowed(session.user.id);
   } catch (e) {
     const denial = (e as Error & { denial?: { status: number; message: string; retryAfterSec?: number } })
       .denial;
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
     throw e;
   }
 
-  markSopGenerateAttempt(session.user.id);
+  await markSopGenerateAttempt(session.user.id);
 
   let masterSopText: string | null = null;
   let sourceMasterId: string | null = null;
@@ -178,7 +178,7 @@ export async function POST(req: Request) {
   });
 
   await finalizeAiConsumption(session.user.id);
-  markSopGenerateSuccess(session.user.id);
+  await markSopGenerateSuccess(session.user.id);
 
   return NextResponse.json({ variant });
 }
