@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { billingEnabled, monthlyAiAllowanceForTier } from "@/lib/billing-config";
+import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import { prisma } from "@/lib/prisma";
 
 export class AiBudgetExceededError extends Error {
@@ -20,7 +20,8 @@ export class AiBudgetExceededError extends Error {
  * No-op when Stripe billing is not configured.
  */
 export async function assertAiBudgetWithinLimit(userId: string): Promise<void> {
-  if (!billingEnabled()) return;
+  const cfg = await getBillingAdminConfig();
+  if (!cfg.stripeSecretKey && !cfg.paystackSecretKey) return;
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -32,7 +33,7 @@ export async function assertAiBudgetWithinLimit(userId: string): Promise<void> {
   });
   if (!user) throw new Error("User not found");
 
-  const allowance = monthlyAiAllowanceForTier(user.planTier);
+  const allowance = cfg.allowance[user.planTier];
   if (user.aiCreditsBalance > 0) return;
   if (user.aiUsageUsed < allowance) return;
 
@@ -44,7 +45,8 @@ export async function assertAiBudgetWithinLimit(userId: string): Promise<void> {
  * Call only after a successful LLM operation. No-op when billing is disabled.
  */
 export async function finalizeAiConsumption(userId: string): Promise<void> {
-  if (!billingEnabled()) return;
+  const cfg = await getBillingAdminConfig();
+  if (!cfg.stripeSecretKey && !cfg.paystackSecretKey) return;
 
   await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({
@@ -65,7 +67,7 @@ export async function finalizeAiConsumption(userId: string): Promise<void> {
       return;
     }
 
-    const allowance = monthlyAiAllowanceForTier(user.planTier);
+    const allowance = cfg.allowance[user.planTier];
     if (user.aiUsageUsed >= allowance) {
       return;
     }

@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 
+import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import { processPaystackReference } from "@/lib/paystack-fulfillment";
 import { verifyPaystackWebhookSignature } from "@/lib/paystack-api";
 
 export async function POST(req: Request) {
+  const cfg = await getBillingAdminConfig();
   const raw = await req.text();
   const sig = req.headers.get("x-paystack-signature");
-  if (!verifyPaystackWebhookSignature(raw, sig)) {
+  if (!verifyPaystackWebhookSignature(raw, sig, cfg.paystackSecretKey)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 

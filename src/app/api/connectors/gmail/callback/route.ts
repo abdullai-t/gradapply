@@ -9,6 +9,7 @@ import {
   GMAIL_CONNECTOR_SCOPES,
 } from "@/lib/gmail-connector";
 import { verifyOAuthState } from "@/lib/oauth-state";
+import { requireNonFreeForFeature } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: Request) {
@@ -26,6 +27,10 @@ export async function GET(req: Request) {
 
   if (oauthErr) return redirectErr(oauthErr);
   if (!session?.user?.id) return redirectErr("not_signed_in");
+
+  const locked = await requireNonFreeForFeature(session.user.id, "connectors");
+  if (locked) return locked;
+
   if (!code?.trim() || !state?.trim()) return redirectErr("missing_oauth_params");
 
   const payload = verifyOAuthState(state);

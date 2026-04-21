@@ -1,9 +1,24 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 
+import { auth } from "@/auth";
 import { BillingSettings } from "@/components/billing-settings";
 import { ConnectorsSettings } from "@/components/connectors-settings";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { prisma } from "@/lib/prisma";
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const settingsEnabled = await isFeatureEnabled("user_settings_page", false);
+  if (!settingsEnabled) redirect("/dashboard");
+
+  const session = await auth();
+  const user = session?.user?.id
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { planTier: true },
+      })
+    : null;
+
   return (
     <div className="mx-auto max-w-3xl space-y-8 pb-16">
       <div>
@@ -36,7 +51,7 @@ export default function SettingsPage() {
           </div>
         }
       >
-        <ConnectorsSettings />
+        <ConnectorsSettings planTier={user?.planTier ?? "FREE"} />
       </Suspense>
     </div>
   );

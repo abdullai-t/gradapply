@@ -6,18 +6,12 @@ import {
   resetMonthlyUsageForSubscription,
   syncUserSubscriptionFromStripe,
 } from "@/lib/billing-stripe-sync";
+import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import { prisma } from "@/lib/prisma";
 import { getStripe } from "@/lib/stripe-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-async function alreadyProcessed(eventId: string): Promise<boolean> {
-  const row = await prisma.stripeEventLog.findUnique({
-    where: { eventId },
-  });
-  return Boolean(row);
-}
 
 async function markProcessed(eventId: string): Promise<boolean> {
   try {
@@ -29,10 +23,11 @@ async function markProcessed(eventId: string): Promise<boolean> {
 }
 
 export async function POST(req: Request) {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
-  if (!secret) {
+  const cfg = await getBillingAdminConfig();
+  const secret = cfg.stripeWebhookSecret;
+  if (!secret || !cfg.stripeSecretKey) {
     return NextResponse.json(
-      { error: "STRIPE_WEBHOOK_SECRET is not configured" },
+      { error: "Stripe webhook configuration is incomplete" },
       { status: 503 },
     );
   }
@@ -45,13 +40,14 @@ export async function POST(req: Request) {
 
   let event: Stripe.Event;
   try {
-    event = getStripe().webhooks.constructEvent(buf, sig, secret);
+    event = getStripe(cfg.stripeSecretKey).webhooks.constructEvent(buf, sig, secret);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Invalid payload";
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 
-  if (await alreadyProcessed(event.id)) {
+  const locked = await markProcessed(event.id);
+  if (!locked) {
     return NextResponse.json({ received: true, duplicate: true });
   }
 
@@ -88,7 +84,7 @@ export async function POST(req: Request) {
               ? session.subscription
               : session.subscription?.id;
           if (subId) {
-            const sub = await getStripe().subscriptions.retrieve(subId);
+            const sub = await getStripe(cfg.stripeSecretKey).subscriptions.retrieve(subId);
             await syncUserSubscriptionFromStripe(userId, sub);
           }
         }
@@ -144,9 +140,9 @@ export async function POST(req: Request) {
         break;
     }
 
-    await markProcessed(event.id);
     return NextResponse.json({ received: true });
   } catch (e) {
+    await prisma.stripeEventLog.deleteMany({ where: { eventId: event.id } });
     console.error("[stripe webhook]", e);
     return NextResponse.json(
       { error: "Webhook handler failed" },

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
+import { requireNonFreeForFeature } from "@/lib/plan-gates";
 import { parseProfEmailSnapshot } from "@/lib/prof-email-version";
 import { prisma } from "@/lib/prisma";
 
@@ -15,6 +16,9 @@ export async function POST(
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const locked = await requireNonFreeForFeature(session.user.id, "documents");
+  if (locked) return locked;
 
   const version = await prisma.contentVersion.findFirst({
     where: { id: params.id, userId: session.user.id },

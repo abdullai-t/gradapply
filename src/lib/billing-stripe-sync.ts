@@ -1,7 +1,8 @@
 import type { PlanTier } from "@prisma/client";
 import type Stripe from "stripe";
 
-import { creditsPackSize, tierForStripePriceId } from "@/lib/billing-config";
+import { tierForStripePriceId } from "@/lib/billing-config";
+import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import { prisma } from "@/lib/prisma";
 
 function resolvePlanTier(
@@ -34,7 +35,8 @@ export async function syncUserSubscriptionFromStripe(
 }
 
 export async function grantCreditsPackToUser(userId: string): Promise<void> {
-  const n = creditsPackSize();
+  const cfg = await getBillingAdminConfig();
+  const n = cfg.creditsPackSize;
   await prisma.user.update({
     where: { id: userId },
     data: { aiCreditsBalance: { increment: n } },

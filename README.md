@@ -59,8 +59,17 @@ All keys and comments live in `**[.env.example](.env.example)`**. Copy it to `.e
 Optional but needed for features:
 
 - **Google sign-in & connectors:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (see comments in `.env.example` for redirect URIs and APIs to enable).
-- **LLM (assistant, drafts, school infer):** at least one of `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENAI_API_KEY`.
+- **LLM (assistant, drafts, school infer):** at least one of `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GROQ_API_KEY`.
 - **File uploads:** `CLOUDINARY_URL` or S3-style variables documented in `.env.example`.
+
+LLM overload protection tuning (optional):
+
+- `LLM_MAX_INFLIGHT_PER_PROVIDER` (default `6`) — per-provider concurrent requests
+- `LLM_QUEUE_MAX` (default `0`) — queued requests per provider when saturated
+- `LLM_QUEUE_WAIT_MS` (default `1500`) — max wait time for queued request
+- `LLM_CIRCUIT_FAILURE_THRESHOLD` (default `4`) — consecutive failures before circuit opens
+- `LLM_CIRCUIT_OPEN_MS` (default `45000`) — cooldown when circuit is open
+- `LLM_HIGH_LOAD_TOKEN_REDUCTION_PCT` (default `25`) — token reduction when provider load is high
 
 **Where to look:** never commit real secrets — only `.env` (gitignored) and the template `.env.example`.
 

@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Bell,
   CalendarClock,
+  Crown,
   FileStack,
   GraduationCap,
   Landmark,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { auth } from "@/auth";
 import { admissionTermLabel } from "@/lib/admission-term";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +60,7 @@ function firstName(name: string | null | undefined): string {
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) return null;
+  const settingsEnabled = await isFeatureEnabled("user_settings_page", false);
 
   const [
     schools,
@@ -66,6 +69,7 @@ export default async function DashboardPage() {
     profile,
     upcomingSchools,
     reminderSchools,
+    currentUser,
   ] = await Promise.all([
     prisma.school.findMany({
       where: { userId: session.user.id },
@@ -100,6 +104,10 @@ export default async function DashboardPage() {
       orderBy: [{ reminderAt: "asc" }, { name: "asc" }],
       take: 8,
     }),
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { planTier: true },
+    }),
   ]);
 
   const byStatus = schools.reduce(
@@ -119,6 +127,8 @@ export default async function DashboardPage() {
 
   const spotlight = upcomingSchools[0];
   const accepted = byStatus.ACCEPTED ?? 0;
+  const isFreePlan = currentUser?.planTier === "FREE";
+  const showUpgradePrompts = isFreePlan && settingsEnabled;
 
   const insight =
     profile?.researchInterests?.trim().slice(0, 220) ||
@@ -171,21 +181,42 @@ export default async function DashboardPage() {
               </div>
               <div className="flex w-full shrink-0 gap-2 sm:w-auto sm:justify-end">
                 <Button
-                  variant="outline"
-                  asChild
+                  variant={showUpgradePrompts ? "secondary" : "outline"}
                   className="h-11 flex-1 border-white/20 bg-secondary/30 px-4 text-sm font-medium backdrop-blur-sm hover:bg-secondary/50 sm:min-w-[7.25rem] sm:flex-initial"
+                  disabled={isFreePlan && !showUpgradePrompts}
+                  asChild={!isFreePlan || showUpgradePrompts}
                 >
-                  <Link href="/documents">Library</Link>
+                  {isFreePlan ? (
+                    showUpgradePrompts ? (
+                      <Link href="/settings">Unlock library</Link>
+                    ) : (
+                      <span>Library (Plus)</span>
+                    )
+                  ) : (
+                    <Link href="/documents">Library</Link>
+                  )}
                 </Button>
-                <Button
-                  asChild
-                  className="h-11 flex-1 gap-2 px-4 text-sm font-medium shadow-md shadow-primary/20 sm:min-w-[8.75rem] sm:flex-initial"
-                >
-                  <Link href="/schools">
-                    New entry
-                    <ArrowRight className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
-                  </Link>
-                </Button>
+                {showUpgradePrompts ? (
+                  <Button
+                    asChild
+                    className="h-11 flex-1 gap-2 px-4 text-sm font-medium shadow-md shadow-primary/30 sm:min-w-[8.75rem] sm:flex-initial"
+                  >
+                    <Link href="/settings">
+                      <Crown className="h-4 w-4 shrink-0" aria-hidden />
+                      Upgrade plan
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button
+                    asChild
+                    className="h-11 flex-1 gap-2 px-4 text-sm font-medium shadow-md shadow-primary/20 sm:min-w-[8.75rem] sm:flex-initial"
+                  >
+                    <Link href="/schools">
+                      New entry
+                      <ArrowRight className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+                    </Link>
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -225,9 +256,19 @@ export default async function DashboardPage() {
                   Latest uploads — link out to manage versions in the library.
                 </p>
               </div>
-              <Button variant="ghost" size="sm" className="text-primary" asChild>
-                <Link href="/documents">Open library</Link>
-              </Button>
+              {isFreePlan ? (
+                showUpgradePrompts ? (
+                  <Button variant="ghost" size="sm" className="text-primary" asChild>
+                    <Link href="/settings">Upgrade to access documents</Link>
+                  </Button>
+                ) : (
+                  <span className="text-xs text-amber-300">Documents available on paid plans</span>
+                )
+              ) : (
+                <Button variant="ghost" size="sm" className="text-primary" asChild>
+                  <Link href="/documents">Open library</Link>
+                </Button>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[520px] text-left text-sm">
@@ -249,10 +290,20 @@ export default async function DashboardPage() {
                         className="px-5 py-10 text-center text-muted-foreground"
                       >
                         No documents yet.{" "}
-                        <Link href="/documents" className="text-primary underline-offset-4 hover:underline">
-                          Upload to your library
-                        </Link>
-                        .
+                        {isFreePlan ? (
+                          showUpgradePrompts ? (
+                            <Link href="/settings" className="text-primary underline-offset-4 hover:underline">
+                              Upgrade to unlock document uploads
+                            </Link>
+                          ) : (
+                            <span>Document uploads are on paid plans.</span>
+                          )
+                        ) : (
+                          <Link href="/documents" className="text-primary underline-offset-4 hover:underline">
+                            Upload to your library
+                          </Link>
+                        )}
+                        {!isFreePlan ? "." : null}
                       </td>
                     </tr>
                   ) : (
@@ -299,9 +350,25 @@ export default async function DashboardPage() {
                   {insight}
                   {profile?.researchInterests && profile.researchInterests.length > 220 ? "…" : ""}
                 </p>
-                <Button variant="link" className="h-auto p-0 text-primary" asChild>
-                  <Link href="/assistant">Open AI assistant</Link>
-                </Button>
+                {isFreePlan ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-amber-300">
+                      AI assistant is available on PLUS and PRO plans.
+                    </p>
+                    {showUpgradePrompts ? (
+                      <Button size="sm" className="gap-2" asChild>
+                        <Link href="/settings">
+                          <Crown className="h-4 w-4" aria-hidden />
+                          Upgrade to use assistant
+                        </Link>
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : (
+                  <Button variant="link" className="h-auto p-0 text-primary" asChild>
+                    <Link href="/assistant">Open AI assistant</Link>
+                  </Button>
+                )}
               </div>
             </div>
           </section>

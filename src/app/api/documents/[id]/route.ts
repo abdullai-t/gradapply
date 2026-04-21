@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { destroyStoredAsset, isCloudinaryConfigured } from "@/lib/cloudinary";
+import { requireNonFreeForFeature } from "@/lib/plan-gates";
 import {
   deleteObject,
   getBucketName,
@@ -15,6 +16,9 @@ export async function DELETE(
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const locked = await requireNonFreeForFeature(session.user.id, "documents");
+  if (locked) return locked;
 
   const { id } = params;
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { requireNonFreeForFeature } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -23,6 +24,9 @@ export async function GET() {
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const locked = await requireNonFreeForFeature(session.user.id, "documents");
+  if (locked) return locked;
+
   const documents = await prisma.document.findMany({
     where: { userId: session.user.id },
     orderBy: { createdAt: "desc" },
@@ -35,6 +39,9 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const locked = await requireNonFreeForFeature(session.user.id, "documents");
+  if (locked) return locked;
 
   const json = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(json);

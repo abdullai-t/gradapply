@@ -1,14 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
-import {
-  billingEnabled,
-  checkoutReadyForTier,
-  monthlyAiAllowanceForTier,
-  paystackEnabled,
-  stripeCheckoutConfigured,
-  stripeEnabled,
-} from "@/lib/billing-config";
+import { getBillingAdminConfig } from "@/lib/billing-admin-config";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -33,22 +27,31 @@ export async function GET() {
   if (!user)
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const allowance = monthlyAiAllowanceForTier(user.planTier);
-
-  const checkoutConfigured =
-    stripeCheckoutConfigured() ||
-    checkoutReadyForTier("plus") ||
-    checkoutReadyForTier("pro") ||
-    checkoutReadyForTier("credits");
+  const cfg = await getBillingAdminConfig();
+  const stripeEnabled = Boolean(cfg.stripeSecretKey);
+  const paystackEnabled = Boolean(cfg.paystackSecretKey);
+  const billingEnabled = stripeEnabled || paystackEnabled;
+  const canCheckoutPlus =
+    (stripeEnabled && Boolean(cfg.stripePricePlus)) ||
+    (paystackEnabled && Boolean(cfg.paystackPlanCodePlus));
+  const canCheckoutPro =
+    (stripeEnabled && Boolean(cfg.stripePricePro)) ||
+    (paystackEnabled && Boolean(cfg.paystackPlanCodePro));
+  const canCheckoutCredits =
+    (stripeEnabled && Boolean(cfg.stripePriceCreditsPack)) ||
+    (paystackEnabled && cfg.paystackAmountCreditsMinor > 0);
+  const checkoutConfigured = canCheckoutPlus || canCheckoutPro || canCheckoutCredits;
+  const allowance = cfg.allowance[user.planTier];
+  const settingsEnabled = await isFeatureEnabled("user_settings_page", false);
 
   return NextResponse.json({
-    billingEnabled: billingEnabled(),
+    billingEnabled,
     checkoutConfigured,
-    stripeEnabled: stripeEnabled(),
-    paystackEnabled: paystackEnabled(),
-    canCheckoutPlus: checkoutReadyForTier("plus"),
-    canCheckoutPro: checkoutReadyForTier("pro"),
-    canCheckoutCredits: checkoutReadyForTier("credits"),
+    stripeEnabled,
+    paystackEnabled,
+    canCheckoutPlus,
+    canCheckoutPro,
+    canCheckoutCredits,
     planTier: user.planTier,
     monthlyAllowance: allowance,
     aiUsageUsed: user.aiUsageUsed,
@@ -58,5 +61,6 @@ export async function GET() {
     hasStripeCustomer: Boolean(user.stripeCustomerId),
     hasSubscription: Boolean(user.stripeSubscriptionId),
     hasPaystackCustomer: Boolean(user.paystackCustomerId),
+    settingsEnabled,
   });
 }

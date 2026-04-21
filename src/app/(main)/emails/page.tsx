@@ -9,9 +9,11 @@ import {
   History,
   Loader2,
   MessageSquareText,
+  Search,
   Send,
   Sparkles,
   Trash2,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -190,6 +192,7 @@ export default function EmailsPage() {
   const [draftingDiscoverId, setDraftingDiscoverId] = useState<string | null>(
     null,
   );
+  const [threadQuery, setThreadQuery] = useState("");
 
   const toggleSchool = (id: string) => {
     setSelectedSchoolIds((prev) =>
@@ -291,6 +294,21 @@ export default function EmailsPage() {
   }, [rows]);
 
   const selected = rows.find((r) => r.id === selectedId) ?? null;
+  const filteredRows = useMemo(() => {
+    const q = threadQuery.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((row) => {
+      const haystack = [
+        row.profName ?? "",
+        row.university ?? "",
+        row.profEmail ?? "",
+        row.researchArea ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [rows, threadQuery]);
 
   const textDiff = useMemo(() => {
     if (!compareLeftId || !compareRightId || compareLeftId === compareRightId) {
@@ -674,6 +692,13 @@ export default function EmailsPage() {
                   <ArrowRight className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
                   Threads you create appear in the sidebar list.
                 </p>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="mt-4 border-white/15 bg-black/20"
+                >
+                  <a href="#find-faculty-panel">Go to Find faculty</a>
+                </Button>
               </div>
             </div>
           ) : (
@@ -1168,7 +1193,7 @@ export default function EmailsPage() {
 
         {/* AI Curator — top on mobile, right on xl */}
         <aside className="order-1 w-full shrink-0 space-y-4 xl:sticky xl:top-6 xl:order-2 xl:w-[min(100%,420px)]">
-          <Card className="glass-panel border-amber-500/20">
+          <Card id="find-faculty-panel" className="glass-panel border-amber-500/20">
             <CardHeader className="space-y-2 pb-2">
               <CardTitle className="font-display text-xl">Find faculty</CardTitle>
               <CardDescription className="text-sm leading-relaxed">
@@ -1233,7 +1258,24 @@ export default function EmailsPage() {
                   Option 2 · Schools + your profile
                 </p>
                 <div className="space-y-2">
-                  <Label>Schools (from your tracker)</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>Schools (from your tracker)</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {selectedSchoolIds.length} selected
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        disabled={selectedSchoolIds.length === 0}
+                        onClick={() => setSelectedSchoolIds([])}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
                   <div className="max-h-[min(40vh,220px)] space-y-2 overflow-y-auto rounded-lg border border-white/10 bg-black/20 p-3">
                     {schools.length === 0 ? (
                       <p className="text-xs text-muted-foreground">
@@ -1396,14 +1438,39 @@ export default function EmailsPage() {
               <CardDescription>Select a draft to edit in the manuscript.</CardDescription>
             </CardHeader>
             <CardContent className="pb-4 pt-0">
+              <div className="mb-3 flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={threadQuery}
+                    onChange={(e) => setThreadQuery(e.target.value)}
+                    placeholder="Search by professor, school, or email"
+                    className="h-9 border-white/15 bg-black/20 pl-8 text-sm"
+                  />
+                </div>
+                {threadQuery ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={() => setThreadQuery("")}
+                    aria-label="Clear thread search"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                ) : null}
+              </div>
               {loading ? (
                 <p className="text-sm text-muted-foreground">Loading…</p>
               ) : rows.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No threads yet.</p>
+              ) : filteredRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No threads match your search.</p>
               ) : (
                 <ScrollArea className="h-[min(52vh,420px)] pr-3">
                   <ul className="space-y-2">
-                    {rows.map((row) => (
+                    {filteredRows.map((row) => (
                       <li key={row.id}>
                         <button
                           type="button"
@@ -1415,8 +1482,13 @@ export default function EmailsPage() {
                               : "border-white/10 bg-black/15 hover:border-white/20 hover:bg-black/25",
                           )}
                         >
-                          <div className="font-medium text-foreground">
-                            {row.profName ?? "Professor"}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="font-medium text-foreground">
+                              {row.profName ?? "Professor"}
+                            </div>
+                            <Badge variant="outline" className="shrink-0 border-white/15 text-[10px]">
+                              {row.status.replaceAll("_", " ")}
+                            </Badge>
                           </div>
                           <div className="truncate text-xs text-muted-foreground">
                             {row.university ?? "—"}

@@ -1,14 +1,17 @@
 import Stripe from "stripe";
 
-let stripeSingleton: Stripe | null = null;
+const stripeByKey = new Map<string, Stripe>();
 
-export function getStripe(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY?.trim();
+export function getStripe(secretKey?: string): Stripe {
+  const key = secretKey?.trim() || process.env.STRIPE_SECRET_KEY?.trim();
   if (!key) {
     throw new Error("STRIPE_SECRET_KEY is not configured");
   }
-  if (!stripeSingleton) {
-    stripeSingleton = new Stripe(key);
+  const cached = stripeByKey.get(key);
+  if (cached) {
+    return cached;
   }
-  return stripeSingleton;
+  const stripe = new Stripe(key);
+  stripeByKey.set(key, stripe);
+  return stripe;
 }

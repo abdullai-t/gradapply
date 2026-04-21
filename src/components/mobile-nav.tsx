@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
-const items = [
+const baseItems = [
   { href: "/dashboard", label: "Home" },
   { href: "/timeline", label: "Timeline" },
   { href: "/schools", label: "Schools" },
@@ -17,6 +19,47 @@ const items = [
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { data } = useSession();
+  const role = data?.user?.role;
+  const [isFreePlan, setIsFreePlan] = useState<boolean>(false);
+  const [settingsEnabled, setSettingsEnabled] = useState<boolean>(false);
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/billing/status", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return (await res.json()) as {
+          planTier?: string;
+          settingsEnabled?: boolean;
+        };
+      })
+      .then((json) => {
+        if (!active) return;
+        setIsFreePlan(json?.planTier === "FREE");
+        setSettingsEnabled(json?.settingsEnabled === true);
+      })
+      .catch(() => {
+        if (!active) return;
+        setIsFreePlan(false);
+        setSettingsEnabled(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleBase = baseItems.filter((item) => {
+    if (isFreePlan && (item.href === "/assistant" || item.href === "/documents")) {
+      return false;
+    }
+    if (!settingsEnabled && item.href === "/settings") return false;
+    return true;
+  });
+  const items =
+    role === "ADMIN" || role === "SUPERADMIN"
+      ? [...visibleBase, { href: "/admin", label: "Admin" }]
+      : visibleBase;
   return (
     <nav className="flex gap-2 overflow-x-auto border-b border-white/10 bg-[hsl(232_30%_12%/0.9)] px-4 py-2 text-sm backdrop-blur-xl md:hidden">
       {items.map((item) => {

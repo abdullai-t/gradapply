@@ -11,6 +11,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
+    "predeploy": "pnpm exec prisma generate && pnpm run lint && pnpm run typecheck && pnpm run build",
     "typecheck": "tsc --noEmit",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",

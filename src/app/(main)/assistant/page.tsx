@@ -41,7 +41,28 @@ export default function AssistantPage() {
   const [loading, setLoading] = useState(false);
   const [lastAgent, setLastAgent] = useState<AgentMeta | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [planTier, setPlanTier] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/billing/status", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return (await res.json()) as { planTier?: string };
+      })
+      .then((json) => {
+        if (!active) return;
+        setPlanTier(json?.planTier ?? null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setPlanTier(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const load = async (m: ChatMode) => {
     const qs = `?mode=${encodeURIComponent(m)}`;
@@ -105,6 +126,24 @@ export default function AssistantPage() {
           : mode === "email"
             ? "Polish outreach messages before you send them."
             : "Ask for blunt, constructive critique on strategy.";
+
+  if (planTier === "FREE") {
+    return (
+      <Card className="glass-panel border-white/10">
+        <CardHeader>
+          <CardTitle className="font-display text-lg">AI assistant</CardTitle>
+          <CardDescription>
+            The AI assistant is available on PLUS and PRO plans.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+            Upgrade your plan in Settings to unlock assistant chats.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">

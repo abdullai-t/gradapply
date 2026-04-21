@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { requireNonFreeForFeature } from "@/lib/plan-gates";
 import { presignPut } from "@/lib/s3";
 import { z } from "zod";
 
@@ -12,6 +13,9 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const locked = await requireNonFreeForFeature(session.user.id, "documents");
+  if (locked) return locked;
 
   if (!process.env.S3_BUCKET)
     return NextResponse.json(
