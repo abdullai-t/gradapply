@@ -43,6 +43,7 @@ export async function GET() {
   const checkoutConfigured = canCheckoutPlus || canCheckoutPro || canCheckoutCredits;
   const allowance = cfg.allowance[user.planTier];
   const settingsEnabled = await isFeatureEnabled("user_settings_page", false);
+  const supportTabEnabled = await isFeatureEnabled("support_tab", false);
 
   return NextResponse.json({
     billingEnabled,
@@ -62,5 +63,6 @@ export async function GET() {
     hasSubscription: Boolean(user.stripeSubscriptionId),
     hasPaystackCustomer: Boolean(user.paystackCustomerId),
     settingsEnabled,
+    supportTabEnabled,
   });
 }

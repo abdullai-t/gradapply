@@ -9,7 +9,7 @@ export type LlmProvider =
  * Global default backend for one-shot LLM calls (school infer, professor extract, etc.).
  *
  * - Set `AI_PROVIDER=gemini`, `openrouter`, `anthropic`, `openai`, or `groq` to force when multiple keys exist.
- * - Otherwise, default order is: **Anthropic -> OpenAI -> Gemini -> OpenRouter -> Groq**.
+ * - Otherwise, default order is: **OpenRouter -> Anthropic -> OpenAI -> Gemini -> Groq**.
  *
  * @see https://openrouter.ai/docs/quickstart
  */
@@ -70,11 +70,11 @@ export function getLlmProvider(): LlmProvider {
   if (hasOpenRouter && !hasAnthropic && !hasOpenAi && !hasGroq && !hasGemini) return "openrouter";
   if (hasGroq && !hasOpenRouter && !hasAnthropic && !hasOpenAi && !hasGemini) return "groq";
 
-  /** Multi-provider precedence: Anthropic -> OpenAI -> Gemini -> OpenRouter -> Groq. */
+  /** Multi-provider precedence: OpenRouter first, then Anthropic, OpenAI, Gemini, Groq. */
+  if (hasOpenRouter) return "openrouter";
   if (hasAnthropic) return "anthropic";
   if (hasOpenAi) return "openai";
   if (hasGemini) return "gemini";
-  if (hasOpenRouter) return "openrouter";
   if (hasGroq) return "groq";
 
   throw new Error(

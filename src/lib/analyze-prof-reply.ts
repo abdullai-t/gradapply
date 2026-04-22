@@ -91,6 +91,7 @@ export async function analyzeProfessorReplyEmail({
         user: userMessage,
         maxTokens: 2048,
         userId,
+        qualityMode: "high",
       })
     ).trim() || "{}";
 

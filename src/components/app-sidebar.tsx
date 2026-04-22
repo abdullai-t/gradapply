@@ -40,23 +40,30 @@ export function AppSidebar() {
   const showAdmin = role === "ADMIN" || role === "SUPERADMIN";
   const [isFreePlan, setIsFreePlan] = useState<boolean>(false);
   const [settingsEnabled, setSettingsEnabled] = useState<boolean>(false);
+  const [supportTabEnabled, setSupportTabEnabled] = useState<boolean>(false);
 
   useEffect(() => {
     let active = true;
     void fetch("/api/billing/status", { cache: "no-store" })
       .then(async (res) => {
         if (!res.ok) return null;
-        return (await res.json()) as { planTier?: string; settingsEnabled?: boolean };
+        return (await res.json()) as {
+          planTier?: string;
+          settingsEnabled?: boolean;
+          supportTabEnabled?: boolean;
+        };
       })
       .then((data) => {
         if (!active) return;
         setIsFreePlan(data?.planTier === "FREE");
         setSettingsEnabled(data?.settingsEnabled === true);
+        setSupportTabEnabled(data?.supportTabEnabled === true);
       })
       .catch(() => {
         if (!active) return;
         setIsFreePlan(false);
         setSettingsEnabled(false);
+        setSupportTabEnabled(false);
       });
     return () => {
       active = false;
@@ -68,6 +75,7 @@ export function AppSidebar() {
       return false;
     }
     if (!settingsEnabled && item.href === "/settings") return false;
+    if (!supportTabEnabled && item.href === "/support") return false;
     return true;
   });
   const navItems = showAdmin

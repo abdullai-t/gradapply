@@ -66,7 +66,7 @@ export async function extractProfessorAndDraftFromPage({
     "Tasks:",
     "1) Infer the professor's display name, institution, and research themes only from the page text above.",
     "2) If an email address appears on the page, capture it; otherwise use null — never guess or invent an email.",
-    "3) Write a concise cold email (graduate admissions context) that connects the applicant's stated research interests to this professor's work where the page supports it.",
+    "3) Write a concise cold email (graduate admissions context). From the page text, identify specific work—papers, projects, grants, lab directions—that appears recent when dates/years are given (prefer newer items) and that aligns best with the applicant's research interests. Reference one or two concretely (titles/phrasing as on the page) and briefly explain fit. Do not cite work not evidenced in the page text.",
     "4) Output ONLY valid JSON (no markdown fences) with keys:",
     'profName (string), profEmail (string|null), university (string), researchArea (string|null, short summary of their work), emailSubject (string), emailBody (string, plain text).',
   ].join("\n");
@@ -75,10 +75,11 @@ export async function extractProfessorAndDraftFromPage({
     (
       await completeOneShotLlm({
         system:
-          "You read faculty webpage excerpts and draft polite, specific cold emails for prospective graduate students. Never fabricate contact emails or publications not evidenced in the page text. Keep the email professional and under ~350 words unless the page demands more context. Respond with JSON only.",
+          "You read faculty webpage excerpts and draft polite, specific cold emails for prospective graduate students. Prioritize mentioning recent or emphasized research from the excerpt that aligns with the applicant's stated interests; ground every citation in the page text. Never fabricate contact emails, papers, or details not evidenced there. Keep the email professional and under ~350 words unless the page demands more context. Respond with JSON only.",
         user: userMessage,
         maxTokens: 4096,
         userId,
+        qualityMode: "high",
       })
     ).trim() || "{}";
 

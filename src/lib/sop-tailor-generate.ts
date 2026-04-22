@@ -82,5 +82,6 @@ export async function generateTailoredSopBody(opts: {
     system: sopTailorTaskInstructions(),
     user: userPayload,
     maxTokens: 6000,
+    qualityMode: "high",
   });
 }

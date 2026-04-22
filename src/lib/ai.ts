@@ -36,6 +36,85 @@ import { createOpenRouterClient, openRouterModel } from "@/lib/openrouter";
 
 export type { AgentRouting } from "@/lib/assistant-agents";
 
+/** Models often wrap JSON in ```json fences despite instructions — strip for parsing. */
+function stripLlmMarkdownFence(text: string): string {
+  let t = text.trim();
+  if (!t.startsWith("```")) return t;
+  t = t.replace(/^```(?:json)?\s*\n?/i, "");
+  const end = t.lastIndexOf("```");
+  if (end !== -1) t = t.slice(0, end);
+  return t.trim();
+}
+
+/** Best-effort: first top-level `{ ... }` object (email drafts are usually one object). */
+function extractFirstJsonObject(text: string): string | null {
+  const start = text.indexOf("{");
+  if (start === -1) return null;
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+type EmailDraftJson = {
+  subject?: unknown;
+  body?: unknown;
+  emailSubject?: unknown;
+  emailBody?: unknown;
+};
+
+function normalizeProfessorDraftFields(o: EmailDraftJson): {
+  subject: string;
+  body: string;
+} | null {
+  const subject =
+    (typeof o.subject === "string" && o.subject.trim()) ||
+    (typeof o.emailSubject === "string" && o.emailSubject.trim()) ||
+    "";
+  const bodyRaw =
+    (typeof o.body === "string" && o.body) ||
+    (typeof o.emailBody === "string" && o.emailBody) ||
+    "";
+  const body = bodyRaw.trim();
+  if (!subject && !body) return null;
+  return {
+    subject: subject || "Prospective graduate student — quick question",
+    body: body || "Hello,\n\nI hope this note finds you well...",
+  };
+}
+
+function parseProfessorEmailDraft(raw: string): {
+  subject: string;
+  body: string;
+} | null {
+  const candidates = [
+    raw.trim(),
+    stripLlmMarkdownFence(raw),
+  ];
+  const tried = new Set<string>();
+  for (const c of candidates) {
+    if (!c || tried.has(c)) continue;
+    tried.add(c);
+    for (const slice of [c, extractFirstJsonObject(c) ?? ""]) {
+      if (!slice.trim()) continue;
+      try {
+        const o = JSON.parse(slice) as EmailDraftJson;
+        const n = normalizeProfessorDraftFields(o);
+        if (n) return n;
+      } catch {
+        /* try next */
+      }
+    }
+  }
+  return null;
+}
+
 /** Override with e.g. `ANTHROPIC_MODEL=claude-sonnet-4-20250514` */
 export function anthropicModel() {
   return (
@@ -79,7 +158,7 @@ export const systemForMode = (
     case "sop":
       return `${base}${pack}\nHelp refine statements of purpose: structure, specificity, alignment with programs, and avoiding clichés.\n${p}`;
     case "email":
-      return `${base}${pack}\nDraft or revise cold outreach emails to professors. Keep them respectful, specific to their research, brief (under ~250 words for the body unless asked otherwise), and appropriate for graduate admissions.\n${p}`;
+      return `${base}${pack}\nDraft or revise cold outreach emails to professors. When the user or context includes faculty page material, surface recent or highlighted work from that material that aligns with the applicant's research interests and reference it concretely; do not invent citations. Keep emails respectful, specific, brief (under ~250 words for the body unless asked otherwise), and appropriate for graduate admissions.\n${p}`;
     case "feedback":
       return `${base}${pack}\nGive constructive critique of application materials and strategy.\n${p}`;
     default:
@@ -194,12 +273,14 @@ export async function completeOneShotLlm({
   user,
   maxTokens,
   userId,
+  qualityMode = "balanced",
 }: {
   system: string;
   user: string;
   maxTokens: number;
   /** When set, prepends full profile + uploaded document text to the system prompt. */
   userId?: string;
+  qualityMode?: "balanced" | "high";
 }): Promise<string> {
   let fullSystem = system;
   if (userId) {
@@ -215,13 +296,16 @@ export async function completeOneShotLlm({
 
   const primary = getLlmProvider();
   const chain = orderedFallbackProviders(primary);
+  const highQuality = qualityMode === "high";
   let lastErr: unknown;
 
   for (const provider of chain) {
     let tokens = maxTokens;
     for (let attempt = 0; attempt < 12; attempt++) {
       const status = getProviderRuntimeStatus(provider);
-      const shapedTokens = reduceTokensForProviderLoad(provider, tokens);
+      const shapedTokens = highQuality
+        ? tokens
+        : reduceTokensForProviderLoad(provider, tokens);
       const startedAt = Date.now();
       try {
         const text = await completeOneShotWithProvider(provider, {
@@ -259,7 +343,7 @@ export async function completeOneShotLlm({
           tokens = Math.min(tokens, affordable);
           continue;
         }
-        if (tokens > 512) {
+        if (!highQuality && tokens > 512) {
           tokens = Math.floor(tokens / 2);
           continue;
         }
@@ -325,6 +409,12 @@ export async function runAssistantChat({
       routing.effectiveMode === "sop" || routing.effectiveMode === "email"
         ? 8192
         : 4096,
+    qualityMode:
+      routing.effectiveMode === "sop" ||
+      routing.effectiveMode === "email" ||
+      routing.effectiveMode === "feedback"
+        ? "high"
+        : "balanced",
   });
 
   return {
@@ -387,37 +477,78 @@ export async function draftProfessorEmail({
       ? `\n\n--- Faculty / lab page (plain text extracted from the profile URL) ---\n${profilePageText.trim()}\n--- end page ---\n`
       : "";
 
+const COLD_EMAIL_SYSTEM = `
+You are an expert academic writing coach who helps graduate school applicants
+write cold emails to professors. Your emails are concise, specific, sincere,
+and professional. They never sound generic or AI-generated.
+
+STRICT RULES:
+- Never invent paper titles, results, grants, venues, or collaborators.
+- Never use sycophantic openers like "I am deeply honored" or "I came across your
+  remarkable work." Start with a direct, confident sentence.
+- Never exceed 220 words in the body.
+- Never use bullet points or lists inside the email body.
+- Write in plain, clear academic English — no flowery language.
+- If the faculty page is missing or has no overlap with the applicant's interests,
+  write a sincere general email without fabricating specifics.
+
+EMAIL STRUCTURE (follow this order exactly):
+1. Opening (1 sentence): Who you are + degree/program you are applying to +
+   the specific university. Example: "I am applying to the PhD program in
+   Computer Science at [University] and am writing to inquire about research
+   opportunities in your lab."
+2. Research connection (2–3 sentences): Reference ONE or TWO specific items
+   from the faculty page — paper titles, project names, or lab themes — and
+   explain in one concrete sentence why each connects to the applicant's own
+   work or interests. Use the exact title or phrasing from the page.
+3. Applicant background (2–3 sentences): Mention the most relevant experience,
+   project, or skill from the applicant context. Be specific — name the project,
+   tool, or result. Do not list everything; pick what is most relevant to this
+   professor's work.
+4. Funding/availability note (1 sentence): State whether the applicant is
+   seeking full funding and their intended start term.
+5. Call to action (1 sentence): Ask a specific question or request a brief call.
+   Do not say "I would be honored." Say something like "I would welcome the
+   chance to discuss whether my background fits your current projects."
+6. Sign-off: "Best regards," then applicant full name, then email, then one-line
+   affiliation.
+
+SUBJECT LINE FORMAT:
+"Prospective PhD Student – [One research topic from their page] – [Applicant Last Name]"
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON object with exactly two keys:
+- "subject": string
+- "body": string (use actual newline characters \n between paragraphs, no HTML,
+  no markdown)
+No explanation, no markdown fences, nothing outside the JSON object.
+`.trim();
+
   const userContent = [
-    "Compose a cold email asking about graduate research opportunities.",
-    "Use the page text above to personalize: reference real research themes, labs, or publications mentioned there. Do not invent facts not supported by the page or applicant context. If the page is thin, stay general but sincere.",
-    "Output ONLY valid JSON with keys subject (string) and body (string, plain text paragraphs, no HTML). No markdown fences.",
-    "\nApplicant + contact context:\n",
+    COLD_EMAIL_SYSTEM,
     header,
     pageBlock,
   ].join("");
 
   const system =
-    "You are an expert assistant for graduate applicants. Write a concise cold email from a prospective graduate applicant to a professor. Be humble, professional, and specific where the provided page content allows. Do not claim to have read papers unless the page text clearly supports it. Output ONLY valid JSON with keys subject and body (plain text). No markdown code fences.";
+    "You are an expert assistant for graduate applicants. Write a concise cold email from a prospective graduate applicant to a professor. Ground specificity in the provided page excerpt and applicant context: tie recent or emphasized faculty work to the applicant's interests when the text supports it. Never invent publications or detailed claims. Output ONLY valid JSON with keys subject and body (plain text). No markdown code fences.";
 
   const raw = await completeOneShotLlm({
     system,
     user: userContent,
     maxTokens: 2048,
     userId,
+    qualityMode: "high",
   });
 
-  try {
-    const parsed = JSON.parse(raw) as { subject?: string; body?: string };
-    return {
-      subject: parsed.subject ?? "Prospective graduate student — quick question",
-      body:
-        parsed.body ??
-        "Hello,\n\nI hope this note finds you well...",
-    };
-  } catch {
-    return {
-      subject: "Prospective graduate student — research alignment",
-      body: raw,
-    };
-  }
+  const parsed = parseProfessorEmailDraft(raw);
+  if (parsed) return parsed;
+
+  const stripped = stripLlmMarkdownFence(raw).trim();
+  return {
+    subject: "Prospective graduate student — research alignment",
+    body:
+      stripped ||
+      "We could not parse the AI draft. Please tap Regenerate or paste your email manually.",
+  };
 }
