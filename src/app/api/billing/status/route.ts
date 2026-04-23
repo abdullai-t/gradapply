@@ -42,8 +42,12 @@ export async function GET() {
     (paystackEnabled && cfg.paystackAmountCreditsMinor > 0);
   const checkoutConfigured = canCheckoutPlus || canCheckoutPro || canCheckoutCredits;
   const allowance = cfg.allowance[user.planTier];
-  const settingsEnabled = await isFeatureEnabled("user_settings_page", false);
-  const supportTabEnabled = await isFeatureEnabled("support_tab", false);
+  const settingsEnabled = await isFeatureEnabled("user_settings_page", false, {
+    fresh: true,
+  });
+  const supportTabEnabled = await isFeatureEnabled("support_tab", false, {
+    fresh: true,
+  });
 
   return NextResponse.json({
     billingEnabled,
