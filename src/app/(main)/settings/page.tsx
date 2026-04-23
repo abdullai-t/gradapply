@@ -8,7 +8,9 @@ import { isFeatureEnabled } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 
 export default async function SettingsPage() {
-  const settingsEnabled = await isFeatureEnabled("user_settings_page", false);
+  const settingsEnabled = await isFeatureEnabled("user_settings_page", false, {
+    fresh: true,
+  });
   if (!settingsEnabled) redirect("/dashboard");
 
   const session = await auth();

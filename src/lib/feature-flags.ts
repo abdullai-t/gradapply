@@ -22,6 +22,7 @@ function envOverrideForKey(key: string): boolean | null {
 export async function isFeatureEnabled(
   key: string,
   defaultValue = false,
+  options?: { fresh?: boolean },
 ): Promise<boolean> {
   const normalized = key.trim().toLowerCase();
   if (!normalized) return defaultValue;
@@ -29,16 +30,21 @@ export async function isFeatureEnabled(
   const envValue = envOverrideForKey(normalized);
   if (envValue != null) return envValue;
 
+  const useCache = options?.fresh !== true;
   const now = Date.now();
-  const fromCache = cache.get(normalized);
-  if (fromCache && fromCache.expiresAt > now) return fromCache.enabled;
+  if (useCache) {
+    const fromCache = cache.get(normalized);
+    if (fromCache && fromCache.expiresAt > now) return fromCache.enabled;
+  }
 
   const flag = await prisma.featureFlag.findUnique({
     where: { key: normalized },
     select: { enabled: true },
   });
   const enabled = flag?.enabled ?? defaultValue;
-  cache.set(normalized, { enabled, expiresAt: now + CACHE_TTL_MS });
+  if (useCache) {
+    cache.set(normalized, { enabled, expiresAt: now + CACHE_TTL_MS });
+  }
   return enabled;
 }
 
