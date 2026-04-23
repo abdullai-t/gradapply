@@ -82,30 +82,44 @@ function qualityExecution(effectiveMode: ChatMode): {
 } {
   const p = getLlmProvider();
   const highLoad = isProviderUnderHighLoad(p);
-  const lowComplexity = effectiveMode === "general" || effectiveMode === "feedback";
+  const qualityPref = process.env.AI_QUALITY_MODE?.trim().toLowerCase();
+  const disableDowngrade = qualityPref === "high";
+  const lowComplexity = effectiveMode === "general";
   if (p === "openai") {
     return {
       provider: "openai",
-      model: highLoad && lowComplexity ? openAiGrammarModel() : openAiDefaultModel(),
+      model:
+        highLoad && lowComplexity && !disableDowngrade
+          ? openAiGrammarModel()
+          : openAiDefaultModel(),
     };
   }
   if (p === "openrouter") {
     const grammarModel = process.env.OPENROUTER_MODEL_GRAMMAR?.trim();
     return {
       provider: "openrouter",
-      model: highLoad && lowComplexity ? grammarModel || openRouterModel() : openRouterModel(),
+      model:
+        highLoad && lowComplexity && !disableDowngrade
+          ? grammarModel || openRouterModel()
+          : openRouterModel(),
     };
   }
   if (p === "gemini") {
     return {
       provider: "gemini",
-      model: highLoad && lowComplexity ? geminiGrammarModel() : geminiDefaultModel(),
+      model:
+        highLoad && lowComplexity && !disableDowngrade
+          ? geminiGrammarModel()
+          : geminiDefaultModel(),
     };
   }
   if (p === "groq") {
     return {
       provider: "groq",
-      model: highLoad && lowComplexity ? groqGrammarModel() : groqDefaultModel(),
+      model:
+        highLoad && lowComplexity && !disableDowngrade
+          ? groqGrammarModel()
+          : groqDefaultModel(),
     };
   }
   return { provider: "anthropic" };

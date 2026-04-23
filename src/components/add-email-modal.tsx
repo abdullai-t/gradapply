@@ -67,7 +67,7 @@ export function AddEmailModal({ open, onClose, editing, onSaved }: Props) {
     setGenerating(true);
     setError(null);
     try {
-      const prompt = `Write a cold email to Prof ${professorName.trim()} at ${university.trim()} who works on ${researchArea.trim()}. Use my profile context from the assistant. Produce only the email body text (plain text, no subject line).`;
+      const prompt = `Write a cold email to Prof ${professorName.trim()} at ${university.trim()} who works on ${researchArea.trim()}. Use my profile context from the assistant; align their recent or representative work with my research interests and reference it briefly if that context supports it—do not invent papers. Produce only the email body text (plain text, no subject line).`;
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

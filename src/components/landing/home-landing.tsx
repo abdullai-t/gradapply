@@ -31,7 +31,7 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-[hsl(230_35%_7%/0.82)] backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[hsl(230_35%_7%/0.72)] backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
           <Link href="/" className="min-w-0 shrink">
             <GlassBrandMark compact />
@@ -101,28 +101,33 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
         </div>
       </header>
 
-      <main>
+      <main className="relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[34rem] overflow-hidden">
+          <div className="motion-safe:animate-float-slow absolute left-[10%] top-12 h-48 w-48 rounded-full bg-primary/20 blur-3xl" />
+          <div className="motion-safe:animate-drift-x absolute right-[12%] top-28 h-64 w-64 rounded-full bg-[hsl(278_85%_62%/0.2)] blur-3xl" />
+          <div className="motion-safe:animate-pulse-glow absolute inset-x-0 top-0 mx-auto h-40 w-[34rem] rounded-full bg-[hsl(196_100%_75%/0.12)] blur-3xl" />
+        </div>
         {/* Hero */}
         <section className="relative mx-auto max-w-6xl px-6 pb-20 pt-12 md:pb-28 md:pt-16">
           <div className="mx-auto max-w-3xl text-center">
-            <span className="glass-badge border-primary/25 text-foreground/85">
+            <span className="glass-badge motion-safe:animate-fade-up border-primary/25 text-foreground/85">
               Graduate admissions, treated like a serious project
             </span>
-            <h1 className="mt-8 font-display text-balance text-4xl font-semibold tracking-tight md:text-6xl md:leading-[1.06]">
+            <h1 className="motion-safe:animate-fade-up anim-delay-100 mt-8 font-display text-balance text-4xl font-semibold tracking-tight md:text-6xl md:leading-[1.06]">
               One calm command center for every application you care about.
             </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-pretty text-lg leading-relaxed text-muted-foreground md:text-xl">
+            <p className="motion-safe:animate-fade-up anim-delay-200 mx-auto mt-6 max-w-2xl text-pretty text-lg leading-relaxed text-muted-foreground md:text-xl">
               GradApply exists so you spend less time juggling spreadsheets and inboxes,
               and more time on research fit, faculty outreach, and stories only you can
               tell. Track schools and deadlines, draft professor emails with guardrails,
               version your SOP and CV, and use AI where it helps — without losing your
               voice.
             </p>
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            <div className="motion-safe:animate-fade-up anim-delay-300 mt-10 flex flex-wrap items-center justify-center gap-3">
               <Link href="/register">
                 <Button
                   size="lg"
-                  className="shadow-[0_12px_40px_-8px_hsl(var(--primary)/0.55)]"
+                  className="shadow-[0_12px_40px_-8px_hsl(var(--primary)/0.55)] transition-transform duration-300 hover:-translate-y-0.5"
                 >
                   Start free
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -134,7 +139,7 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
                 </Button>
               </Link>
             </div>
-            <p className="mt-6 text-xs text-muted-foreground">
+            <p className="motion-safe:animate-fade-up anim-delay-400 mt-6 text-xs text-muted-foreground">
               Optional Google connectors · Document storage · AI tuned for application
               writing
             </p>
@@ -148,10 +153,10 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
         >
           <div className="mx-auto max-w-6xl px-6">
             <div className="mx-auto max-w-2xl text-center">
-              <h2 className="font-display text-3xl font-semibold tracking-tight md:text-4xl">
+              <h2 className="font-display text-3xl font-semibold tracking-tight motion-safe:animate-fade-up md:text-4xl">
                 Why GradApply
               </h2>
-              <p className="mt-4 text-pretty text-muted-foreground md:text-lg">
+              <p className="mt-4 text-pretty text-muted-foreground motion-safe:animate-fade-up anim-delay-100 md:text-lg">
                 Applying is emotional and logistical at once. The product vision is
                 simple: give you{" "}
                 <strong className="font-medium text-foreground">clarity</strong>,{" "}
@@ -185,10 +190,10 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
         <section id="features" className="scroll-mt-24 py-20 md:py-28">
           <div className="mx-auto max-w-6xl px-6">
             <div className="mx-auto max-w-2xl text-center">
-              <h2 className="font-display text-3xl font-semibold tracking-tight md:text-4xl">
+              <h2 className="font-display text-3xl font-semibold tracking-tight motion-safe:animate-fade-up md:text-4xl">
                 Everything in one workspace
               </h2>
-              <p className="mt-4 text-pretty text-muted-foreground md:text-lg">
+              <p className="mt-4 text-pretty text-muted-foreground motion-safe:animate-fade-up anim-delay-100 md:text-lg">
                 Built around the real workflow: shortlisting, contacting labs, refining
                 narratives, and shipping materials before the clock runs out.
               </p>
@@ -235,10 +240,10 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
           className="scroll-mt-24 border-t border-white/10 bg-black/15 py-20 md:py-28"
         >
           <div className="mx-auto max-w-6xl px-6">
-            <h2 className="text-center font-display text-3xl font-semibold tracking-tight md:text-4xl">
+            <h2 className="text-center font-display text-3xl font-semibold tracking-tight motion-safe:animate-fade-up md:text-4xl">
               How it works
             </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-center text-pretty text-muted-foreground md:text-lg">
+            <p className="mx-auto mt-4 max-w-2xl text-center text-pretty text-muted-foreground motion-safe:animate-fade-up anim-delay-100 md:text-lg">
               Three stages most applicants repeat until applications are in.
             </p>
 
@@ -266,10 +271,10 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
           <section id="pricing" className="scroll-mt-24 py-20 md:py-28">
             <div className="mx-auto max-w-6xl px-6">
               <div className="mx-auto max-w-2xl text-center">
-                <h2 className="font-display text-3xl font-semibold tracking-tight md:text-4xl">
+                <h2 className="font-display text-3xl font-semibold tracking-tight motion-safe:animate-fade-up md:text-4xl">
                   Pricing
                 </h2>
-                <p className="mt-4 text-pretty text-muted-foreground md:text-lg">
+                <p className="mt-4 text-pretty text-muted-foreground motion-safe:animate-fade-up anim-delay-100 md:text-lg">
                   Start free. Upgrade when you want higher monthly AI allowances and more
                   room for drafts, discovery, and polish. Exact charges depend on how your
                   deployment configures Stripe or Paystack.
@@ -338,7 +343,7 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
           className="scroll-mt-24 border-t border-white/10 bg-black/20 py-20 md:pb-28"
         >
           <div className="mx-auto max-w-3xl px-6">
-            <h2 className="text-center font-display text-3xl font-semibold tracking-tight md:text-4xl">
+            <h2 className="text-center font-display text-3xl font-semibold tracking-tight motion-safe:animate-fade-up md:text-4xl">
               FAQ
             </h2>
             <div className="mt-12 space-y-3">
@@ -362,8 +367,8 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
         <section className="border-t border-white/10 py-16">
           <div className="mx-auto max-w-6xl px-6">
             <div className="glass-panel relative overflow-hidden px-8 py-12 text-center md:px-14 md:py-16">
-              <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
-              <div className="pointer-events-none absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-[hsl(275_70%_45%/0.18)] blur-3xl" />
+              <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-primary/20 blur-3xl motion-safe:animate-float-slow" />
+              <div className="pointer-events-none absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-[hsl(275_70%_45%/0.18)] blur-3xl motion-safe:animate-drift-x" />
               <div className="relative">
                 <h2 className="font-display text-2xl font-semibold tracking-tight md:text-3xl">
                   Ready to make this cycle feel manageable?
@@ -426,8 +431,8 @@ function VisionCard(props: {
 }) {
   const Icon = props.icon;
   return (
-    <div className="glass-panel p-8">
-      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15 ring-1 ring-primary/25">
+    <div className="glass-panel group p-8 transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-[0_22px_56px_-22px_hsl(var(--primary)/0.55)]">
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15 ring-1 ring-primary/25 transition-transform duration-300 group-hover:scale-105">
         <Icon className="h-5 w-5 text-primary" aria-hidden />
       </div>
       <h3 className="mt-5 font-display text-lg font-semibold">{props.title}</h3>
@@ -445,9 +450,9 @@ function FeatureTile(props: {
 }) {
   const Icon = props.icon;
   return (
-    <div className="glass-panel group p-6 transition-colors hover:border-primary/25">
+    <div className="glass-panel group p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-[0_16px_44px_-20px_hsl(var(--primary)/0.5)]">
       <Icon
-        className="h-5 w-5 text-primary transition-transform group-hover:scale-105"
+        className="h-5 w-5 text-primary transition-transform duration-300 group-hover:scale-110"
         aria-hidden
       />
       <h3 className="mt-4 font-display text-base font-semibold">{props.title}</h3>
@@ -460,8 +465,8 @@ function FeatureTile(props: {
 
 function Step(props: { step: number; title: string; description: string }) {
   return (
-    <li className="relative flex flex-col items-center text-center md:block md:text-left">
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/15 font-display text-lg font-semibold text-primary ring-1 ring-primary/30">
+    <li className="group relative flex flex-col items-center text-center md:block md:text-left">
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/15 font-display text-lg font-semibold text-primary ring-1 ring-primary/30 transition-all duration-300 group-hover:scale-105 group-hover:ring-primary/50">
         {props.step}
       </div>
       <h3 className="mt-5 font-display text-lg font-semibold">{props.title}</h3>
@@ -485,7 +490,7 @@ function PricingCard(props: {
   return (
     <div
       className={cn(
-        "glass-panel flex flex-col p-8",
+        "glass-panel flex flex-col p-8 transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-[0_22px_56px_-20px_hsl(var(--primary)/0.45)]",
         highlight &&
           "border-primary/35 ring-2 ring-primary/25 shadow-[0_20px_60px_-12px_hsl(var(--primary)/0.35)]",
       )}
@@ -518,7 +523,7 @@ function PricingCard(props: {
       </ul>
       <Link href={props.cta.href} className="mt-10">
         <Button
-          className="w-full"
+          className="w-full transition-transform duration-300 hover:-translate-y-0.5"
           variant={highlight ? "default" : "secondary"}
           size="lg"
         >
@@ -531,11 +536,11 @@ function PricingCard(props: {
 
 function FaqItem(props: { question: string; answer: string }) {
   return (
-    <details className="glass-panel group px-5 py-4 [&_summary::-webkit-details-marker]:hidden">
+    <details className="glass-panel group px-5 py-4 transition-colors duration-300 hover:border-primary/25 [&_summary::-webkit-details-marker]:hidden">
       <summary className="cursor-pointer list-none font-medium text-foreground">
         <span className="flex items-center justify-between gap-4">
           {props.question}
-          <span className="text-muted-foreground transition group-open:rotate-180">
+          <span className="text-muted-foreground transition duration-300 group-open:rotate-180">
             ▾
           </span>
         </span>

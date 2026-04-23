@@ -161,13 +161,22 @@ export async function executeChatTurnWithCreditFallback(opts: {
   system: string;
   turns: ChatTurn[];
   maxTokens: number;
+  qualityMode?: "balanced" | "high";
 }): Promise<{
   text: string;
   provider: LlmProvider;
   model?: string;
   creditFallback: boolean;
 }> {
-  const { preferredProvider, preferredModel, system, turns, maxTokens } = opts;
+  const {
+    preferredProvider,
+    preferredModel,
+    system,
+    turns,
+    maxTokens,
+    qualityMode = "balanced",
+  } = opts;
+  const highQuality = qualityMode === "high";
   const chain = orderedFallbackProviders(preferredProvider);
   let lastErr: unknown;
 
@@ -178,7 +187,9 @@ export async function executeChatTurnWithCreditFallback(opts: {
 
     for (let attempt = 0; attempt < 12; attempt++) {
       const status = getProviderRuntimeStatus(provider);
-      const shapedTokens = reduceTokensForProviderLoad(provider, tokens);
+      const shapedTokens = highQuality
+        ? tokens
+        : reduceTokensForProviderLoad(provider, tokens);
       const startedAt = Date.now();
       try {
         const text = await executeChatTurn({
@@ -225,7 +236,7 @@ export async function executeChatTurnWithCreditFallback(opts: {
           tokens = Math.min(tokens, affordable);
           continue;
         }
-        if (tokens > 512) {
+        if (!highQuality && tokens > 512) {
           tokens = Math.floor(tokens / 2);
           continue;
         }

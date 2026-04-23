@@ -136,14 +136,14 @@ export function parseAffordableMaxTokens(error: unknown): number | null {
 
 /**
  * Providers that have env keys, in **fallback rotation order** after the primary fails.
- * Anthropic first, then OpenAI, Gemini, OpenRouter, Groq.
+ * OpenRouter first, then Anthropic, OpenAI, Gemini, Groq.
  */
 export function providersWithKeysOrdered(): LlmProvider[] {
   const list: LlmProvider[] = [];
+  if (process.env.OPENROUTER_API_KEY?.trim()) list.push("openrouter");
   if (process.env.ANTHROPIC_API_KEY?.trim()) list.push("anthropic");
   if (process.env.OPENAI_API_KEY?.trim()) list.push("openai");
   if (process.env.GEMINI_API_KEY?.trim()) list.push("gemini");
-  if (process.env.OPENROUTER_API_KEY?.trim()) list.push("openrouter");
   if (process.env.GROQ_API_KEY?.trim()) list.push("groq");
   return list;
 }

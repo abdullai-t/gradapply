@@ -75,6 +75,7 @@ Secrets stored in **`AppSetting`** (admin pricing/API keys) are encrypted with a
 Some UI is gated by DB-backed flags (for example key `user_settings_page` for `/settings` and related navigation). Defaults apply when a flag row is missing; enable or create flags under **`/admin/feature-flags`** after at least one elevated user exists.
 
 - **`homepage_pricing_section`** — when enabled, the marketing homepage shows the **Pricing** section and footer/nav links to `#pricing`. Default is **off** until the flag exists and is enabled (or set env **`FEATURE_FLAG_HOMEPAGE_PRICING_SECTION=true`** for an emergency override without DB).
+- **`support_tab`** — when enabled, the in-app **Support** tab appears in desktop and mobile navigation. Default is **off** until the flag exists and is enabled (or set env **`FEATURE_FLAG_SUPPORT_TAB=true`**).
 
 ### Observability for LLM traffic
 
@@ -103,7 +104,7 @@ Set these in **Vercel Project → Settings → Environment Variables**:
 Recommended optional variables:
 
 - AI providers (at least one): `GEMINI_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `GROQ_API_KEY`
-- `AI_PROVIDER` — optional override for default LLM routing (`anthropic`, `openai`, `gemini`, `openrouter`, `groq`; otherwise auto-selected from available keys)
+- `AI_PROVIDER` — optional override for default LLM routing (`anthropic`, `openai`, `gemini`, `openrouter`, `groq`; otherwise auto-selected from available keys). With multiple keys, **OpenRouter is preferred first**, then Anthropic → OpenAI → Gemini → Groq.
 - Uploads: `CLOUDINARY_URL` (or S3-compatible vars your repo documents for storage)
 - Google auth/connectors: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 - `SUPERADMIN_EMAILS` — optional bootstrap allowlist for the first superadmin (see §2)
@@ -188,6 +189,8 @@ If either Upstash variable is missing, the app **does not crash**: SOP/prof-emai
 ### LLM overload protection (optional tuning)
 
 Runtime request shaping reduces overload on any single LLM backend by using per-provider concurrency caps, circuit breaking, and adaptive token reductions under load.
+
+`AI_QUALITY_MODE=high` tells writing-heavy assistant flows (SOP, professor-email, feedback, and one-shot drafting/analyze paths) to prioritize output quality by disabling adaptive token shedding and aggressive token halving retries.
 
 - `LLM_MAX_INFLIGHT_PER_PROVIDER` — default `6`
 - `LLM_QUEUE_MAX` — default `0` (no queue; immediate fallback/reject)
