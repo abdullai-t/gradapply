@@ -485,99 +485,43 @@ export async function draftProfessorEmail({
       
       STRICT RULES:
       - Never invent paper titles, results, grants, venues, or collaborators.
-      - Never use sycophantic openers like "I am deeply honored", "I came across your
-        remarkable work", "I hope this email finds you well", or "Good morning/day."
-        Start with a single direct sentence stating who you are and why you are writing.
-      - Never exceed 220 words in the body. Count before returning. If over, cut
-        Section 2 or Section 3 first — never cut the call to action or funding note.
+      - Never use sycophantic openers like "I am deeply honored" or "I came across your
+        remarkable work." Start with a direct, confident sentence.
+      - Never exceed 220 words in the body.
       - Never use bullet points or lists inside the email body.
-      - Never mention GRE scores, CGPA, or years of experience by number in the body.
-        These belong in the CV only. Exception: a distinction like "top 5% of class"
-        or "summa cum laude" is allowed if stated in one clause, not a full sentence.
-      - Never pad with phrases like "directly aligns with", "precisely the foundation",
-        "I am passionate about", or "at the intersection of." Be concrete instead.
-      - Write in plain, clear academic English — no flowery or promotional language.
-      - If the faculty page is missing, very thin, or shows no overlap with the
-        applicant's interests, write a sincere general email. Do not fabricate specifics.
+      - Write in plain, clear academic English — no flowery language.
+      - If the faculty page is missing or has no overlap with the applicant's interests,
+        write a sincere general email without fabricating specifics.
       
-      EMAIL STRUCTURE (follow this order exactly, no deviations):
-      
-      1. OPENING (1 sentence only):
-         State the degree, program name, and university you are applying to, and that
-         you are writing to ask about research opportunities.
-         GOOD: "I am applying to the PhD program in Computer Science at [University]
-         and am writing to inquire about research opportunities in your lab."
-         BAD: "I am Tahiru, a developer with 4 years of experience and a GRE of 338."
-         BAD: "Good morning. I am writing to express my deep interest in your work."
-      
-      2. RESEARCH CONNECTION (3 sentences maximum, ~80–120 words):
-         - Sentence 1–2: Name ONE or TWO specific items from the faculty page —
-           exact paper titles, project names, grant names, or lab themes as they
-           appear on the page. Do not paraphrase titles. Do not name items you
-           cannot find on the page.
-         - Sentence 3: Pose a concrete research question or state a specific
-           technical connection to the applicant's own work. This must be
-           substantive — not "this aligns with my interests" but rather what
-           specific problem or method you want to explore and why.
-         EXAMPLE sentence 3: "I am curious whether the allocator design in DieHarder
-         could be adapted for the irregular memory access patterns of large model
-         inference, where allocator behavior is a known throughput bottleneck."
-      
-      3. APPLICANT BACKGROUND (2–3 sentences, ~60–80 words):
-         Name the single most relevant project, role, or result from the applicant
-         context. Include the project name, the technical method or tool, and one
-         concrete outcome or challenge it surfaced. Do not list multiple projects.
-         Do not restate research interests already covered in Section 2.
-         EXAMPLE: "At MassEnergize I managed AWS infrastructure for a 40-site
-         WordPress network and built GhanaCrop AI, a crop disease detector using
-         EfficientNet-B3 under edge compute constraints — work that pushed me toward
-         systems-level questions about efficient ML inference."
-      
-      4. FUNDING AND START TERM (1 sentence):
-         State that the applicant is seeking full funding and their intended start
-         term (e.g. Fall 2026). If unknown, write "I am seeking a fully funded
-         position and am flexible on start term."
-      
-      5. CALL TO ACTION (1 sentence):
-         Ask a specific question or request a brief conversation. This must be an
-         explicit ask — not a vague closing statement.
-         GOOD: "Would you be open to a brief call to discuss whether my background
-         fits your current projects?"
-         GOOD: "I would welcome the chance to discuss whether there is a fit with
-         your lab's current direction."
-         BAD: "I have attached my CV for your review." (this is not a call to action)
-         BAD: "Thank you for your consideration." (this is a sign-off, not an ask)
-      
-      6. ATTACHMENTS LINE (1 sentence):
-         Mention that CV and research statement are attached.
-         EXAMPLE: "I have attached my CV and research statement for your reference."
-      
-      7. SIGN-OFF:
-         "Best regards," on its own line, then applicant full name, then email
-         address, then a one-line affiliation (e.g. "KNUST Physics / MassEnergize").
+      EMAIL STRUCTURE (follow this order exactly):
+      1. Opening (1 sentence): Who you are + degree/program you are applying to +
+         the specific university. Example: "I am applying to the PhD program in
+         Computer Science at [University] and am writing to inquire about research
+         opportunities in your lab."
+      2. Research connection (2–3 sentences): Reference ONE or TWO specific items
+         from the faculty page — paper titles, project names, or lab themes — and
+         explain in one concrete sentence why each connects to the applicant's own
+         work or interests. Use the exact title or phrasing from the page.
+      3. Applicant background (2–3 sentences): Mention the most relevant experience,
+         project, or skill from the applicant context. Be specific — name the project,
+         tool, or result. Do not list everything; pick what is most relevant to this
+         professor's work.
+      4. Funding/availability note (1 sentence): State whether the applicant is
+         seeking full funding and their intended start term.
+      5. Call to action (1 sentence): Ask a specific question or request a brief call.
+         Do not say "I would be honored." Say something like "I would welcome the
+         chance to discuss whether my background fits your current projects."
+      6. Sign-off: "Best regards," then applicant full name, then email, then one-line
+         affiliation.
       
       SUBJECT LINE FORMAT:
-      "Prospective PhD Applicant – [specific research topic from their page] – [Applicant Last Name]"
-      The topic must come from the faculty page, not from the applicant's generic interests.
-      BAD:  "Prospective PhD Student – Machine Learning – Abdullai"
-      GOOD: "Prospective PhD Applicant – Memory-Safe Runtime Systems – Abdullai"
-      
-      HARD CONSTRAINTS — VERIFY BEFORE OUTPUTTING:
-      □ Body is under 220 words. If not, trim Section 2 or 3.
-      □ Opening sentence names degree + program + university. Nothing else.
-      □ No GRE scores, no experience years, no CGPA in the body.
-      □ Section 2 contains at least one exact item name from the faculty page.
-      □ Section 2 ends with a concrete technical question or specific connection.
-      □ Section 3 names exactly one project with its method and outcome.
-      □ Funding note and start term are present.
-      □ There is an explicit ask before the sign-off.
-      □ Subject line topic is sourced from the faculty page, not generic.
+      "Prospective PhD Student – [One research topic from their page] – [Applicant Last Name]"
       
       OUTPUT FORMAT:
       Return ONLY a valid JSON object with exactly two keys:
       - "subject": string
-      - "body": string (use actual \n newline characters between paragraphs,
-        no HTML, no markdown formatting)
+      - "body": string (use actual newline characters \n between paragraphs, no HTML,
+        no markdown)
       No explanation, no markdown fences, nothing outside the JSON object.
       `.trim();
 
