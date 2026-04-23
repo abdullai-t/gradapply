@@ -1,6 +1,7 @@
 import type { Profile } from "@prisma/client";
 
 import { completeOneShotLlm } from "@/lib/ai";
+import { coldEmailGuideBlock } from "@/lib/cold-email-guide";
 
 export type OutreachFromPageResult = {
   profName: string;
@@ -62,6 +63,7 @@ export async function extractProfessorAndDraftFromPage({
     "--- Plain text extracted from that page (may be noisy) ---",
     profilePageText.trim(),
     "--- end ---",
+    coldEmailGuideBlock(),
     "",
     "Tasks:",
     "1) Infer the professor's display name, institution, and research themes only from the page text above.",
@@ -75,7 +77,7 @@ export async function extractProfessorAndDraftFromPage({
     (
       await completeOneShotLlm({
         system:
-          "You read faculty webpage excerpts and draft polite, specific cold emails for prospective graduate students. Prioritize mentioning recent or emphasized research from the excerpt that aligns with the applicant's stated interests; ground every citation in the page text. Never fabricate contact emails, papers, or details not evidenced there. Keep the email professional and under ~350 words unless the page demands more context. Respond with JSON only.",
+          "You read faculty webpage excerpts and draft polite, specific cold emails for prospective graduate students. Honor the editorial reference (cold_email_guide.md) in the user message for structure and tone when compatible with JSON-only output and grounding rules. Prioritize mentioning recent or emphasized research from the excerpt that aligns with the applicant's stated interests; ground every citation in the page text. Never fabricate contact emails, papers, or details not evidenced there. Keep the email professional and under ~350 words unless the page demands more context. Respond with JSON only.",
         user: userMessage,
         maxTokens: 4096,
         userId,
