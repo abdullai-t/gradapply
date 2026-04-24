@@ -185,6 +185,7 @@ model Profile {
   undergradGPA      Float?
   yearsExperience   String?
   researchInterests String?
+  countriesOfInterest String[] @default([])
   bio               String?
   updatedAt         DateTime @updatedAt
 }
