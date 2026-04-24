@@ -19,6 +19,7 @@ export async function POST() {
     prisma.school.findMany({
       where: { userId: session.user.id },
       select: { name: true },
+      distinct: ["name"],
     }),
   ]);
 

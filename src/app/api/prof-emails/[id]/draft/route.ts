@@ -54,14 +54,15 @@ export async function POST(
 
   await markProfEmailLlmAttempt(session.user.id);
 
-  const row = await prisma.profEmail.findFirst({
-    where: { id, userId: session.user.id },
-  });
+  const [row, profile] = await Promise.all([
+    prisma.profEmail.findFirst({
+      where: { id, userId: session.user.id },
+    }),
+    prisma.profile.findUnique({
+      where: { userId: session.user.id },
+    }),
+  ]);
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  const profile = await prisma.profile.findUnique({
-    where: { userId: session.user.id },
-  });
 
   if (row.profileUrl?.trim()) {
     let fetched;
@@ -92,8 +93,10 @@ export async function POST(
           profileUrl: fetched.url,
         },
       });
-      await finalizeAiConsumption(session.user.id);
-      await markProfEmailLlmSuccess(session.user.id);
+      await Promise.all([
+        finalizeAiConsumption(session.user.id),
+        markProfEmailLlmSuccess(session.user.id),
+      ]);
       return NextResponse.json(updated);
     } catch (e) {
       return NextResponse.json(
@@ -130,7 +133,9 @@ export async function POST(
     },
   });
 
-  await finalizeAiConsumption(session.user.id);
-  await markProfEmailLlmSuccess(session.user.id);
+  await Promise.all([
+    finalizeAiConsumption(session.user.id),
+    markProfEmailLlmSuccess(session.user.id),
+  ]);
   return NextResponse.json(updated);
 }

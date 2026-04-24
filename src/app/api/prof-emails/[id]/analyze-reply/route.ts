@@ -64,14 +64,15 @@ export async function POST(
 
   const { replyText } = parsed.data;
 
-  const row = await prisma.profEmail.findFirst({
-    where: { id: idParsed.data, userId: session.user.id },
-  });
+  const [row, profile] = await Promise.all([
+    prisma.profEmail.findFirst({
+      where: { id: idParsed.data, userId: session.user.id },
+    }),
+    prisma.profile.findUnique({
+      where: { userId: session.user.id },
+    }),
+  ]);
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  const profile = await prisma.profile.findUnique({
-    where: { userId: session.user.id },
-  });
 
   let intent;
   let rationale;
@@ -114,8 +115,10 @@ export async function POST(
     },
   });
 
-  await finalizeAiConsumption(session.user.id);
-  await markProfEmailLlmSuccess(session.user.id);
+  await Promise.all([
+    finalizeAiConsumption(session.user.id),
+    markProfEmailLlmSuccess(session.user.id),
+  ]);
   return NextResponse.json({
     intent,
     rationale,

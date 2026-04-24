@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -122,7 +122,7 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     !saving;
   const currentRec = recommendations[recIndex] ?? null;
 
-  const suggestFromAi = async () => {
+  const suggestFromAi = useCallback(async () => {
     const name = form.name.trim();
     if (!name) {
       setAiError("Enter a school or university name first.");
@@ -165,7 +165,7 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     } finally {
       setAiLoading(false);
     }
-  };
+  }, [form.name, form.term]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -211,7 +211,7 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     }
   }
 
-  const loadRecommendations = async () => {
+  const loadRecommendations = useCallback(async () => {
     setRecLoading(true);
     setRecError(null);
     try {
@@ -239,13 +239,13 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     } finally {
       setRecLoading(false);
     }
-  };
+  }, []);
 
-  const skipRecommendation = () => {
+  const skipRecommendation = useCallback(() => {
     setRecIndex((i) => i + 1);
-  };
+  }, []);
 
-  const addRecommendationToList = async () => {
+  const addRecommendationToList = useCallback(async () => {
     if (!currentRec) return;
     setSaving(true);
     setRecError(null);
@@ -278,7 +278,7 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     } finally {
       setSaving(false);
     }
-  };
+  }, [currentRec, onSaved]);
 
   if (!open) return null;
 

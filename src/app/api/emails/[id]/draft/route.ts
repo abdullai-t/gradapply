@@ -19,17 +19,18 @@ export async function POST(
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const row = await prisma.profEmail.findFirst({
-    where: { id: params.id, userId: session.user.id },
-  });
+  const [row, profile] = await Promise.all([
+    prisma.profEmail.findFirst({
+      where: { id: params.id, userId: session.user.id },
+    }),
+    prisma.profile.findUnique({
+      where: { userId: session.user.id },
+    }),
+  ]);
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const quota = await billingPrecheckResponse(session.user.id);
   if (quota) return quota;
-
-  const profile = await prisma.profile.findUnique({
-    where: { userId: session.user.id },
-  });
 
   if (row.profileUrl?.trim()) {
     let fetched;

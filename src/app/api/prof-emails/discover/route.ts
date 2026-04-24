@@ -65,22 +65,23 @@ export async function POST(req: Request) {
 
   const uniqueIds = Array.from(new Set(parsed.data.schoolIds));
 
-  const schools = await prisma.school.findMany({
-    where: {
-      userId: session.user.id,
-      id: { in: uniqueIds },
-    },
-  });
+  const [schools, profile] = await Promise.all([
+    prisma.school.findMany({
+      where: {
+        userId: session.user.id,
+        id: { in: uniqueIds },
+      },
+    }),
+    prisma.profile.findUnique({
+      where: { userId: session.user.id },
+    }),
+  ]);
 
   if (schools.length !== uniqueIds.length)
     return NextResponse.json(
       { error: "One or more school ids are invalid." },
       { status: 400 },
     );
-
-  const profile = await prisma.profile.findUnique({
-    where: { userId: session.user.id },
-  });
 
   try {
     const result = await discoverFacultyMatches({
@@ -98,8 +99,10 @@ export async function POST(req: Request) {
       userId: session.user.id,
     });
 
-    await finalizeAiConsumption(session.user.id);
-    await markProfEmailLlmSuccess(session.user.id);
+    await Promise.all([
+      finalizeAiConsumption(session.user.id),
+      markProfEmailLlmSuccess(session.user.id),
+    ]);
     return NextResponse.json({
       ...result,
       pageFetchedUrl: page.url,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -76,6 +76,10 @@ export default function ProfilePage() {
     () => optionsWithFallback(PROGRAM_OPTIONS, form.focusArea),
     [form.focusArea],
   );
+  const selectedCountries = useMemo(
+    () => new Set(form.countriesOfInterest),
+    [form.countriesOfInterest],
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -107,7 +111,7 @@ export default function ProfilePage() {
     void load();
   }, []);
 
-  const save = async () => {
+  const save = useCallback(async () => {
     setSaving(true);
     setSaved(false);
     const res = await fetch("/api/profile", {
@@ -131,25 +135,25 @@ export default function ProfilePage() {
     });
     setSaving(false);
     if (res.ok) setSaved(true);
-  };
+  }, [form]);
 
-  const addCountryOfInterest = () => {
+  const addCountryOfInterest = useCallback(() => {
     if (countryDraft === SELECT_NONE) return;
-    if (form.countriesOfInterest.includes(countryDraft)) return;
+    if (selectedCountries.has(countryDraft)) return;
     if (form.countriesOfInterest.length >= 5) return;
     setForm({
       ...form,
       countriesOfInterest: [...form.countriesOfInterest, countryDraft],
     });
     setCountryDraft(SELECT_NONE);
-  };
+  }, [countryDraft, form, selectedCountries]);
 
-  const removeCountryOfInterest = (country: string) => {
+  const removeCountryOfInterest = useCallback((country: string) => {
     setForm({
       ...form,
       countriesOfInterest: form.countriesOfInterest.filter((c) => c !== country),
     });
-  };
+  }, [form]);
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -299,7 +303,7 @@ export default function ProfilePage() {
                     disabled={
                       countryDraft === SELECT_NONE ||
                       form.countriesOfInterest.length >= 5 ||
-                      form.countriesOfInterest.includes(countryDraft)
+                      selectedCountries.has(countryDraft)
                     }
                   >
                     Add

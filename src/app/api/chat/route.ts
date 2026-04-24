@@ -49,23 +49,25 @@ export async function POST(req: Request) {
   const mode = parsed.data.mode as ChatMode;
   const message = parsed.data.message;
 
-  const profile = await prisma.profile.findUnique({
-    where: { userId: session.user.id },
-  });
+  const [profile, prior] = await Promise.all([
+    prisma.profile.findUnique({
+      where: { userId: session.user.id },
+    }),
+    prisma.chatMessage.findMany({
+      where: { userId: session.user.id, mode },
+      orderBy: { createdAt: "desc" },
+      take: 40,
+    }),
+  ]);
 
-  const prior = await prisma.chatMessage.findMany({
-    where: { userId: session.user.id, mode },
-    orderBy: { createdAt: "desc" },
-    take: 40,
-  });
-
-  const history = prior
-    .slice()
-    .reverse()
-    .map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    }));
+  const history: { role: "user" | "assistant"; content: string }[] = [];
+  for (let i = prior.length - 1; i >= 0; i--) {
+    const msg = prior[i];
+    history.push({
+      role: msg.role as "user" | "assistant",
+      content: msg.content,
+    });
+  }
 
   let reply: string;
   let agent: {

@@ -91,6 +91,7 @@ export async function recommendSchoolsFromProfile({
   const normalizedExisting = existingSchoolNames
     .map((n) => n.trim().toLowerCase())
     .filter(Boolean);
+  const existingNameSet = new Set(normalizedExisting);
   const preferredCountries = (profile?.countriesOfInterest ?? []).filter(Boolean);
 
   const raw = await completeOneShotLlm({
@@ -135,7 +136,7 @@ export async function recommendSchoolsFromProfile({
     const name = typeof row.name === "string" ? row.name.trim() : "";
     if (!name) continue;
     const key = name.toLowerCase();
-    if (normalizedExisting.includes(key) || deduped.has(key)) continue;
+    if (existingNameSet.has(key) || deduped.has(key)) continue;
 
     const program = snapToCurated(
       typeof row.program === "string" ? row.program : "Other",
