@@ -57,27 +57,26 @@ export async function POST(req: Request) {
 
   const rawUrl = parsed.data.profileUrl.trim();
 
-  let pageUrl: string;
-  let pageText: string;
+  let fetchedPage: { url: string; text: string };
+  let profile: Awaited<ReturnType<typeof prisma.profile.findUnique>>;
   try {
-    const fetched = await fetchProfilePagePlainText(rawUrl);
-    pageUrl = fetched.url;
-    pageText = fetched.text;
+    [fetchedPage, profile] = await Promise.all([
+      fetchProfilePagePlainText(rawUrl),
+      prisma.profile.findUnique({
+        where: { userId: session.user.id },
+      }),
+    ]);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Could not load page";
     return NextResponse.json({ error: msg }, { status: 422 });
   }
 
-  const profile = await prisma.profile.findUnique({
-    where: { userId: session.user.id },
-  });
-
   let result;
   try {
     result = await extractProfessorAndDraftFromPage({
       profile,
-      profilePageUrl: pageUrl,
-      profilePageText: pageText,
+      profilePageUrl: fetchedPage.url,
+      profilePageText: fetchedPage.text,
       userId: session.user.id,
     });
   } catch (e) {
@@ -93,7 +92,7 @@ export async function POST(req: Request) {
       profName: result.profName,
       profEmail: result.profEmail,
       university: result.university,
-      profileUrl: pageUrl,
+      profileUrl: fetchedPage.url,
       researchArea: result.researchArea,
       emailSubject: result.emailSubject,
       emailBody: result.emailBody,
@@ -101,7 +100,9 @@ export async function POST(req: Request) {
     },
   });
 
-  await finalizeAiConsumption(session.user.id);
-  await markProfEmailLlmSuccess(session.user.id);
+  await Promise.all([
+    finalizeAiConsumption(session.user.id),
+    markProfEmailLlmSuccess(session.user.id),
+  ]);
   return NextResponse.json(row);
 }

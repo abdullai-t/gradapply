@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -63,12 +64,29 @@ type Props = {
   onSaved: () => void;
 };
 
+type ProfileRecommendation = {
+  name: string;
+  program: string;
+  degree: string;
+  country: string;
+  whyFit: string;
+  notes: string;
+  portalUrl: string;
+};
+
 export function AddSchoolModal({ open, onClose, onSaved }: Props) {
   const [form, setForm] = useState(initialForm);
+  const [mode, setMode] = useState<"manual" | "profile">("profile");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recLoading, setRecLoading] = useState(false);
+  const [recError, setRecError] = useState<string | null>(null);
+  const [recommendations, setRecommendations] = useState<ProfileRecommendation[]>(
+    [],
+  );
+  const [recIndex, setRecIndex] = useState(0);
 
   useEffect(() => {
     if (!open) return;
@@ -77,6 +95,11 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     setError(null);
     setAiLoading(false);
     setSaving(false);
+    setMode("profile");
+    setRecLoading(false);
+    setRecError(null);
+    setRecommendations([]);
+    setRecIndex(0);
   }, [open]);
 
   useEffect(() => {
@@ -97,8 +120,9 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     form.program.trim().length > 0 &&
     form.degree.trim().length > 0 &&
     !saving;
+  const currentRec = recommendations[recIndex] ?? null;
 
-  const suggestFromAi = async () => {
+  const suggestFromAi = useCallback(async () => {
     const name = form.name.trim();
     if (!name) {
       setAiError("Enter a school or university name first.");
@@ -141,7 +165,7 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     } finally {
       setAiLoading(false);
     }
-  };
+  }, [form.name, form.term]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -187,6 +211,75 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     }
   }
 
+  const loadRecommendations = useCallback(async () => {
+    setRecLoading(true);
+    setRecError(null);
+    try {
+      const res = await fetch("/api/schools/recommend", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          typeof data.error === "string"
+            ? data.error
+            : "Could not generate recommendations",
+        );
+      }
+      const rows = Array.isArray(data.schools)
+        ? (data.schools as ProfileRecommendation[])
+        : [];
+      setRecommendations(rows);
+      setRecIndex(0);
+      if (rows.length === 0) {
+        setRecError(
+          "No recommendations right now. Update your profile and try again.",
+        );
+      }
+    } catch (e) {
+      setRecError(e instanceof Error ? e.message : "Failed to load recommendations");
+    } finally {
+      setRecLoading(false);
+    }
+  }, []);
+
+  const skipRecommendation = useCallback(() => {
+    setRecIndex((i) => i + 1);
+  }, []);
+
+  const addRecommendationToList = useCallback(async () => {
+    if (!currentRec) return;
+    setSaving(true);
+    setRecError(null);
+    try {
+      const res = await fetch("/api/schools", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: currentRec.name,
+          program: currentRec.program,
+          degree: currentRec.degree,
+          country: currentRec.country || null,
+          notes: [currentRec.whyFit, currentRec.notes].filter(Boolean).join("\n\n"),
+          portalUrl: currentRec.portalUrl || null,
+          status: "PLANNING",
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(
+          typeof j.error === "object"
+            ? JSON.stringify(j.error)
+            : j.error ?? "Could not add school",
+        );
+      }
+      onSaved();
+      setRecIndex((i) => i + 1);
+    } catch (e) {
+      setRecError(e instanceof Error ? e.message : "Failed to add school");
+    } finally {
+      setSaving(false);
+    }
+  }, [currentRec, onSaved]);
+
   if (!open) return null;
 
   return (
@@ -218,11 +311,22 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
           </button>
         </div>
         <div className="max-h-[calc(92vh-8.5rem)] overflow-y-auto px-5 py-4">
-          <form
-            id="add-school-form"
-            className="grid gap-5 md:grid-cols-2"
-            onSubmit={submit}
+          <Tabs
+            value={mode}
+            onValueChange={(v) => setMode(v as "manual" | "profile")}
+            className="space-y-4"
           >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="profile">From profile (swipe)</TabsTrigger>
+              <TabsTrigger value="manual">Manual</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="manual">
+              <form
+                id="add-school-form"
+                className="grid gap-5 md:grid-cols-2"
+                onSubmit={submit}
+              >
             {error ? (
               <p
                 className="md:col-span-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
@@ -475,17 +579,104 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
                 </div>
               </div>
             </div>
-          </form>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="profile" className="space-y-4">
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                <p className="text-sm font-medium">Profile-based school suggestions</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Generate schools from your profile, then swipe right (add) or left
+                  (skip). Added schools are saved as planning items you can work on later.
+                </p>
+                <div className="mt-3">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="gap-2"
+                    onClick={() => void loadRecommendations()}
+                    disabled={recLoading || saving}
+                  >
+                    {recLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    ) : (
+                      <Sparkles className="h-4 w-4" aria-hidden />
+                    )}
+                    {recommendations.length > 0 ? "Refresh suggestions" : "Generate suggestions"}
+                  </Button>
+                </div>
+                {recError ? (
+                  <p className="mt-3 text-sm text-destructive" role="alert">
+                    {recError}
+                  </p>
+                ) : null}
+              </div>
+
+              {currentRec ? (
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                  <div className="text-xs text-muted-foreground">
+                    Card {recIndex + 1} of {recommendations.length}
+                  </div>
+                  <h3 className="mt-1 text-lg font-semibold">{currentRec.name}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {currentRec.program} · {currentRec.degree}
+                    {currentRec.country ? ` · ${currentRec.country}` : ""}
+                  </p>
+                  <p className="mt-3 text-sm">{currentRec.whyFit}</p>
+                  {currentRec.notes ? (
+                    <p className="mt-2 text-xs text-muted-foreground">{currentRec.notes}</p>
+                  ) : null}
+                  {currentRec.portalUrl ? (
+                    <a
+                      href={currentRec.portalUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 inline-block text-xs text-primary underline-offset-4 hover:underline"
+                    >
+                      View admissions page
+                    </a>
+                  ) : null}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={skipRecommendation}
+                      disabled={saving}
+                    >
+                      Swipe left (Skip)
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => void addRecommendationToList()}
+                      disabled={saving}
+                    >
+                      {saving ? "Adding..." : "Swipe right (Add to later list)"}
+                    </Button>
+                  </div>
+                </div>
+              ) : recommendations.length > 0 && !recLoading ? (
+                <div className="rounded-xl border border-dashed border-white/20 p-4 text-sm text-muted-foreground">
+                  You reviewed all suggestions. Refresh to get another batch.
+                </div>
+              ) : null}
+            </TabsContent>
+          </Tabs>
         </div>
         <div className="flex items-center justify-between border-t border-white/10 bg-black/20 px-5 py-3">
-          <p className="text-xs text-muted-foreground">Required: school name, program, degree.</p>
+          <p className="text-xs text-muted-foreground">
+            {mode === "manual"
+              ? "Required: school name, program, degree."
+              : "Profile mode: review cards and add schools to your planning list."}
+          </p>
           <div className="flex flex-wrap justify-end gap-2">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" form="add-school-form" disabled={!canSubmit}>
-              {saving ? "Saving…" : "Save school"}
-            </Button>
+            {mode === "manual" ? (
+              <Button type="submit" form="add-school-form" disabled={!canSubmit}>
+                {saving ? "Saving..." : "Save school"}
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>

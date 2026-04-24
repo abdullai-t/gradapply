@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -24,6 +25,7 @@ import {
   PROGRAM_OPTIONS,
   optionsWithFallback,
 } from "@/lib/grad-options";
+import { COUNTRY_OPTIONS } from "@/lib/country-options";
 
 const SELECT_NONE = "__none__";
 
@@ -39,6 +41,7 @@ type ProfileForm = {
   undergradGPA: string;
   yearsExperience: string;
   researchInterests: string;
+  countriesOfInterest: string[];
   bio: string;
 };
 
@@ -54,6 +57,7 @@ const empty: ProfileForm = {
   undergradGPA: "",
   yearsExperience: "",
   researchInterests: "",
+  countriesOfInterest: [],
   bio: "",
 };
 
@@ -62,6 +66,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [countryDraft, setCountryDraft] = useState(SELECT_NONE);
 
   const targetDegreeItems = useMemo(
     () => optionsWithFallback(DEGREE_OPTIONS, form.targetDegree),
@@ -70,6 +75,10 @@ export default function ProfilePage() {
   const focusItems = useMemo(
     () => optionsWithFallback(PROGRAM_OPTIONS, form.focusArea),
     [form.focusArea],
+  );
+  const selectedCountries = useMemo(
+    () => new Set(form.countriesOfInterest),
+    [form.countriesOfInterest],
   );
 
   useEffect(() => {
@@ -92,6 +101,9 @@ export default function ProfilePage() {
         undergradGPA: p.undergradGPA?.toString() ?? "",
         yearsExperience: p.yearsExperience ?? "",
         researchInterests: p.researchInterests ?? "",
+        countriesOfInterest: Array.isArray(p.countriesOfInterest)
+          ? p.countriesOfInterest
+          : [],
         bio: p.bio ?? "",
       });
       setLoading(false);
@@ -99,7 +111,7 @@ export default function ProfilePage() {
     void load();
   }, []);
 
-  const save = async () => {
+  const save = useCallback(async () => {
     setSaving(true);
     setSaved(false);
     const res = await fetch("/api/profile", {
@@ -117,12 +129,31 @@ export default function ProfilePage() {
         undergradGPA: form.undergradGPA ? Number(form.undergradGPA) : null,
         yearsExperience: form.yearsExperience || null,
         researchInterests: form.researchInterests || null,
+        countriesOfInterest: form.countriesOfInterest,
         bio: form.bio || null,
       }),
     });
     setSaving(false);
     if (res.ok) setSaved(true);
-  };
+  }, [form]);
+
+  const addCountryOfInterest = useCallback(() => {
+    if (countryDraft === SELECT_NONE) return;
+    if (selectedCountries.has(countryDraft)) return;
+    if (form.countriesOfInterest.length >= 5) return;
+    setForm({
+      ...form,
+      countriesOfInterest: [...form.countriesOfInterest, countryDraft],
+    });
+    setCountryDraft(SELECT_NONE);
+  }, [countryDraft, form, selectedCountries]);
+
+  const removeCountryOfInterest = useCallback((country: string) => {
+    setForm({
+      ...form,
+      countriesOfInterest: form.countriesOfInterest.filter((c) => c !== country),
+    });
+  }, [form]);
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -248,6 +279,54 @@ export default function ProfilePage() {
                     setForm({ ...form, researchInterests: e.target.value })
                   }
                 />
+              </div>
+              <div className="space-y-3">
+                <Label>Countries of interest (max 5)</Label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Select value={countryDraft} onValueChange={setCountryDraft}>
+                    <SelectTrigger className="sm:flex-1">
+                      <SelectValue placeholder="Select country" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[min(22rem,60vh)]">
+                      <SelectItem value={SELECT_NONE}>Choose a country</SelectItem>
+                      {COUNTRY_OPTIONS.map((country) => (
+                        <SelectItem key={country} value={country}>
+                          {country}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addCountryOfInterest}
+                    disabled={
+                      countryDraft === SELECT_NONE ||
+                      form.countriesOfInterest.length >= 5 ||
+                      selectedCountries.has(countryDraft)
+                    }
+                  >
+                    Add
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  School recommendations in the add-school modal will be narrowed to these countries.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {form.countriesOfInterest.map((country) => (
+                    <Badge key={country} variant="secondary" className="gap-2">
+                      {country}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${country}`}
+                        className="rounded-sm px-1 text-xs hover:bg-black/10"
+                        onClick={() => removeCountryOfInterest(country)}
+                      >
+                        x
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Bio / narrative notes</Label>

@@ -185,6 +185,7 @@ model Profile {
   undergradGPA      Float?
   yearsExperience   String?
   researchInterests String?
+  countriesOfInterest String[] @default([])
   bio               String?
   updatedAt         DateTime @updatedAt
 }
@@ -211,6 +212,11 @@ model School {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   sopVariant   SopVariant?
+
+  @@index([userId, updatedAt])
+  @@index([userId, deadline])
+  @@index([userId, reminderAt])
+  @@index([userId, status, deadline])
 }
 
 enum SchoolStatus {
@@ -254,6 +260,9 @@ model ProfEmail {
   notes         String?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+
+  @@index([userId, updatedAt])
+  @@index([userId, status, updatedAt])
 }
 
 enum EmailStatus {
@@ -279,6 +288,9 @@ model ChatMessage {
   content   String   @db.Text
   mode      String?
   createdAt DateTime @default(now())
+
+  @@index([userId, mode, createdAt])
+  @@index([userId, createdAt])
 }
 
 model Document {
@@ -292,6 +304,8 @@ model Document {
   mimeType  String?
   size      Int?
   createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 /// Per-school tailored SOP derived from a master draft (uploaded `sop_draft` or pasted text).

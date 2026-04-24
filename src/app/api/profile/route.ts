@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { COUNTRY_OPTIONS } from "@/lib/country-options";
 import { z } from "zod";
 
 const bodySchema = z.object({
@@ -15,6 +16,7 @@ const bodySchema = z.object({
   undergradGPA: z.number().nullable().optional(),
   yearsExperience: z.string().nullable().optional(),
   researchInterests: z.string().nullable().optional(),
+  countriesOfInterest: z.array(z.enum(COUNTRY_OPTIONS as [string, ...string[]])).max(5).optional(),
   bio: z.string().nullable().optional(),
 });
 
