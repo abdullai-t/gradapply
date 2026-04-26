@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en" class="dark"><head>
+<meta charset="utf-8"><title>Metric Tiles</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{margin:0;padding:22px;background:hsl(var(--background));color:hsl(var(--foreground));font-family:var(--font-sans)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.t{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(24px);border-radius:16px;padding:18px;box-shadow:0 12px 48px -12px rgba(0,0,0,.45)}
+.t.p{border-left:4px solid hsl(var(--amber-300) / .7)}
+.t.a{border-left:4px solid hsl(var(--sky-400) / .7)}
+.t.r{border-left:4px solid hsl(var(--violet-400) / .7)}
+.lb{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.18em;color:hsl(var(--muted-foreground))}
+.num{font-family:var(--font-display);font-variant-numeric:tabular-nums;font-size:40px;font-weight:600;margin:6px 0 4px}
+.hint{font-size:12px;color:hsl(var(--muted-foreground))}
+</style></head>
+<body class="ds-preview">
+<div class="grid">
+  <div class="t p"><div class="lb">Planning</div><div class="num">04</div><div class="hint">Programs you're shaping</div></div>
+  <div class="t a"><div class="lb">Applied</div><div class="num">07</div><div class="hint">Applications submitted</div></div>
+  <div class="t r"><div class="lb">In review</div><div class="num">02</div><div class="hint">Awaiting decisions</div></div>
+</div>
+</body></html>

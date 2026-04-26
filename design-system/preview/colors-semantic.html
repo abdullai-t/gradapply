@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en" class="dark"><head>
+<meta charset="utf-8"><title>Semantic & Status Colors</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body{margin:0;padding:20px;background:hsl(var(--background));color:hsl(var(--foreground));font-family:var(--font-sans)}
+  .row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .chip{border-radius:10px;padding:10px 12px;border:1px solid;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:space-between;height:56px}
+  .chip .h{font-family:var(--font-mono);font-size:10px;font-weight:400;opacity:.85}
+  .sec{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.15em;color:hsl(var(--primary));margin:2px 2px 10px}
+</style></head>
+<body class="ds-preview">
+<div class="sec">Status — dark theme</div>
+<div class="row">
+  <div class="chip" style="background:hsl(var(--amber-300) / .14);border-color:hsl(var(--amber-300) / .35);color:hsl(var(--amber-300))">Planning<span class="h">amber-300</span></div>
+  <div class="chip" style="background:hsl(var(--sky-400) / .14);border-color:hsl(var(--sky-400) / .4);color:hsl(var(--sky-400))">Applied<span class="h">sky-400</span></div>
+  <div class="chip" style="background:hsl(var(--violet-400) / .14);border-color:hsl(var(--violet-400) / .4);color:hsl(var(--violet-400))">In review<span class="h">violet-400</span></div>
+  <div class="chip" style="background:hsl(var(--emerald-500) / .14);border-color:hsl(var(--emerald-500) / .45);color:hsl(152 60% 65%)">Accepted<span class="h">emerald-500</span></div>
+</div>
+<div class="sec" style="margin-top:18px">Semantic tokens</div>
+<div class="row">
+  <div class="chip" style="background:hsl(var(--card));border-color:hsl(var(--border));color:hsl(var(--card-foreground))">Card<span class="h">--card</span></div>
+  <div class="chip" style="background:hsl(var(--muted));border-color:hsl(var(--border));color:hsl(var(--muted-foreground))">Muted<span class="h">--muted</span></div>
+  <div class="chip" style="background:hsl(var(--accent));border-color:hsl(var(--border));color:hsl(var(--accent-foreground))">Accent<span class="h">--accent</span></div>
+  <div class="chip" style="background:hsl(var(--destructive) / .18);border-color:hsl(var(--destructive) / .5);color:hsl(0 85% 75%)">Destructive<span class="h">--destructive</span></div>
+</div>
+</body></html>

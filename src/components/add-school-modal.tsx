@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Sparkles, X } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Icon } from "@/components/icon";
+import { SealAvatar } from "@/components/seal-avatar";
 import {
   DEGREE_OPTIONS,
   PROGRAM_OPTIONS,
@@ -235,7 +237,9 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
         );
       }
     } catch (e) {
-      setRecError(e instanceof Error ? e.message : "Failed to load recommendations");
+      setRecError(
+        e instanceof Error ? e.message : "Failed to load recommendations",
+      );
     } finally {
       setRecLoading(false);
     }
@@ -258,7 +262,9 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
           program: currentRec.program,
           degree: currentRec.degree,
           country: currentRec.country || null,
-          notes: [currentRec.whyFit, currentRec.notes].filter(Boolean).join("\n\n"),
+          notes: [currentRec.whyFit, currentRec.notes]
+            .filter(Boolean)
+            .join("\n\n"),
           portalUrl: currentRec.portalUrl || null,
           status: "PLANNING",
         }),
@@ -284,402 +290,557 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--inverse-surface)]/40 p-4 backdrop-blur-sm"
       role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="glass-panel max-h-[92vh] w-full max-w-2xl overflow-hidden rounded-2xl border shadow-xl"
+        className="tactile-card max-h-[92vh] w-full max-w-3xl overflow-hidden rounded-3xl border-2 border-[var(--outline-variant)] p-0"
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-school-title"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-          <h2 id="add-school-title" className="text-lg font-semibold">
-            Add school
-          </h2>
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 border-b border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-6 py-5">
+          <div className="flex items-start gap-3">
+            <div
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white"
+              style={{
+                background:
+                  "linear-gradient(135deg, var(--primary-container), var(--primary))",
+              }}
+            >
+              <Icon name="add_business" size={22} />
+            </div>
+            <div>
+              <h2
+                id="add-school-title"
+                className="m-0 text-lg font-bold tracking-tight text-[var(--on-surface)]"
+              >
+                Add school
+              </h2>
+              <p className="m-0 mt-0.5 text-sm text-[var(--on-surface-variant)]">
+                Generate from your profile or fill in the details manually.
+              </p>
+            </div>
+          </div>
           <button
             type="button"
-            className="rounded-lg p-2 hover:bg-white/10"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[var(--outline)] transition-colors hover:bg-[var(--surface-container)] hover:text-[var(--on-surface)]"
             onClick={onClose}
             aria-label="Close"
           >
-            <X className="h-5 w-5" />
+            <Icon name="close" size={18} />
           </button>
         </div>
-        <div className="max-h-[calc(92vh-8.5rem)] overflow-y-auto px-5 py-4">
+
+        {/* Body */}
+        <div className="max-h-[calc(92vh-9rem)] overflow-y-auto px-6 py-5">
           <Tabs
             value={mode}
             onValueChange={(v) => setMode(v as "manual" | "profile")}
-            className="space-y-4"
+            className="space-y-5"
           >
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="profile">From profile (swipe)</TabsTrigger>
-              <TabsTrigger value="manual">Manual</TabsTrigger>
+              <TabsTrigger value="profile">
+                <Icon name="auto_awesome" size={16} />
+                From profile (swipe)
+              </TabsTrigger>
+              <TabsTrigger value="manual">
+                <Icon name="edit" size={16} />
+                Manual
+              </TabsTrigger>
             </TabsList>
 
+            {/* MANUAL TAB */}
             <TabsContent value="manual">
               <form
                 id="add-school-form"
-                className="grid gap-5 md:grid-cols-2"
+                className="space-y-5"
                 onSubmit={submit}
               >
-            {error ? (
-              <p
-                className="md:col-span-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                role="alert"
-              >
-                {error}
-              </p>
-            ) : null}
-
-            <div className="md:col-span-2 rounded-xl border border-white/10 bg-white/[0.02] p-4">
-              <div className="mb-4 space-y-1">
-                <p className="text-sm font-medium text-foreground">Basics</p>
-                <p className="text-xs text-muted-foreground">
-                  Start with school name, term, and program details. Fields marked with * are required.
-                </p>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="modal-school-name">School name *</Label>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-                    <Input
-                      id="modal-school-name"
-                      required
-                      value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      placeholder="e.g. Carnegie Mellon University"
-                      className="sm:flex-1"
-                      disabled={aiLoading || saving}
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="shrink-0 gap-2 sm:w-auto"
-                      disabled={aiLoading || saving || !form.name.trim()}
-                      onClick={() => void suggestFromAi()}
-                    >
-                      {aiLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                      ) : (
-                        <Sparkles className="h-4 w-4" aria-hidden />
-                      )}
-                      Suggest details
-                    </Button>
+                {error ? (
+                  <div className="glass-alert-error" role="alert">
+                    {error}
                   </div>
-                  {aiError ? (
-                    <p className="text-sm text-destructive" role="alert">
-                      {aiError}
+                ) : null}
+
+                {/* Section: Basics */}
+                <ModalSection
+                  title="Basics"
+                  description="School name, term, and program details. Fields marked * are required."
+                  icon="info"
+                >
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="modal-school-name"
+                      className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--outline)]"
+                    >
+                      School name *
+                    </Label>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                      <Input
+                        id="modal-school-name"
+                        required
+                        value={form.name}
+                        onChange={(e) =>
+                          setForm({ ...form, name: e.target.value })
+                        }
+                        placeholder="e.g. Carnegie Mellon University"
+                        className="sm:flex-1"
+                        disabled={aiLoading || saving}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="shrink-0 sm:w-auto"
+                        disabled={aiLoading || saving || !form.name.trim()}
+                        loading={aiLoading}
+                        icon={aiLoading ? undefined : "auto_awesome"}
+                        onClick={() => void suggestFromAi()}
+                      >
+                        Suggest details
+                      </Button>
+                    </div>
+                    {aiError ? (
+                      <p
+                        className="text-sm text-[var(--error)]"
+                        role="alert"
+                      >
+                        {aiError}
+                      </p>
+                    ) : null}
+                    <p className="text-xs text-[var(--outline)]">
+                      Pick an admission term before &quot;Suggest details&quot;
+                      so deadlines match Fall / Spring / Summer intake.
                     </p>
-                  ) : null}
-                  <p className="text-xs text-muted-foreground">
-                    Pick an admission term before &quot;Suggest details&quot; so deadlines match
-                    Fall / Spring / Summer intake (optional).
-                  </p>
-                </div>
+                  </div>
 
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="modal-term">Admission term</Label>
-                  <Select
-                    value={form.term ? form.term : TERM_SELECT_NONE}
-                    onValueChange={(v) =>
-                      setForm({
-                        ...form,
-                        term: v === TERM_SELECT_NONE ? "" : (v as AdmissionTerm),
-                      })
-                    }
-                    disabled={saving || aiLoading}
+                  <ModalField
+                    htmlFor="modal-term"
+                    label="Admission term"
                   >
-                    <SelectTrigger id="modal-term">
-                      <SelectValue placeholder="Term (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={TERM_SELECT_NONE}>Not specified</SelectItem>
-                      {ADMISSION_TERM_OPTIONS.map(({ value, label }) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
+                    <Select
+                      value={form.term ? form.term : TERM_SELECT_NONE}
+                      onValueChange={(v) =>
+                        setForm({
+                          ...form,
+                          term:
+                            v === TERM_SELECT_NONE
+                              ? ""
+                              : (v as AdmissionTerm),
+                        })
+                      }
+                      disabled={saving || aiLoading}
+                    >
+                      <SelectTrigger id="modal-term">
+                        <SelectValue placeholder="Term (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={TERM_SELECT_NONE}>
+                          Not specified
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                        {ADMISSION_TERM_OPTIONS.map(({ value, label }) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </ModalField>
 
-                <div className="space-y-2">
-                  <Label htmlFor="modal-program">Program *</Label>
-                  <Select
-                    value={form.program || undefined}
-                    onValueChange={(v) => setForm({ ...form, program: v })}
-                    disabled={saving}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <ModalField htmlFor="modal-program" label="Program *">
+                      <Select
+                        value={form.program || undefined}
+                        onValueChange={(v) =>
+                          setForm({ ...form, program: v })
+                        }
+                        disabled={saving}
+                      >
+                        <SelectTrigger id="modal-program">
+                          <SelectValue placeholder="Select program" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PROGRAM_OPTIONS.map((p) => (
+                            <SelectItem key={p} value={p}>
+                              {p}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </ModalField>
+
+                    <ModalField htmlFor="modal-degree" label="Degree *">
+                      <Select
+                        value={form.degree || undefined}
+                        onValueChange={(v) =>
+                          setForm({ ...form, degree: v })
+                        }
+                        disabled={saving}
+                      >
+                        <SelectTrigger id="modal-degree">
+                          <SelectValue placeholder="Select degree" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DEGREE_OPTIONS.map((d) => (
+                            <SelectItem key={d} value={d}>
+                              {d}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </ModalField>
+
+                    <ModalField htmlFor="modal-country" label="Country">
+                      <Select
+                        value={form.country ? form.country : COUNTRY_SELECT_NONE}
+                        onValueChange={(v) =>
+                          setForm({
+                            ...form,
+                            country: v === COUNTRY_SELECT_NONE ? "" : v,
+                          })
+                        }
+                        disabled={saving}
+                      >
+                        <SelectTrigger id="modal-country">
+                          <SelectValue placeholder="Country (optional)" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[min(22rem,60vh)]">
+                          <SelectItem value={COUNTRY_SELECT_NONE}>
+                            Not specified
+                          </SelectItem>
+                          {countryChoices.map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </ModalField>
+
+                    <ModalField label="Status">
+                      <Select
+                        value={form.status}
+                        onValueChange={(v) =>
+                          setForm({ ...form, status: v as SchoolStatus })
+                        }
+                        disabled={saving}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {statuses.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {s.replaceAll("_", " ")}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </ModalField>
+                  </div>
+                </ModalSection>
+
+                {/* Section: Deadlines & reminders */}
+                <ModalSection
+                  title="Deadlines &amp; reminders"
+                  description="Add timeline context now, or come back and fill later."
+                  icon="event"
+                >
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <ModalField
+                      htmlFor="modal-deadline"
+                      label="Deadline"
+                    >
+                      <Input
+                        id="modal-deadline"
+                        type="date"
+                        value={form.deadline}
+                        onChange={(e) =>
+                          setForm({ ...form, deadline: e.target.value })
+                        }
+                        disabled={saving}
+                      />
+                    </ModalField>
+                    <ModalField
+                      htmlFor="modal-reminder-at"
+                      label="Remind me on"
+                    >
+                      <Input
+                        id="modal-reminder-at"
+                        type="date"
+                        value={form.reminderAt}
+                        onChange={(e) =>
+                          setForm({ ...form, reminderAt: e.target.value })
+                        }
+                        disabled={saving}
+                      />
+                    </ModalField>
+                  </div>
+                  <ModalField
+                    htmlFor="modal-reminder-note"
+                    label="Reminder note"
                   >
-                    <SelectTrigger id="modal-program">
-                      <SelectValue placeholder="Select program" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PROGRAM_OPTIONS.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <Input
+                      id="modal-reminder-note"
+                      placeholder="e.g. Submit fee waiver before deadline"
+                      value={form.reminderNote}
+                      onChange={(e) =>
+                        setForm({ ...form, reminderNote: e.target.value })
+                      }
+                      disabled={saving}
+                    />
+                  </ModalField>
+                </ModalSection>
 
-                <div className="space-y-2">
-                  <Label htmlFor="modal-degree">Degree *</Label>
-                  <Select
-                    value={form.degree || undefined}
-                    onValueChange={(v) => setForm({ ...form, degree: v })}
-                    disabled={saving}
-                  >
-                    <SelectTrigger id="modal-degree">
-                      <SelectValue placeholder="Select degree" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DEGREE_OPTIONS.map((d) => (
-                        <SelectItem key={d} value={d}>
-                          {d}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="modal-country">Country</Label>
-                  <Select
-                    value={form.country ? form.country : COUNTRY_SELECT_NONE}
-                    onValueChange={(v) =>
-                      setForm({
-                        ...form,
-                        country: v === COUNTRY_SELECT_NONE ? "" : v,
-                      })
-                    }
-                    disabled={saving}
-                  >
-                    <SelectTrigger id="modal-country">
-                      <SelectValue placeholder="Country (optional)" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[min(22rem,60vh)]">
-                      <SelectItem value={COUNTRY_SELECT_NONE}>Not specified</SelectItem>
-                      {countryChoices.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <Select
-                    value={form.status}
-                    onValueChange={(v) => setForm({ ...form, status: v as SchoolStatus })}
-                    disabled={saving}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {statuses.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s.replaceAll("_", " ")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            <div className="md:col-span-2 rounded-xl border border-white/10 bg-white/[0.02] p-4">
-              <div className="mb-4 space-y-1">
-                <p className="text-sm font-medium text-foreground">Deadlines & reminders</p>
-                <p className="text-xs text-muted-foreground">
-                  Add timeline context now, or come back and fill later.
-                </p>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="modal-deadline">Deadline</Label>
-                  <Input
-                    id="modal-deadline"
-                    type="date"
-                    value={form.deadline}
-                    onChange={(e) => setForm({ ...form, deadline: e.target.value })}
-                    disabled={saving}
-                    className="glass-input min-h-11"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="modal-reminder-at">Remind me on</Label>
-                  <Input
-                    id="modal-reminder-at"
-                    type="date"
-                    value={form.reminderAt}
-                    onChange={(e) => setForm({ ...form, reminderAt: e.target.value })}
-                    disabled={saving}
-                    className="glass-input min-h-11"
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="modal-reminder-note">Reminder note</Label>
-                  <Input
-                    id="modal-reminder-note"
-                    placeholder="e.g. Submit fee waiver before deadline"
-                    value={form.reminderNote}
-                    onChange={(e) => setForm({ ...form, reminderNote: e.target.value })}
-                    disabled={saving}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="md:col-span-2 rounded-xl border border-white/10 bg-white/[0.02] p-4">
-              <div className="mb-4 space-y-1">
-                <p className="text-sm font-medium text-foreground">Additional details</p>
-                <p className="text-xs text-muted-foreground">
-                  Optional metadata to keep your school tracker complete.
-                </p>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="modal-funding">Funding notes</Label>
-                  <Input
-                    id="modal-funding"
-                    value={form.funding}
-                    onChange={(e) => setForm({ ...form, funding: e.target.value })}
-                    disabled={saving}
-                    placeholder="e.g. RA/TA preference, scholarship notes"
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="modal-portal">Portal URL</Label>
-                  <Input
-                    id="modal-portal"
-                    placeholder="https://..."
-                    value={form.portalUrl}
-                    onChange={(e) => setForm({ ...form, portalUrl: e.target.value })}
-                    disabled={saving}
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="modal-notes">Notes</Label>
-                  <Textarea
-                    id="modal-notes"
-                    value={form.notes}
-                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                    disabled={saving}
-                    placeholder="Anything you want to remember for this school"
-                  />
-                </div>
-              </div>
-            </div>
+                {/* Section: Additional details */}
+                <ModalSection
+                  title="Additional details"
+                  description="Optional metadata to keep your tracker complete."
+                  icon="more_horiz"
+                >
+                  <ModalField htmlFor="modal-funding" label="Funding notes">
+                    <Input
+                      id="modal-funding"
+                      value={form.funding}
+                      onChange={(e) =>
+                        setForm({ ...form, funding: e.target.value })
+                      }
+                      disabled={saving}
+                      placeholder="e.g. RA/TA preference, scholarship notes"
+                    />
+                  </ModalField>
+                  <ModalField htmlFor="modal-portal" label="Portal URL">
+                    <Input
+                      id="modal-portal"
+                      placeholder="https://..."
+                      value={form.portalUrl}
+                      onChange={(e) =>
+                        setForm({ ...form, portalUrl: e.target.value })
+                      }
+                      disabled={saving}
+                    />
+                  </ModalField>
+                  <ModalField htmlFor="modal-notes" label="Notes">
+                    <Textarea
+                      id="modal-notes"
+                      value={form.notes}
+                      onChange={(e) =>
+                        setForm({ ...form, notes: e.target.value })
+                      }
+                      disabled={saving}
+                      placeholder="Anything you want to remember for this school"
+                    />
+                  </ModalField>
+                </ModalSection>
               </form>
             </TabsContent>
 
-            <TabsContent value="profile" className="space-y-4">
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-                <p className="text-sm font-medium">Profile-based school suggestions</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Generate schools from your profile, then swipe right (add) or left
-                  (skip). Added schools are saved as planning items you can work on later.
-                </p>
-                <div className="mt-3">
+            {/* PROFILE / SWIPE TAB */}
+            <TabsContent value="profile" className="space-y-5">
+              <div className="rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="m-0 text-sm font-bold text-[var(--on-surface)]">
+                      Profile-based suggestions
+                    </p>
+                    <p className="m-0 mt-1 text-xs leading-relaxed text-[var(--on-surface-variant)]">
+                      Generate schools from your profile, then swipe right
+                      (add) or left (skip). Added schools land in your
+                      planning list to work on later.
+                    </p>
+                  </div>
                   <Button
                     type="button"
                     variant="secondary"
-                    className="gap-2"
                     onClick={() => void loadRecommendations()}
                     disabled={recLoading || saving}
+                    loading={recLoading}
+                    icon={recLoading ? undefined : "auto_awesome"}
                   >
-                    {recLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                    ) : (
-                      <Sparkles className="h-4 w-4" aria-hidden />
-                    )}
-                    {recommendations.length > 0 ? "Refresh suggestions" : "Generate suggestions"}
+                    {recommendations.length > 0
+                      ? "Refresh"
+                      : "Generate"}
                   </Button>
                 </div>
                 {recError ? (
-                  <p className="mt-3 text-sm text-destructive" role="alert">
+                  <div className="glass-alert-error mt-3" role="alert">
                     {recError}
-                  </p>
+                  </div>
                 ) : null}
               </div>
 
               {currentRec ? (
-                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-                  <div className="text-xs text-muted-foreground">
-                    Card {recIndex + 1} of {recommendations.length}
+                <div className="tactile-card rounded-3xl border-2 border-[var(--outline-variant)] p-6">
+                  <div className="mb-4 flex items-start justify-between">
+                    <div className="flex items-center gap-4">
+                      <SealAvatar name={currentRec.name} size={64} />
+                      <div>
+                        <div className="t-label-lg">
+                          Card {recIndex + 1} of {recommendations.length}
+                        </div>
+                        <h3 className="m-0 text-xl font-bold leading-tight tracking-tight text-[var(--on-surface)]">
+                          {currentRec.name}
+                        </h3>
+                        <p className="m-0 mt-0.5 text-sm text-[var(--on-surface-variant)]">
+                          {currentRec.program} · {currentRec.degree}
+                          {currentRec.country
+                            ? ` · ${currentRec.country}`
+                            : ""}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <h3 className="mt-1 text-lg font-semibold">{currentRec.name}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {currentRec.program} · {currentRec.degree}
-                    {currentRec.country ? ` · ${currentRec.country}` : ""}
+
+                  <p className="m-0 text-sm leading-relaxed text-[var(--on-surface)]">
+                    {currentRec.whyFit}
                   </p>
-                  <p className="mt-3 text-sm">{currentRec.whyFit}</p>
                   {currentRec.notes ? (
-                    <p className="mt-2 text-xs text-muted-foreground">{currentRec.notes}</p>
+                    <p className="m-0 mt-3 rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-3 text-xs leading-relaxed text-[var(--on-surface-variant)]">
+                      {currentRec.notes}
+                    </p>
                   ) : null}
                   {currentRec.portalUrl ? (
                     <a
                       href={currentRec.portalUrl}
                       target="_blank"
-                      rel="noreferrer"
-                      className="mt-3 inline-block text-xs text-primary underline-offset-4 hover:underline"
+                      rel="noopener noreferrer"
+                      className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-[var(--primary)] underline-offset-4 hover:underline"
                     >
                       View admissions page
+                      <Icon name="open_in_new" size={12} />
                     </a>
                   ) : null}
-                  <div className="mt-4 flex flex-wrap gap-2">
+
+                  <div className="mt-5 flex flex-wrap gap-3 border-t border-[var(--outline-variant)] pt-5">
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="secondary"
                       onClick={skipRecommendation}
                       disabled={saving}
+                      icon="swipe_left"
                     >
-                      Swipe left (Skip)
+                      Skip
                     </Button>
                     <Button
                       type="button"
                       onClick={() => void addRecommendationToList()}
                       disabled={saving}
+                      loading={saving}
+                      iconRight="swipe_right"
                     >
-                      {saving ? "Adding..." : "Swipe right (Add to later list)"}
+                      {saving ? "Adding…" : "Add to my list"}
                     </Button>
                   </div>
                 </div>
               ) : recommendations.length > 0 && !recLoading ? (
-                <div className="rounded-xl border border-dashed border-white/20 p-4 text-sm text-muted-foreground">
-                  You reviewed all suggestions. Refresh to get another batch.
+                <div className="rounded-2xl border-2 border-dashed border-[var(--outline-variant)] p-8 text-center">
+                  <Icon
+                    name="celebration"
+                    size={32}
+                    className="text-[var(--secondary)]"
+                  />
+                  <p className="mt-3 text-sm font-bold text-[var(--on-surface)]">
+                    You reviewed all suggestions.
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--on-surface-variant)]">
+                    Refresh to get another batch.
+                  </p>
                 </div>
               ) : null}
             </TabsContent>
           </Tabs>
         </div>
-        <div className="flex items-center justify-between border-t border-white/10 bg-black/20 px-5 py-3">
-          <p className="text-xs text-muted-foreground">
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-3 border-t border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-6 py-4">
+          <p className="m-0 text-xs text-[var(--on-surface-variant)]">
             {mode === "manual"
               ? "Required: school name, program, degree."
               : "Profile mode: review cards and add schools to your planning list."}
           </p>
           <div className="flex flex-wrap justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="ghost" onClick={onClose}>
               Cancel
             </Button>
             {mode === "manual" ? (
-              <Button type="submit" form="add-school-form" disabled={!canSubmit}>
-                {saving ? "Saving..." : "Save school"}
+              <Button
+                type="submit"
+                form="add-school-form"
+                disabled={!canSubmit}
+                loading={saving}
+                icon={saving ? undefined : "save"}
+              >
+                {saving ? "Saving…" : "Save school"}
               </Button>
             ) : null}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ModalSection({
+  title,
+  description,
+  icon,
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-5">
+      <header className="mb-4 flex items-start gap-2.5">
+        <div
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg"
+          style={{
+            background: "rgba(0,98,157,0.08)",
+            color: "var(--primary)",
+          }}
+        >
+          <Icon name={icon} size={18} />
+        </div>
+        <div>
+          <p
+            className="m-0 text-sm font-bold text-[var(--on-surface)]"
+            dangerouslySetInnerHTML={{ __html: title }}
+          />
+          <p className="m-0 mt-0.5 text-xs text-[var(--on-surface-variant)]">
+            {description}
+          </p>
+        </div>
+      </header>
+      <div className="space-y-4">{children}</div>
+    </section>
+  );
+}
+
+function ModalField({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label
+        htmlFor={htmlFor}
+        className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--outline)]"
+      >
+        {label}
+      </Label>
+      {children}
     </div>
   );
 }

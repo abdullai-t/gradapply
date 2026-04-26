@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en" class="dark"><head>
+<meta charset="utf-8"><title>Inputs</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{margin:0;padding:22px;background:hsl(var(--background));color:hsl(var(--foreground));font-family:var(--font-sans);display:flex;flex-direction:column;gap:12px;max-width:520px}
+label{font-size:13px;font-weight:500}
+.inp{height:40px;border-radius:6px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.25);padding:0 12px;color:hsl(var(--foreground));font-family:var(--font-sans);font-size:14px;width:100%;box-sizing:border-box;backdrop-filter:blur(4px)}
+.inp::placeholder{color:hsl(var(--muted-foreground) / .75)}
+.inp:focus{outline:none;border-color:hsl(var(--primary));box-shadow:0 0 0 3px hsl(var(--primary) / .3)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ta{min-height:64px;padding:10px 12px;resize:vertical;font-family:var(--font-display);font-size:14px;line-height:1.55}
+</style></head>
+<body class="ds-preview">
+<div><label>Subject line</label><input class="inp" style="margin-top:6px" value="Inquiry: Applying for Fall 2026 PhD in ML"/></div>
+<div class="row"><div><label>Deadline</label><input class="inp" style="margin-top:6px" type="date" value="2026-12-15"/></div><div><label>Term</label><input class="inp" style="margin-top:6px" value="Fall 2026"/></div></div>
+<div><label>Email body</label><textarea class="inp ta" style="margin-top:6px">Dear Professor Liu, I'm a final-year undergrad at…</textarea></div>
+</body></html>

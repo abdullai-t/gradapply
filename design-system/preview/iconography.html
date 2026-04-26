@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en" class="dark"><head>
+<meta charset="utf-8"><title>Iconography</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>body{margin:0;padding:20px;background:hsl(var(--background));color:hsl(var(--foreground));font-family:var(--font-sans)}
+.grid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+.cell{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px;border:1px solid hsl(var(--border));border-radius:10px;background:hsl(var(--card))}
+.cell .ic{width:40px;height:40px;border-radius:12px;background:hsl(var(--primary) / .15);display:flex;align-items:center;justify-content:center;color:hsl(var(--primary))}
+.cell svg{width:20px;height:20px;stroke-width:1.5}
+.cell span{font-family:var(--font-mono);font-size:10px;color:hsl(var(--muted-foreground))}
+</style></head>
+<body class="ds-preview">
+<div class="grid" id="g"></div>
+<script>
+const icons=['layout-dashboard','calendar-days','school','mail','message-square','upload','user-round','life-buoy','settings','graduation-cap','sparkles','compass','target','calendar-range','file-stack','book-open','message-square-text','zap','bell','calendar-clock','crown','landmark','plus','trash-2','pencil','external-link','chevron-right','send','search','history','loader-2','x'];
+const g=document.getElementById('g');
+icons.forEach(n=>{const d=document.createElement('div');d.className='cell';d.innerHTML=`<div class="ic"><i data-lucide="${n}"></i></div><span>${n}</span>`;g.appendChild(d)});
+lucide.createIcons({attrs:{'stroke-width':1.5}});
+</script>
+</body></html>

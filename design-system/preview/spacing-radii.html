@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en" class="dark"><head>
+<meta charset="utf-8"><title>Spacing & Radii</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{margin:0;padding:20px;background:hsl(var(--background));color:hsl(var(--foreground));font-family:var(--font-sans)}
+.grid{display:grid;grid-template-columns:repeat(8,1fr);gap:10px}
+.box{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:10px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:96px;justify-content:center}
+.dot{background:hsl(var(--primary));border-radius:3px;height:12px}
+.lbl{font-size:11px;color:hsl(var(--muted-foreground));font-family:var(--font-mono)}
+.ra{background:transparent;border:1.5px solid hsl(var(--primary));width:56px;height:40px}
+</style></head>
+<body class="ds-preview">
+<div class="grid">
+  <div class="box"><div class="dot" style="width:4px"></div><div class="lbl">1 · 4px</div></div>
+  <div class="box"><div class="dot" style="width:8px"></div><div class="lbl">2 · 8</div></div>
+  <div class="box"><div class="dot" style="width:12px"></div><div class="lbl">3 · 12</div></div>
+  <div class="box"><div class="dot" style="width:16px"></div><div class="lbl">4 · 16</div></div>
+  <div class="box"><div class="dot" style="width:24px"></div><div class="lbl">6 · 24</div></div>
+  <div class="box"><div class="dot" style="width:32px"></div><div class="lbl">8 · 32</div></div>
+  <div class="box"><div class="dot" style="width:48px"></div><div class="lbl">12 · 48</div></div>
+  <div class="box"><div class="dot" style="width:64px"></div><div class="lbl">16 · 64</div></div>
+  <div class="box"><div class="ra" style="border-radius:6px"></div><div class="lbl">md · 0.5rem</div></div>
+  <div class="box"><div class="ra" style="border-radius:10px"></div><div class="lbl">lg · 0.65rem</div></div>
+  <div class="box"><div class="ra" style="border-radius:12px"></div><div class="lbl">xl · 0.75</div></div>
+  <div class="box"><div class="ra" style="border-radius:16px"></div><div class="lbl">2xl · 1rem</div></div>
+  <div class="box"><div class="ra" style="border-radius:9999px;width:40px;height:40px"></div><div class="lbl">full</div></div>
+  <div class="box"><div class="ra" style="border-radius:16px;width:40px;height:40px;background:hsl(var(--primary));border:none"></div><div class="lbl">icon tile</div></div>
+  <div class="box"><div class="ra" style="border-radius:8px;width:44px;height:44px"></div><div class="lbl">date box</div></div>
+  <div class="box"><div class="ra" style="border-radius:12px;width:56px;height:14px;background:hsl(var(--primary));border:none"></div><div class="lbl">chip</div></div>
+</div>
+</body></html>

@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Next.js dev (gradapply web app)",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev"],
+      "port": 3000,
+      "autoPort": false
+    },
+    {
+      "name": "Prisma Studio (database browser)",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["prisma", "studio"],
+      "port": 5555
+    }
+  ]
+}

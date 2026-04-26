@@ -1,0 +1,30 @@
+import { prisma } from "@/lib/prisma";
+
+import { bad, ok } from "../_responses";
+import { withAuth } from "../_with-auth";
+
+import { createProfEmailSchema } from "./schemas";
+
+export const list = withAuth(async (_req, { userId }) => {
+  const emails = await prisma.profEmail.findMany({
+    where: { userId },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  return ok(emails);
+});
+
+export const create = withAuth(async (req, { userId }) => {
+  const json = await req.json().catch(() => null);
+  const parsed = createProfEmailSchema.safeParse(json);
+  if (!parsed.success) return bad({ error: parsed.error.flatten() });
+
+  const row = await prisma.profEmail.create({
+    data: {
+      ...parsed.data,
+      userId,
+    },
+  });
+
+  return ok(row);
+});

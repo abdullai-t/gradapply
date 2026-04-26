@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { Bell, X } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/icon";
 import { cn } from "@/lib/utils";
 
 type ReminderSchool = {
@@ -74,40 +75,39 @@ export function ReminderBanner() {
   return (
     <div
       className={cn(
-        "mx-4 mt-4 flex flex-col gap-3 rounded-xl border px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3 md:mx-10",
+        "mx-6 mt-4 flex flex-col gap-3 rounded-2xl border-2 px-4 py-3 sm:flex-row sm:items-center md:mx-8",
         banner.tone === "warn"
-          ? "border-red-500/40 bg-red-950/25"
-          : "border-amber-500/35 bg-amber-500/10",
+          ? "border-[var(--error)]/30 bg-[var(--error-container)] text-[var(--on-error-container)]"
+          : "border-[var(--streak-orange)]/40 bg-[var(--streak-orange-soft)] text-[#7a3a08] dark:text-[var(--streak-orange)]",
       )}
+      role="status"
     >
-      <Bell
-        className={cn(
-          "h-4 w-4 shrink-0 sm:mt-0.5",
-          banner.tone === "warn" ? "text-red-200" : "text-amber-200",
-        )}
-        aria-hidden
+      <Icon
+        name="notifications_active"
+        fill
+        className={
+          banner.tone === "warn"
+            ? "text-[var(--error)]"
+            : "text-[var(--streak-orange)]"
+        }
+        size={20}
       />
       <p className="min-w-0 flex-1 text-sm">
-        <span className="font-medium">{banner.text}</span>
-        <span className="text-muted-foreground">
-          {" "}
-          — {banner.schoolDetail}
-        </span>
+        <span className="font-bold">{banner.text}</span>
+        <span className="opacity-80"> — {banner.schoolDetail}</span>
       </p>
       <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-        <Button size="sm" variant="outline" className="h-8 border-dashed" asChild>
+        <Button size="sm" variant="secondary" asChild>
           <Link href="/timeline">Open timeline</Link>
         </Button>
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8 shrink-0"
           onClick={() => setDismissed(true)}
           aria-label="Dismiss reminder banner"
-        >
-          <X className="h-4 w-4" aria-hidden />
-        </Button>
+          icon="close"
+        />
       </div>
     </div>
   );

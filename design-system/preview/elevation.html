@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en" class="dark"><head>
+<meta charset="utf-8"><title>Elevation & Glow</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{margin:0;padding:24px;background:hsl(var(--background));color:hsl(var(--foreground));font-family:var(--font-sans)}
+.row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.c{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:16px;padding:16px;min-height:100px;display:flex;flex-direction:column;justify-content:space-between}
+.c h4{margin:0;font-family:var(--font-display);font-size:14px;font-weight:600}
+.c p{margin:0;font-size:11px;color:hsl(var(--muted-foreground));font-family:var(--font-mono)}
+.glass{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);backdrop-filter:blur(24px);box-shadow:0 12px 48px -12px rgba(0,0,0,.45);}
+.glow{box-shadow:0 22px 56px -22px hsl(var(--primary) / .55);border-color:hsl(var(--primary) / .3)}
+.cta{box-shadow:0 12px 40px -8px hsl(var(--primary) / .55)}
+.brand{box-shadow:0 8px 32px hsl(var(--primary) / .45);border-color:hsl(43 90% 60% / .3)}
+</style></head>
+<body class="ds-preview">
+<div class="row">
+  <div class="c glass"><h4>Glass panel</h4><p>white/.07 · blur 2xl · shadow 12/48</p></div>
+  <div class="c glass glow"><h4>Hover glow</h4><p>primary/.55 · lift -4</p></div>
+  <div class="c cta" style="background:hsl(var(--primary));color:hsl(var(--primary-foreground))"><h4>CTA button</h4><p style="color:hsl(var(--primary-foreground) / .7)">primary/.55 · 40/8</p></div>
+  <div class="c brand"><h4>Brand glow</h4><p>primary/.45 · ring gold</p></div>
+</div>
+</body></html>

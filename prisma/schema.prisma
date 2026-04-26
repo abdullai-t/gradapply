@@ -81,6 +81,7 @@ model User {
   emails        ProfEmail[]
   chatMessages  ChatMessage[]
   documents       Document[]
+  folders         Folder[]
   connectors      Connector[]
   contentVersions ContentVersion[]
   sopVariants     SopVariant[]
@@ -212,6 +213,7 @@ model School {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   sopVariant   SopVariant?
+  chatMessages ChatMessage[]
 
   @@index([userId, updatedAt])
   @@index([userId, deadline])
@@ -287,8 +289,13 @@ model ChatMessage {
   role      String
   content   String   @db.Text
   mode      String?
+  /// Scopes SOP-mode chats per school so per-school histories don't bleed.
+  /// Null for general/non-school-scoped chats.
+  schoolId  String?
+  school    School?  @relation(fields: [schoolId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 
+  @@index([userId, mode, schoolId, createdAt])
   @@index([userId, mode, createdAt])
   @@index([userId, createdAt])
 }
@@ -303,8 +310,30 @@ model Document {
   s3Key     String?
   mimeType  String?
   size      Int?
+  /// Optional user-defined folder. Null = "uncategorized" (lives in Category card buckets only).
+  folderId  String?
+  folder    Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 
+  @@index([userId, createdAt])
+  @@index([userId, folderId])
+}
+
+/// User-defined document folder. Soft-cap of 50 folders per user enforced in the API layer.
+model Folder {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  /// Optional Material Symbol icon name (e.g. "folder", "school", "history_edu"). Defaults to "folder" in the UI.
+  icon      String?
+  /// Optional accent color token (e.g. "primary", "tertiary", "error"). Defaults to "primary" in the UI.
+  color     String?
+  documents Document[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([userId, name])
   @@index([userId, createdAt])
 }
 
@@ -319,6 +348,9 @@ model SopVariant {
   body           String   @db.Text
   /// Master `Document.id` when the draft came from the library (`sop_draft`); null when pasted only.
   sourceMasterId String?
+  /// Persisted master text — pasted, uploaded, or extracted from the source doc.
+  /// Lets returning users skip onboarding and keeps "View original" working without re-reading the doc.
+  masterText     String?  @db.Text
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

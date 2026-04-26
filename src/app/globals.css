@@ -1,181 +1,698 @@
+@import "../styles/tokens.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  /* Light fallbacks (app defaults to .dark — Scholar Manuscript) */
+  /* Map our Material-3 token CSS vars to the shadcn/Tailwind HSL contract,
+     so all existing Tailwind classes (bg-background, text-foreground, etc.) keep working. */
   :root {
-    --background: 210 40% 98%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 43 74% 52%;
-    --primary-foreground: 230 35% 8%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 43 74% 52%;
-    --radius: 0.65rem;
-  }
-
-  /* Scholar Manuscript — deep navy, manuscript gold accent (Stitch-inspired) */
-  .dark {
-    --background: 230 35% 7%;
-    --foreground: 40 20% 96%;
-    --card: 232 32% 11%;
-    --card-foreground: 40 15% 96%;
-    --popover: 232 32% 10%;
-    --popover-foreground: 40 15% 96%;
-    --primary: 43 78% 54%;
-    --primary-foreground: 230 35% 8%;
-    --secondary: 232 28% 16%;
-    --secondary-foreground: 40 15% 94%;
-    --muted: 232 25% 18%;
-    --muted-foreground: 215 18% 68%;
-    --accent: 232 28% 18%;
-    --accent-foreground: 40 15% 96%;
-    --destructive: 0 62% 48%;
-    --destructive-foreground: 40 15% 98%;
-    --border: 232 22% 22%;
-    --input: 232 22% 19%;
-    --ring: 43 78% 54%;
+    --background: var(--background-hsl);
+    --foreground: var(--foreground-hsl);
+    --card: var(--card-hsl);
+    --card-foreground: var(--card-foreground-hsl);
+    --popover: var(--popover-hsl);
+    --popover-foreground: var(--popover-foreground-hsl);
+    --primary-hue: var(--primary-hsl);
+    --primary-foreground: var(--primary-foreground-hsl);
+    --secondary: var(--secondary-hsl);
+    --secondary-foreground: var(--secondary-foreground-hsl);
+    --muted: var(--muted-hsl);
+    --muted-foreground: var(--muted-foreground-hsl);
+    --accent: var(--accent-hsl);
+    --accent-foreground: var(--accent-foreground-hsl);
+    --destructive: var(--destructive-hsl);
+    --destructive-foreground: var(--destructive-foreground-hsl);
+    --border: var(--border-hsl);
+    --input: var(--input-hsl);
+    --ring: var(--ring-hsl);
+    --radius: 0.75rem;
   }
 
   * {
     @apply border-border;
   }
 
+  html {
+    background: var(--background);
+    color: var(--on-background);
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
   }
+
+  /* Material Symbols base — render via .ms class or Icon component */
+  .ms,
+  .material-symbols-outlined {
+    font-family: "Material Symbols Outlined";
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-feature-settings: "liga";
+    font-feature-settings: "liga";
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  }
+
+  .ms-fill,
+  .material-symbols-outlined.ms-fill {
+    font-variation-settings: "FILL" 1, "wght" 500, "GRAD" 0, "opsz" 24;
+  }
+
+  /* Native scrollbars softened to match brand */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--outline-variant);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--outline);
+    background-clip: padding-box;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--primary-container);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 }
 
 @layer components {
-  /* Frosted surfaces — use on cards/panels over GlassScene */
-  .glass-panel {
-    @apply rounded-2xl border border-white/15 bg-white/[0.07] shadow-[0_12px_48px_-12px_rgba(0,0,0,0.45)] backdrop-blur-2xl ring-1 ring-amber-500/10;
-  }
-
+  /* ---------- Legacy compat shims ----------
+     The old "Scholar Manuscript" theme exposed glass-* utility classes used
+     across the app. Map them to the new tactile aesthetic so unmigrated pages
+     stay legible while we rebuild surface-by-surface. Remove once every
+     feature in PRD §3 is migrated. */
   .scholar-manuscript {
-    @apply rounded-2xl border border-white/10 bg-[hsl(232_32%_11%/0.85)] p-6 shadow-inner backdrop-blur-xl ring-1 ring-amber-500/5;
+    @apply tactile-card p-6;
   }
-
-  .glass-badge {
-    @apply inline-flex items-center rounded-full border border-white/50 bg-white/45 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur-md dark:border-white/15 dark:bg-white/[0.08];
-  }
-
-  .glass-alert {
-    @apply rounded-xl border px-4 py-3 text-sm backdrop-blur-xl;
-  }
-
-  .glass-alert-warning {
-    @apply glass-alert border-amber-400/35 bg-amber-50/80 text-amber-950 dark:border-amber-500/25 dark:bg-amber-950/35 dark:text-amber-50;
-  }
-
-  .glass-alert-error {
-    @apply glass-alert border-red-400/35 bg-red-50/85 text-red-950 dark:border-red-500/25 dark:bg-red-950/35 dark:text-red-50;
-  }
-
-  .glass-alert-success {
-    @apply glass-alert border-emerald-400/35 bg-emerald-50/85 text-emerald-950 dark:border-emerald-500/25 dark:bg-emerald-950/35 dark:text-emerald-50;
-  }
-
   .glass-input {
-    @apply border border-white/45 bg-white/50 shadow-inner backdrop-blur-sm placeholder:text-muted-foreground/75 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 dark:border-white/10 dark:bg-black/25 dark:shadow-none;
+    @apply rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)];
   }
-
-  .glass-divider-line {
-    @apply border-white/35 dark:border-white/10;
+  .glass-badge {
+    @apply inline-flex items-center rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] px-3 py-1 text-xs font-medium text-[var(--on-surface-variant)];
   }
-
   .glass-chip {
-    @apply rounded-full border border-white/45 bg-white/55 px-3 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-md dark:border-white/10 dark:bg-white/[0.08];
+    @apply rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container)] px-3 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider text-[var(--on-surface-variant)];
+  }
+  .glass-divider-line {
+    @apply border-[var(--outline-variant)];
+  }
+  .glass-alert {
+    @apply rounded-xl border px-4 py-3 text-sm;
+    border-color: color-mix(in srgb, var(--outline-variant) 60%, transparent);
+  }
+  .glass-alert-warning {
+    @apply glass-alert;
+    border-color: color-mix(in srgb, var(--streak-orange) 40%, transparent);
+    background: var(--streak-orange-soft);
+    color: #7a3a08;
+  }
+  .dark .glass-alert-warning {
+    color: var(--streak-orange);
+  }
+  .glass-alert-error {
+    @apply glass-alert;
+    border-color: color-mix(in srgb, var(--error) 30%, transparent);
+    background: var(--error-container);
+    color: var(--on-error-container);
+  }
+  .glass-alert-success {
+    @apply glass-alert;
+    border-color: color-mix(in srgb, var(--tertiary) 30%, transparent);
+    background: color-mix(in srgb, var(--tertiary-container) 15%, transparent);
+    color: var(--tertiary);
+  }
+
+  /* ---------- Tactile press-down button shell ----------
+     Use via the <Button /> primitive; this class gives the press behaviour. */
+  .tactile {
+    box-shadow: var(--tactile-primary);
+    transition:
+      transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.12s cubic-bezier(0.34, 1.56, 0.64, 1),
+      filter 0.18s ease;
+  }
+  .tactile:hover {
+    filter: brightness(1.05);
+  }
+  .tactile:active:not(:disabled) {
+    transform: translateY(3px);
+    box-shadow: var(--tactile-primary-active);
+  }
+
+  /* ---------- Tactile cards (deepened press behaviour) ---------- */
+  .tactile-card {
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--tactile-card);
+    transition:
+      transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .tactile-card:hover {
+    transform: translateY(-6px);
+    box-shadow: var(--tactile-card-hover);
+  }
+  .tactile-card:active {
+    transform: translateY(3px) scale(0.995);
+    box-shadow: var(--tactile-card-active);
+  }
+
+  /* ---------- Glass surfaces (light) ---------- */
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-radius: var(--radius-lg);
+  }
+  .glass-soft {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .dark .glass-panel {
+    background: rgba(26, 32, 41, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .dark .glass-soft {
+    background: rgba(26, 32, 41, 0.55);
+  }
+
+  /* ---------- Sticky topbar / sidebar glass ---------- */
+  .glass-header {
+    background: color-mix(in srgb, var(--surface) 75%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--outline-variant);
+  }
+  .glass-rail {
+    background: color-mix(in srgb, var(--surface-container-lowest) 75%, transparent);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid var(--outline-variant);
+  }
+
+  /* ---------- Stat-tile micro-lift (dashboard, schools) ---------- */
+  .stat-tile {
+    transition:
+      transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.2s,
+      border-color 0.2s;
+  }
+  .stat-tile:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px -8px rgba(0, 0, 0, 0.08);
+  }
+  .dark .stat-tile:hover {
+    box-shadow: 0 10px 20px -8px rgba(0, 0, 0, 0.4);
+  }
+
+  /* ---------- Type utilities (refined for friendlier rhythm) ---------- */
+  .t-display-xl {
+    font-size: clamp(2.75rem, 6vw, 4.5rem);
+    line-height: 1.04;
+    letter-spacing: -0.025em;
+    font-weight: 800;
+  }
+  .t-display-lg {
+    font-size: clamp(2.5rem, 5vw, 3.5rem);
+    line-height: 1.08;
+    letter-spacing: -0.022em;
+    font-weight: 800;
+  }
+  .t-headline-lg {
+    font-size: 2rem;
+    line-height: 1.18;
+    letter-spacing: -0.015em;
+    font-weight: 800;
+  }
+  .t-headline-md {
+    font-size: 1.5rem;
+    line-height: 1.28;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+  }
+  .t-body-lg {
+    font-size: 1.125rem;
+    line-height: 1.62;
+    font-weight: 400;
+  }
+  .t-body-md {
+    font-size: 1rem;
+    line-height: 1.55;
+    font-weight: 400;
+  }
+  .t-label-lg {
+    font-size: 0.6875rem;
+    line-height: 1;
+    letter-spacing: 0.1em;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: var(--outline);
+  }
+  .t-button {
+    font-size: 0.9375rem;
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+  }
+  .t-eyebrow {
+    font-size: 0.6875rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 800;
+    color: var(--primary);
+  }
+  .t-numeric {
+    font-feature-settings: "tnum" 1;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    letter-spacing: -0.02em;
   }
 }
 
 @layer utilities {
-  @keyframes float-slow {
+  /* ---------- Animations ---------- */
+  @keyframes flame-pulse {
     0%,
     100% {
-      transform: translate3d(0, 0, 0) scale(1);
+      transform: scale(1) rotate(0deg);
     }
     50% {
-      transform: translate3d(0, -14px, 0) scale(1.03);
+      transform: scale(1.15) rotate(-5deg);
     }
   }
-
-  @keyframes drift-x {
-    0%,
-    100% {
-      transform: translate3d(0, 0, 0);
-    }
-    50% {
-      transform: translate3d(22px, 0, 0);
-    }
+  .flame {
+    animation: flame-pulse 2s ease-in-out infinite;
+    color: var(--streak-orange);
   }
 
-  @keyframes fade-up {
+  @keyframes aura-pulse {
     0% {
-      opacity: 0;
-      transform: translate3d(0, 16px, 0);
+      box-shadow: 0 0 0 0 rgba(0, 163, 255, 0.45);
     }
+    70% {
+      box-shadow: 0 0 0 22px rgba(0, 163, 255, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(0, 163, 255, 0);
+    }
+  }
+  .aura {
+    animation: aura-pulse 3s infinite;
+  }
+
+  @keyframes fill-up {
+    from {
+      transform: scale(0.5);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  .fill-up {
+    animation: fill-up 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  @keyframes slide-in {
+    from {
+      transform: translateY(12px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  .slide-in {
+    animation: slide-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  @keyframes rise-in {
+    from {
+      transform: translateY(24px) scale(0.98);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+  }
+  .rise-in {
+    animation: rise-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  @keyframes pop-number {
+    0% {
+      transform: scale(0.6);
+      opacity: 0;
+    }
+    60% {
+      transform: scale(1.12);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  .pop-number {
+    animation: pop-number 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  @keyframes shine-sweep {
+    0% {
+      transform: translateX(-120%) skewX(-20deg);
+    }
+    100% {
+      transform: translateX(220%) skewX(-20deg);
+    }
+  }
+  .shine-sweep {
+    position: relative;
+  }
+  .shine-sweep::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.18) 50%,
+      transparent 100%
+    );
+    transform: translateX(-120%) skewX(-20deg);
+    animation: shine-sweep 3.5s ease-in-out infinite;
+    animation-delay: 1.2s;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+
+  @keyframes dot-blink {
+    0%,
     100% {
       opacity: 1;
-      transform: translate3d(0, 0, 0);
-    }
-  }
-
-  @keyframes pulse-glow {
-    0%,
-    100% {
-      opacity: 0.35;
+      transform: scale(1);
     }
     50% {
-      opacity: 0.75;
+      opacity: 0.4;
+      transform: scale(0.85);
     }
   }
-
-  .animate-float-slow {
-    animation: float-slow 8s ease-in-out infinite;
+  .dot-blink {
+    animation: dot-blink 1.6s ease-in-out infinite;
   }
 
-  .animate-drift-x {
-    animation: drift-x 11s ease-in-out infinite;
+  /* CSS @property for the readiness gauge sweep */
+  @property --gauge-pct-anim {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 0%;
+  }
+  @keyframes gauge-sweep {
+    from {
+      --gauge-pct-anim: 0%;
+    }
+    to {
+      --gauge-pct-anim: var(--gauge-pct, 0%);
+    }
+  }
+  .gauge-sweep {
+    /* Default the animated variable to the target so the ring is filled
+       even when the keyframe animation is disabled (prefers-reduced-motion
+       or pre-animation paint). The keyframes still drive a smooth sweep
+       from 0% to target on first paint when motion is allowed. */
+    --gauge-pct-anim: var(--gauge-pct, 0%);
+    background: conic-gradient(
+      var(--primary-container) var(--gauge-pct-anim),
+      var(--surface-container-highest) 0
+    );
+    animation: gauge-sweep 1.4s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
   }
 
-  .animate-fade-up {
-    animation: fade-up 700ms ease-out both;
+  @keyframes float-blob {
+    0%,
+    100% {
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      transform: translate(12px, -14px) scale(1.08);
+    }
+  }
+  .float-blob {
+    animation: float-blob 7s ease-in-out infinite;
   }
 
-  .animate-pulse-glow {
-    animation: pulse-glow 4.5s ease-in-out infinite;
+  @keyframes bob {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-3px);
+    }
+  }
+  .bob {
+    animation: bob 2.6s ease-in-out infinite;
   }
 
+  @keyframes arrow-nudge {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(4px);
+    }
+  }
+  .arrow-nudge {
+    animation: arrow-nudge 1.4s ease-in-out infinite;
+  }
+
+  /* ---------- Friendlier student-product flourishes ---------- */
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-3deg); }
+    75% { transform: rotate(3deg); }
+  }
+  .wiggle-on-hover { transition: transform 0.2s; }
+  .wiggle-on-hover:hover { animation: wiggle 0.6s ease-in-out infinite; }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 45%, transparent); }
+    50% { box-shadow: 0 0 0 14px color-mix(in srgb, var(--primary) 0%, transparent); }
+  }
+  .pulse-glow { animation: pulse-glow 2.4s ease-in-out infinite; }
+
+  @keyframes confetti-fall {
+    0% { transform: translateY(-12px) rotate(0deg); opacity: 0; }
+    20% { opacity: 1; }
+    100% { transform: translateY(140vh) rotate(720deg); opacity: 0; }
+  }
+  .confetti { animation: confetti-fall 2.2s linear forwards; }
+
+  @keyframes tilt-in {
+    from { transform: perspective(800px) rotateX(8deg) translateY(20px); opacity: 0; }
+    to   { transform: perspective(800px) rotateX(0) translateY(0); opacity: 1; }
+  }
+  .tilt-in { animation: tilt-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+  @keyframes hop {
+    0%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-10px) scale(1.02); }
+    60% { transform: translateY(0) scale(0.98); }
+  }
+  .hop { animation: hop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .shimmer-bg {
+    background-image: linear-gradient(
+      110deg,
+      transparent 30%,
+      color-mix(in srgb, var(--primary) 20%, transparent) 50%,
+      transparent 70%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2.4s ease-in-out infinite;
+  }
+
+  @keyframes ring-burst {
+    0%   { box-shadow: 0 0 0 0 var(--primary-container); opacity: 0.7; }
+    100% { box-shadow: 0 0 0 24px transparent; opacity: 0; }
+  }
+  .ring-burst::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    animation: ring-burst 1.8s ease-out infinite;
+  }
+
+  /* Utility: anim-delay-* mirrored to match design system staggers */
   .anim-delay-100 {
-    animation-delay: 100ms;
+    animation-delay: 0.1s;
   }
-
   .anim-delay-200 {
-    animation-delay: 200ms;
+    animation-delay: 0.2s;
   }
-
   .anim-delay-300 {
-    animation-delay: 300ms;
+    animation-delay: 0.3s;
+  }
+  .anim-delay-400 {
+    animation-delay: 0.4s;
+  }
+  .anim-delay-500 {
+    animation-delay: 0.5s;
+  }
+  .anim-delay-600 {
+    animation-delay: 0.6s;
+  }
+  .anim-delay-700 {
+    animation-delay: 0.7s;
   }
 
-  .anim-delay-400 {
-    animation-delay: 400ms;
+  /* ===== Markdown body — shared across all LLM prose surfaces ===== */
+  /* Class name is .sop-markdown (kept for backwards compatibility — used by
+     <MarkdownBody> in src/components/markdown-body.tsx). Tuned for chat-bubble
+     density: compact margins, primary-tinted code, no rogue backgrounds. */
+  .sop-markdown > :first-child {
+    margin-top: 0;
+  }
+  .sop-markdown > :last-child {
+    margin-bottom: 0;
+  }
+  .sop-markdown p {
+    margin: 0 0 0.6rem 0;
+  }
+  .sop-markdown h1,
+  .sop-markdown h2,
+  .sop-markdown h3,
+  .sop-markdown h4 {
+    font-weight: 700;
+    line-height: 1.3;
+    margin: 0.6rem 0 0.4rem 0;
+    color: var(--on-surface);
+  }
+  .sop-markdown h1 { font-size: 18px; }
+  .sop-markdown h2 { font-size: 17px; }
+  .sop-markdown h3 { font-size: 15px; }
+  .sop-markdown h4 { font-size: 14px; }
+  .sop-markdown ul,
+  .sop-markdown ol {
+    margin: 0 0 0.6rem 1.2rem;
+    padding: 0;
+  }
+  .sop-markdown li {
+    margin: 0.15rem 0;
+  }
+  .sop-markdown li > p {
+    margin: 0;
+  }
+  .sop-markdown code {
+    background: var(--surface-container);
+    padding: 0.05rem 0.35rem;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.92em;
+    color: var(--on-surface);
+  }
+  .sop-markdown pre {
+    background: var(--surface-container);
+    padding: 0.7rem 0.85rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0.4rem 0 0.7rem 0;
+    font-size: 13px;
+  }
+  .sop-markdown pre code {
+    background: transparent;
+    padding: 0;
+  }
+  .sop-markdown blockquote {
+    margin: 0.4rem 0 0.6rem 0;
+    padding: 0.2rem 0 0.2rem 0.85rem;
+    border-left: 3px solid color-mix(in srgb, var(--primary) 50%, transparent);
+    color: var(--on-surface-variant);
+  }
+  .sop-markdown table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5rem 0 0.7rem 0;
+    font-size: 13px;
+  }
+  .sop-markdown th,
+  .sop-markdown td {
+    border: 1px solid var(--outline-variant);
+    padding: 0.3rem 0.55rem;
+    text-align: left;
+  }
+  .sop-markdown th {
+    background: var(--surface-container-low);
+    font-weight: 700;
+  }
+  .sop-markdown hr {
+    border: 0;
+    border-top: 1px solid var(--outline-variant);
+    margin: 0.8rem 0;
+  }
+  .sop-markdown strong {
+    font-weight: 700;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .flame,
+    .aura,
+    .fill-up,
+    .slide-in,
+    .rise-in,
+    .pop-number,
+    .shine-sweep::after,
+    .dot-blink,
+    .gauge-sweep,
+    .float-blob,
+    .bob,
+    .arrow-nudge,
+    .pulse-glow,
+    .wiggle-on-hover,
+    .confetti,
+    .tilt-in,
+    .hop,
+    .shimmer-bg,
+    .ring-burst::after {
+      animation: none !important;
+    }
+    .tactile,
+    .tactile-card,
+    .stat-tile {
+      transition: none !important;
+    }
   }
 }

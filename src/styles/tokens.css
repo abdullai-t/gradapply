@@ -1,0 +1,208 @@
+/* =========================================================
+   GradApply v2 — Tactile Fusion tokens
+   Material 3 light + tactile (Duolingo-style) press shadows.
+   Both light (default) and dark variants.
+   Source: design-system/tactile/tokens.css
+   ========================================================= */
+
+:root {
+  /* ---------- Material 3 palette (LIGHT) ---------- */
+  --primary: #00629d;
+  --primary-container: #00a3ff;
+  --on-primary: #ffffff;
+  --on-primary-container: #00375a;
+  --primary-fixed: #cfe5ff;
+  --primary-fixed-dim: #98cbff;
+  --on-primary-fixed: #001d33;
+  --on-primary-fixed-variant: #004a77;
+
+  --secondary: #006c4f;
+  --secondary-container: #53fac2;
+  --secondary-fixed: #56fdc5;
+  --secondary-fixed-dim: #2be0aa;
+  --on-secondary: #ffffff;
+  --on-secondary-container: #007153;
+  --on-secondary-fixed: #002116;
+  --on-secondary-fixed-variant: #00513b;
+
+  --tertiary: #2b6c00;
+  --tertiary-container: #4cb200;
+  --tertiary-fixed: #87fe45;
+  --tertiary-fixed-dim: #6be026;
+  --on-tertiary: #ffffff;
+  --on-tertiary-container: #153c00;
+  --on-tertiary-fixed: #082100;
+  --on-tertiary-fixed-variant: #1f5100;
+
+  --error: #ba1a1a;
+  --error-container: #ffdad6;
+  --on-error: #ffffff;
+  --on-error-container: #93000a;
+
+  --background: #f7f9ff;
+  --surface: #f7f9ff;
+  --surface-bright: #ffffff;
+  --surface-dim: #d6dae2;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f0f4fc;
+  --surface-container: #eaeef6;
+  --surface-container-high: #e4e8f0;
+  --surface-container-highest: #dfe3ea;
+  --surface-variant: #dfe3ea;
+  --on-surface: #171c22;
+  --on-surface-variant: #3f4852;
+  --on-background: #171c22;
+  --outline: #6f7883;
+  --outline-variant: #bec7d4;
+  --inverse-surface: #2c3137;
+  --inverse-on-surface: #edf1f9;
+  --inverse-primary: #98cbff;
+  --surface-tint: #00629d;
+
+  --streak-orange: #ff9600;
+  --streak-orange-soft: #fff7ed;
+
+  /* Tailwind/shadcn HSL semantic tokens (kept for compatibility w/ Radix UI primitives) */
+  --background-hsl: 220 100% 98%;
+  --foreground-hsl: 215 22% 11%;
+  --card-hsl: 0 0% 100%;
+  --card-foreground-hsl: 215 22% 11%;
+  --popover-hsl: 0 0% 100%;
+  --popover-foreground-hsl: 215 22% 11%;
+  --primary-hsl: 204 100% 31%;
+  --primary-foreground-hsl: 0 0% 100%;
+  --secondary-hsl: 220 33% 96%;
+  --secondary-foreground-hsl: 215 22% 11%;
+  --muted-hsl: 220 33% 96%;
+  --muted-foreground-hsl: 215 13% 39%;
+  --accent-hsl: 220 33% 96%;
+  --accent-foreground-hsl: 215 22% 11%;
+  --destructive-hsl: 0 75% 42%;
+  --destructive-foreground-hsl: 0 0% 100%;
+  --border-hsl: 218 26% 79%;
+  --input-hsl: 218 26% 89%;
+  --ring-hsl: 204 100% 31%;
+
+  /* Tactile shadows — the brand's signature press-down (deepened for v2 polish) */
+  --tactile-primary: 0 6px 0 0 #004a77;
+  --tactile-primary-lg: 0 8px 0 0 #004a77;
+  --tactile-primary-active: 0 2px 0 0 #004a77;
+  --tactile-card: 0 8px 0 0 #d6dfeb;
+  --tactile-card-hover: 0 14px 0 0 #b8c5d6;
+  --tactile-card-active: 0 3px 0 0 #d6dfeb;
+  --tactile-error: 0 6px 0 0 #7a0e0e;
+  --tactile-secondary: 0 6px 0 0 var(--primary);
+  --tactile-tertiary: 0 6px 0 0 #1f5100;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Radii */
+  --radius-sm: 0.5rem;
+  --radius: 0.75rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+  --radius-full: 9999px;
+
+  /* Type — `--font-sans` is provided by next/font (Plus Jakarta Sans).
+     The fallbacks below are used only if the variable is undefined. */
+  --font-display: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+/* ---------- DARK variant (lifted navy — softer than pure ink) ---------- */
+.dark {
+  --primary: #98cbff;
+  --primary-container: #004a77;
+  --on-primary: #00375a;
+  --on-primary-container: #cfe5ff;
+  --primary-fixed: #cfe5ff;
+  --primary-fixed-dim: #98cbff;
+  --on-primary-fixed: #001d33;
+  --on-primary-fixed-variant: #004a77;
+
+  --secondary: #2be0aa;
+  --secondary-container: #00513b;
+  --on-secondary: #003827;
+  --on-secondary-container: #56fdc5;
+  --secondary-fixed: #56fdc5;
+  --secondary-fixed-dim: #2be0aa;
+
+  --tertiary: #6be026;
+  --tertiary-container: #1f5100;
+  --on-tertiary: #082100;
+  --on-tertiary-container: #87fe45;
+
+  --error: #ffb4ab;
+  --error-container: #93000a;
+  --on-error: #690005;
+  --on-error-container: #ffdad6;
+
+  /* Soft lifted navy palette — feels alive and friendly, not pitch-black.
+     Hue 228 (indigo-leaning navy), saturation around 28–34%. */
+  --background: #1a2036;
+  --surface: #1a2036;
+  --surface-bright: #2d3650;
+  --surface-dim: #14182a;
+  --surface-container-lowest: #161b2e;
+  --surface-container-low: #1f2540;
+  --surface-container: #252b48;
+  --surface-container-high: #2b3252;
+  --surface-container-highest: #313a5e;
+  --surface-variant: #2b3252;
+  --on-surface: #e8ebf5;
+  --on-surface-variant: #b5bdd1;
+  --on-background: #e8ebf5;
+  --outline: #8b95ad;
+  --outline-variant: #3a4263;
+  --inverse-surface: #e8ebf5;
+  --inverse-on-surface: #2c3346;
+  --inverse-primary: #00629d;
+  --surface-tint: #98cbff;
+
+  --streak-orange: #ffb554;
+  --streak-orange-soft: #2c2014;
+
+  /* Tailwind/shadcn HSL — dark (matched to lifted navy surfaces) */
+  --background-hsl: 228 34% 16%;
+  --foreground-hsl: 225 33% 93%;
+  --card-hsl: 228 30% 17%;
+  --card-foreground-hsl: 225 33% 93%;
+  --popover-hsl: 228 30% 17%;
+  --popover-foreground-hsl: 225 33% 93%;
+  --primary-hsl: 210 100% 80%;
+  --primary-foreground-hsl: 204 100% 18%;
+  --secondary-hsl: 228 28% 22%;
+  --secondary-foreground-hsl: 225 33% 93%;
+  --muted-hsl: 228 28% 22%;
+  --muted-foreground-hsl: 222 25% 76%;
+  --accent-hsl: 228 28% 22%;
+  --accent-foreground-hsl: 225 33% 93%;
+  --destructive-hsl: 6 100% 84%;
+  --destructive-foreground-hsl: 0 0% 100%;
+  --border-hsl: 228 25% 30%;
+  --input-hsl: 228 25% 24%;
+  --ring-hsl: 210 100% 80%;
+
+  /* Tactile shadows for lifted-navy dark — bigger contrast offset for visibility */
+  --tactile-primary: 0 6px 0 0 #003353;
+  --tactile-primary-lg: 0 8px 0 0 #003353;
+  --tactile-primary-active: 0 2px 0 0 #003353;
+  --tactile-card: 0 8px 0 0 #0f1325;
+  --tactile-card-hover: 0 14px 0 0 #0a0d1c;
+  --tactile-card-active: 0 3px 0 0 #0f1325;
+  --tactile-error: 0 6px 0 0 #5c0008;
+  --tactile-secondary: 0 6px 0 0 var(--primary);
+  --tactile-tertiary: 0 6px 0 0 #082100;
+}

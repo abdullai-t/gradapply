@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Profile } from "@prisma/client";
 
+import { prisma } from "@/lib/prisma";
+
 import {
   agentHintLine,
   routeAssistantAgent,
@@ -364,12 +366,17 @@ export async function runAssistantChat({
   history,
   profile,
   userId,
+  schoolId,
 }: {
   mode: ChatMode;
   message: string;
   history: { role: "user" | "assistant"; content: string }[];
   profile?: Profile | null;
   userId: string;
+  /// SOP-studio scope. When set, the agent gets the school + saved variant
+  /// + master text loaded into the system prompt so refinement requests
+  /// like "tighten the opening" have something concrete to act on.
+  schoolId?: string | null;
 }): Promise<{ reply: string; routing: AgentRouting }> {
   const routing = routeAssistantAgent(mode, message);
 
@@ -381,6 +388,12 @@ export async function runAssistantChat({
   }
   const hasKnowledgePack = knowledge.length > 0;
 
+  const sopContextBlock = await loadSopStudioContext({
+    userId,
+    schoolId: schoolId ?? null,
+    effectiveMode: routing.effectiveMode,
+  });
+
   const system = [
     hasKnowledgePack ? knowledge : null,
     hasKnowledgePack ? assistantContextGroundingRules() : null,
@@ -388,6 +401,7 @@ export async function runAssistantChat({
       embedApplicantSummary: !hasKnowledgePack,
       hasFullApplicantPack: hasKnowledgePack,
     }),
+    sopContextBlock,
     agentHintLine(routing),
   ]
     .filter((s): s is string => !!s?.trim())
@@ -427,6 +441,57 @@ export async function runAssistantChat({
       creditFallback: exec.creditFallback,
     },
   };
+}
+
+/**
+ * Loads the school + saved tailored variant + master SOP text for the SOP
+ * studio and renders them as a system-prompt block. Returns empty string
+ * when not in SOP mode, no schoolId is provided, or the school can't be
+ * found for this user. Truncates long bodies to keep the prompt bounded.
+ */
+async function loadSopStudioContext({
+  userId,
+  schoolId,
+  effectiveMode,
+}: {
+  userId: string;
+  schoolId: string | null;
+  effectiveMode: ChatMode;
+}): Promise<string> {
+  if (effectiveMode !== "sop" || !schoolId) return "";
+
+  const school = await prisma.school.findFirst({
+    where: { id: schoolId, userId },
+    include: { sopVariant: true },
+  });
+  if (!school) return "";
+
+  const variant = school.sopVariant;
+  const trim = (s: string | null | undefined, max: number) =>
+    !s ? "" : s.length > max ? `${s.slice(0, max)}…` : s;
+
+  const lines = [
+    "SOP studio context (the user is tailoring their statement for this school):",
+    `- School: ${school.name}`,
+    school.program ? `- Program: ${school.program}` : null,
+    school.degree ? `- Degree: ${school.degree}` : null,
+    school.country ? `- Country: ${school.country}` : null,
+    school.deadline
+      ? `- Deadline: ${school.deadline.toISOString().slice(0, 10)}`
+      : null,
+    "",
+    variant?.masterText
+      ? `Master SOP (the applicant's general-purpose statement, truncated):\n"""\n${trim(variant.masterText, 6000)}\n"""`
+      : "Master SOP: not yet provided in this thread.",
+    "",
+    variant?.body
+      ? `Current tailored variant for this school (latest saved body, truncated):\n"""\n${trim(variant.body, 6000)}\n"""`
+      : "Current tailored variant: none yet — the next request may ask you to generate one.",
+    "",
+    "When refining, return only the changed paragraphs unless the user asks for a full rewrite. Verify factual claims about programs, faculty, and labs against the school context above; do not invent specifics.",
+  ].filter(Boolean);
+
+  return lines.join("\n");
 }
 
 export async function draftProfessorEmail({

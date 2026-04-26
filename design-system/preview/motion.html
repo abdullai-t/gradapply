@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en" class="dark"><head>
+<meta charset="utf-8"><title>Animation & Motion</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{margin:0;padding:20px;background:hsl(var(--background));color:hsl(var(--foreground));font-family:var(--font-sans)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.c{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:12px;padding:16px;min-height:110px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;position:relative}
+.c h4{margin:0;font-size:13px;font-weight:600}
+.c p{margin:0;font-family:var(--font-mono);font-size:10px;color:hsl(var(--muted-foreground))}
+.demo{height:32px;display:flex;align-items:center;justify-content:center}
+@keyframes fadeup{0%{opacity:0;transform:translateY(16px)}100%{opacity:1;transform:translateY(0)}}
+@keyframes floatS{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-14px) scale(1.03)}}
+@keyframes driftX{0%,100%{transform:translateX(0)}50%{transform:translateX(22px)}}
+@keyframes pulseG{0%,100%{opacity:.35}50%{opacity:.75}}
+.pill{background:hsl(var(--primary));width:60%;height:12px;border-radius:9999px;animation:fadeup 1.6s ease-out infinite}
+.orb{width:44px;height:44px;border-radius:9999px;background:hsl(var(--primary) / .4);filter:blur(6px);animation:floatS 3s ease-in-out infinite}
+.orb2{width:44px;height:44px;border-radius:9999px;background:hsl(var(--plum-400) / .5);filter:blur(6px);animation:driftX 3.5s ease-in-out infinite}
+.dot{width:60px;height:14px;border-radius:9999px;background:hsl(var(--primary));animation:pulseG 2.2s ease-in-out infinite}
+</style></head>
+<body class="ds-preview">
+<div class="grid">
+<div class="c"><h4>fade-up</h4><div class="demo"><div class="pill"></div></div><p>700ms ease-out · y 16→0</p></div>
+<div class="c"><h4>float-slow</h4><div class="demo"><div class="orb"></div></div><p>8s · y ±14 · scale 1.03</p></div>
+<div class="c"><h4>drift-x</h4><div class="demo"><div class="orb2"></div></div><p>11s · x ±22</p></div>
+<div class="c"><h4>pulse-glow</h4><div class="demo"><div class="dot"></div></div><p>4.5s · .35 ↔ .75</p></div>
+</div>
+</body></html>
