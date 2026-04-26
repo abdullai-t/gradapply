@@ -1,4 +1,4 @@
-import { completeOneShotLlm } from "@/lib/ai";
+import { runTask } from "@/lib/agents";
 import {
   billingPrecheckResponse,
   finalizeAiConsumption,
@@ -6,6 +6,7 @@ import {
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
 import { prisma } from "@/lib/prisma";
 
+import { sanitizeField, wrapUserContent } from "@/lib/agents/sanitize";
 import { bad, ok } from "../_responses";
 import { withPlanGate } from "../_with-plan-gate";
 
@@ -13,16 +14,6 @@ import {
   rewriteSelectionSchema,
   type RewriteSelectionResponse,
 } from "./schemas";
-
-const SELECTION_SYSTEM_PROMPT = `You are an admissions writing assistant. The applicant will give you a SHORT extract from their statement of purpose plus an instruction.
-
-Return ONLY the rewritten extract. No preamble, no markdown fences, no explanation, no surrounding quotes — just the new text that will replace the original verbatim. Keep paragraph structure compatible with the original (one paragraph in → one paragraph out; multi-paragraph → multi-paragraph).
-
-If the instruction is unclear, ambiguous, or you decide no change is warranted, return the original text unchanged.`;
-
-const DOCUMENT_SYSTEM_PROMPT = `You are an admissions writing assistant. The applicant will give you a FULL draft of their statement of purpose plus an instruction.
-
-Return ONLY the rewritten draft. No preamble, no markdown fences, no explanation, no surrounding quotes — just the new full draft. Preserve paragraph breaks (use blank lines between paragraphs). Maintain the applicant's voice and factual claims; do not invent new facts about programs, faculty, or labs.`;
 
 /**
  * POST /api/sop/rewrite
@@ -47,55 +38,41 @@ export const POST = withPlanGate("assistant", async (req, { userId }) => {
     });
     if (school) {
       schoolContext = [
-        `Target school: ${school.name}`,
-        school.program && `Program: ${school.program}`,
-        school.degree && `Degree: ${school.degree}`,
-        school.country && `Country: ${school.country}`,
+        `Target school: ${sanitizeField(school.name)}`,
+        school.program && `Program: ${sanitizeField(school.program)}`,
+        school.degree && `Degree: ${sanitizeField(school.degree)}`,
+        school.country && `Country: ${sanitizeField(school.country)}`,
       ]
         .filter(Boolean)
         .join("\n");
     }
   }
 
-  const system =
-    parsed.data.scope === "document"
-      ? DOCUMENT_SYSTEM_PROMPT
-      : SELECTION_SYSTEM_PROMPT;
-
-  const userPrompt = [
-    schoolContext ? `${schoolContext}\n` : "",
-    `Instruction: ${parsed.data.prompt}`,
-    "",
-    "Original text:",
-    `"""\n${parsed.data.originalText}\n"""`,
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  let raw: string;
   try {
-    raw = await completeOneShotLlm({
-      system,
-      user: userPrompt,
-      // Allow generous headroom — selection rewrites are tiny but a full-doc
-      // rewrite can be a few thousand tokens. The chat path uses 8k for SOP;
-      // we mirror that for "document" scope.
-      maxTokens: parsed.data.scope === "document" ? 8192 : 2048,
-      qualityMode: "high",
+    const agentMessage = [
+      schoolContext ? `${schoolContext}\n` : "",
+      `Rewrite the following text based on this instruction: ${sanitizeField(parsed.data.prompt, 500)}`,
+      "",
+      "Return ONLY the rewritten text — no preamble, no markdown fences, no explanation.",
+      "",
+      wrapUserContent("original text", parsed.data.originalText),
+    ].filter(Boolean).join("\n");
+
+    const result = await runTask("sop-writer", agentMessage, userId, {
+      ...(parsed.data.schoolId ? { schoolId: parsed.data.schoolId } : {}),
     });
+
+    const newText = stripWrapping(result.reply);
+    await finalizeAiConsumption(userId);
+
+    const response: RewriteSelectionResponse = {
+      newText,
+      unchanged: normalize(newText) === normalize(parsed.data.originalText),
+    };
+    return ok(response);
   } catch (e) {
     return bad(formatLlmFailureMessage(e), 500);
   }
-
-  const newText = stripWrapping(raw);
-  await finalizeAiConsumption(userId);
-
-  const response: RewriteSelectionResponse = {
-    newText,
-    unchanged: normalize(newText) === normalize(parsed.data.originalText),
-  };
-
-  return ok(response);
 });
 
 /**

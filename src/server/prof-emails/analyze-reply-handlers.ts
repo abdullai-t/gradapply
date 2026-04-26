@@ -1,7 +1,7 @@
-import { EmailStatus } from "@prisma/client";
+import { EmailStatus, type ReplyIntent } from "@prisma/client";
 import { NextResponse } from "next/server";
 
-import { analyzeProfessorReplyEmail } from "@/lib/analyze-prof-reply";
+import { runTask } from "@/lib/agents";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
 import {
   billingPrecheckResponse,
@@ -19,6 +19,7 @@ import { zPrismaRecordId } from "@/lib/prisma-record-id-zod";
 import { bad, notFound, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
 
+import { sanitizeField, wrapUserContent } from "@/lib/agents/sanitize";
 import { analyzeReplyBodySchema } from "./schemas";
 
 export const analyzeReply = withAuth<{ id: string }>(
@@ -53,30 +54,44 @@ export const analyzeReply = withAuth<{ id: string }>(
 
     const { replyText } = parsed.data;
 
-    const [row, profile] = await Promise.all([
-      prisma.profEmail.findFirst({
-        where: { id: idParsed.data, userId },
-      }),
-      prisma.profile.findUnique({ where: { userId } }),
-    ]);
+    const row = await prisma.profEmail.findFirst({
+      where: { id: idParsed.data, userId },
+    });
     if (!row) return notFound();
 
-    let intent;
-    let rationale;
-    let suggestedReply;
+    let intent: ReplyIntent;
+    let rationale: string;
+    let suggestedReply: string;
+
+    const VALID_INTENTS: ReplyIntent[] = ["INTERESTED", "NEUTRAL", "DECLINED", "UNKNOWN"];
+
     try {
-      const result = await analyzeProfessorReplyEmail({
-        profile,
-        originalSubject: row.emailSubject,
-        originalBody: row.emailBody,
-        replyText,
-        professorName: row.profName,
-        university: row.university,
-        userId,
+      const message = [
+        `Analyze this professor's reply and classify their intent.`,
+        row.profName ? `Professor: ${sanitizeField(row.profName)}` : "",
+        row.university ? `University: ${sanitizeField(row.university)}` : "",
+        row.emailSubject ? `Original subject: ${sanitizeField(row.emailSubject)}` : "",
+        row.emailBody ? wrapUserContent("original email", row.emailBody) : "",
+        wrapUserContent("professor reply", replyText),
+        `\nReturn ONLY valid JSON: { "intent": "INTERESTED"|"NEUTRAL"|"DECLINED"|"UNKNOWN", "rationale": string, "suggestedReply": string }`,
+      ].filter(Boolean).join("\n");
+
+      const result = await runTask("reply-analyzer", message, userId, {
+        profEmailId: row.id,
       });
-      intent = result.intent;
-      rationale = result.rationale;
-      suggestedReply = result.suggestedReply;
+
+      const raw = result.reply.trim();
+      const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
+      const candidate = fenced ? fenced[1] : raw;
+      const parsed2 = JSON.parse(candidate) as {
+        intent?: string;
+        rationale?: string;
+        suggestedReply?: string;
+      };
+      const rawIntent = (parsed2.intent ?? "UNKNOWN").toUpperCase() as ReplyIntent;
+      intent = VALID_INTENTS.includes(rawIntent) ? rawIntent : "UNKNOWN";
+      rationale = parsed2.rationale ?? "";
+      suggestedReply = parsed2.suggestedReply ?? "";
     } catch (e) {
       return bad(formatLlmFailureMessage(e), 500);
     }

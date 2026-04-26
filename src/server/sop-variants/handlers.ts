@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { runTask } from "@/lib/agents";
 import {
   billingPrecheckResponse,
   finalizeAiConsumption,
@@ -12,8 +13,7 @@ import {
   markSopGenerateAttempt,
   markSopGenerateSuccess,
 } from "@/lib/sop-generate-rate-limit";
-import { generateTailoredSopBody } from "@/lib/sop-tailor-generate";
-
+import { sanitizeField, wrapUserContent } from "@/lib/agents/sanitize";
 import { bad, notFound, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
 
@@ -98,17 +98,24 @@ export const POST = withAuth(async (req, { userId }) => {
   if (!masterSopText || masterSopText.length < 80)
     return bad("Master SOP text is too short.");
 
-  const profile = await prisma.profile.findUnique({
-    where: { userId },
-  });
-
   let bodyText: string;
+
   try {
-    bodyText = await generateTailoredSopBody({
-      masterSopText,
-      school,
-      profile,
+    const message = [
+      `Tailor this master SOP for ${sanitizeField(school.name)}.`,
+      school.program ? `Program: ${sanitizeField(school.program)}` : "",
+      school.degree ? `Degree: ${sanitizeField(school.degree)}` : "",
+      school.country ? `Country: ${sanitizeField(school.country)}` : "",
+      "",
+      "Return ONLY the tailored SOP text — no preamble, no markdown fences.",
+      "",
+      wrapUserContent("master SOP", masterSopText),
+    ].filter(Boolean).join("\n");
+
+    const result = await runTask("sop-writer", message, userId, {
+      schoolId: school.id,
     });
+    bodyText = result.reply;
   } catch (e) {
     return bad(formatLlmFailureMessage(e), 500);
   }

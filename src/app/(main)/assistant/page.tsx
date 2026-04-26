@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -15,12 +16,25 @@ import {
   ASSISTANT_PENDING_ROLE,
   type ChatMessage as Msg,
   useChatHistory,
-  useSendMessage,
+  useSendMessageStreaming,
 } from "@/features/assistant/api";
 import { AIBubble, UserBubble } from "@/features/assistant/bubbles";
-import { MarkdownBody } from "@/components/markdown-body";
 import { SopStudio } from "@/features/sop-studio/studio";
 import { usePlanTier } from "@/hooks/use-plan-tier";
+
+const MarkdownBody = dynamic(
+  () => import("@/components/markdown-body").then((m) => ({ default: m.MarkdownBody })),
+  {
+    loading: () => (
+      <div className="flex flex-col gap-2">
+        <div className="h-4 w-3/4 animate-pulse rounded bg-[var(--surface-container-high)]" />
+        <div className="h-4 w-full animate-pulse rounded bg-[var(--surface-container-high)]" />
+        <div className="h-4 w-1/2 animate-pulse rounded bg-[var(--surface-container-high)]" />
+      </div>
+    ),
+    ssr: false,
+  },
+);
 
 export default function AssistantPage() {
   const searchParams = useSearchParams();
@@ -59,7 +73,7 @@ function AssistantChat() {
 
   const { planTier, allowance } = usePlanTier();
   const historyQuery = useChatHistory(mode);
-  const sendMutation = useSendMessage();
+  const { send: sendStreaming, getStreamingId } = useSendMessageStreaming();
 
   // Surface fetch errors as the page-level error banner.
   useEffect(() => {
@@ -74,24 +88,35 @@ function AssistantChat() {
     () => (historyQuery.data ?? []) as Msg[],
     [historyQuery.data],
   );
-  const loading = sendMutation.isPending;
+  const [isStreaming, setIsStreaming] = useState(false);
+  const loading = isStreaming;
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // During streaming, scroll instantly so the animation doesn't compete
+    // with each new token's repaint — smooth scroll restarting on every token
+    // is what makes the chat feel jittery. Use smooth scroll only when the
+    // message count changes (a new turn) and we're not actively streaming.
+    bottomRef.current?.scrollIntoView({
+      behavior: loading ? "auto" : "smooth",
+    });
   }, [messages, loading]);
 
   const send = async () => {
     if (!input.trim() || loading) return;
     setError(null);
+    const text = input;
+    setInput("");
+    setIsStreaming(true);
     try {
-      await sendMutation.mutateAsync({ message: input, mode });
-      setInput("");
+      await sendStreaming({ message: text, mode });
     } catch (e) {
       setError(
         e instanceof Error
           ? e.message
-          : "Request failed. Check your API keys in .env and restart the dev server.",
+          : "Something went wrong. Please try again.",
       );
+    } finally {
+      setIsStreaming(false);
     }
   };
 
@@ -157,29 +182,67 @@ function AssistantChat() {
           }}
         >
           <div className="flex flex-col gap-5">
-            {messages.length === 0 ? (
+            {historyQuery.isLoading ? (
+              <>
+                <AIBubble>
+                  <div className="flex flex-col gap-2">
+                    <div className="h-3 w-3/4 animate-pulse rounded bg-[var(--surface-container-high)]" />
+                    <div className="h-3 w-full animate-pulse rounded bg-[var(--surface-container-high)]" />
+                    <div className="h-3 w-1/2 animate-pulse rounded bg-[var(--surface-container-high)]" />
+                  </div>
+                </AIBubble>
+                <UserBubble initials={initials}>
+                  <div className="flex flex-col gap-2">
+                    <div className="h-3 w-48 animate-pulse rounded bg-[var(--surface-container-high)]" />
+                    <div className="h-3 w-32 animate-pulse rounded bg-[var(--surface-container-high)]" />
+                  </div>
+                </UserBubble>
+              </>
+            ) : messages.length === 0 ? (
               <AIBubble>
                 <p className="m-0">{hint}</p>
               </AIBubble>
             ) : null}
-            {messages.map((msg) =>
-              msg.role === "user" ? (
-                <UserBubble key={msg.id} initials={initials}>
-                  <span className="whitespace-pre-wrap">{msg.content}</span>
-                </UserBubble>
-              ) : msg.role === ASSISTANT_PENDING_ROLE ? (
+            {messages.map((msg) => {
+              if (msg.role === "user") {
+                return (
+                  <UserBubble key={msg.id} initials={initials}>
+                    <span className="whitespace-pre-wrap">{msg.content}</span>
+                  </UserBubble>
+                );
+              }
+
+              if (msg.role === ASSISTANT_PENDING_ROLE) {
+                return (
+                  <AIBubble key={msg.id}>
+                    <span className="inline-flex items-center gap-2 text-[var(--on-surface-variant)]">
+                      <Icon name="more_horiz" className="animate-pulse" size={20} />
+                      Thinking…
+                    </span>
+                  </AIBubble>
+                );
+              }
+
+              // assistant — both streaming and persisted use the same branch
+              const isThisStreaming = msg.id === getStreamingId();
+              return (
                 <AIBubble key={msg.id}>
-                  <span className="inline-flex items-center gap-2 text-[var(--on-surface-variant)]">
-                    <Icon name="more_horiz" className="animate-pulse" size={20} />
-                    Thinking…
-                  </span>
+                  {!msg.content && isThisStreaming ? (
+                    <span className="inline-flex items-center gap-2 text-[var(--on-surface-variant)]">
+                      <Icon name="more_horiz" className="animate-pulse" size={20} />
+                      Thinking…
+                    </span>
+                  ) : (
+                    <>
+                      <MarkdownBody content={msg.content} />
+                      {isThisStreaming && (
+                        <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-[var(--primary)]" />
+                      )}
+                    </>
+                  )}
                 </AIBubble>
-              ) : (
-                <AIBubble key={msg.id}>
-                  <MarkdownBody content={msg.content} />
-                </AIBubble>
-              ),
-            )}
+              );
+            })}
             <div ref={bottomRef} />
           </div>
         </ScrollArea>

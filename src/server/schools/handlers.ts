@@ -4,12 +4,11 @@ import {
   billingPrecheckResponse,
   finalizeAiConsumption,
 } from "@/lib/billing-allowance";
+import { runTask } from "@/lib/agents";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
 import { prisma } from "@/lib/prisma";
 import { parseDeadlineBody } from "@/lib/school-deadline";
-import { inferSchoolDetailsFromName } from "@/lib/school-from-name-ai";
 import { progressFromStatus } from "@/lib/school-progress";
-import { recommendSchoolsFromProfile } from "@/lib/school-recommendations-ai";
 
 import { bad, notFound, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
@@ -128,25 +127,20 @@ export const recommend = withAuth(async (_req, { userId }) => {
   const quota = await billingPrecheckResponse(userId);
   if (quota) return quota;
 
-  const [profile, schools] = await Promise.all([
-    prisma.profile.findUnique({ where: { userId } }),
-    prisma.school.findMany({
-      where: { userId },
-      select: { name: true },
-      distinct: ["name"],
-    }),
-  ]);
-
   try {
-    const recommendations = await recommendSchoolsFromProfile({
-      profile,
-      existingSchoolNames: schools.map((s) => s.name),
+    const result = await runTask(
+      "school-intel",
+      "Recommend 8 graduate schools for my tracking list based on my profile. Return ONLY valid JSON with shape: { \"schools\": [{ \"name\", \"program\", \"degree\", \"country\", \"whyFit\", \"notes\", \"portalUrl\" }] }",
       userId,
-    });
+    );
 
     await finalizeAiConsumption(userId);
 
-    return ok({ schools: recommendations });
+    const raw = result.reply.trim();
+    const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
+    const candidate = fenced ? fenced[1] : raw;
+    const parsed = JSON.parse(candidate) as { schools?: unknown[] };
+    return ok({ schools: Array.isArray(parsed?.schools) ? parsed.schools : [] });
   } catch (e) {
     return bad(formatLlmFailureMessage(e), 500);
   }
@@ -160,18 +154,24 @@ export const infer = withAuth(async (req, { userId }) => {
   const quota = await billingPrecheckResponse(userId);
   if (quota) return quota;
 
-  const profile = await prisma.profile.findUnique({
-    where: { userId },
-  });
-
   try {
-    const fields = await inferSchoolDetailsFromName({
+    const message = [
+      `Infer application-tracking fields for this school: "${parsed.data.name.trim()}"`,
+      parsed.data.term ? `Intake term: ${parsed.data.term}` : "",
+      "Return ONLY valid JSON with keys: program, degree, country, deadline, funding, notes, portalUrl.",
+    ].filter(Boolean).join("\n");
+
+    const result = await runTask("school-intel", message, userId, {
       schoolName: parsed.data.name.trim(),
       term: parsed.data.term ?? null,
-      profile,
-      userId,
     });
+
     await finalizeAiConsumption(userId);
+
+    const raw = result.reply.trim();
+    const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
+    const candidate = fenced ? fenced[1] : raw;
+    const fields = JSON.parse(candidate);
     return ok(fields);
   } catch (e) {
     return bad(formatLlmFailureMessage(e), 500);

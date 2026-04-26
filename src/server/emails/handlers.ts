@@ -1,14 +1,14 @@
 import { EmailStatus } from "@prisma/client";
 
-import { draftProfessorEmail } from "@/lib/ai";
+import { runTask } from "@/lib/agents";
 import {
   billingPrecheckResponse,
   finalizeAiConsumption,
 } from "@/lib/billing-allowance";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
 import { prisma } from "@/lib/prisma";
+import { sanitizeField } from "@/lib/agents/sanitize";
 import { fetchProfilePagePlainText } from "@/lib/profile-page-fetch";
-import { extractProfessorAndDraftFromPage } from "@/lib/professor-from-url-ai";
 
 import { bad, notFound, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
@@ -145,10 +145,9 @@ export const remove = withAuth<{ id: string }>(
 
 export const draft = withAuth<{ id: string }>(
   async (_req, { userId, params }) => {
-    const [row, profile] = await Promise.all([
-      prisma.profEmail.findFirst({ where: { id: params.id, userId } }),
-      prisma.profile.findUnique({ where: { userId } }),
-    ]);
+    const row = await prisma.profEmail.findFirst({
+      where: { id: params.id, userId },
+    });
     if (!row) return notFound();
 
     const quota = await billingPrecheckResponse(userId);
@@ -165,22 +164,30 @@ export const draft = withAuth<{ id: string }>(
       }
 
       try {
-        const result = await extractProfessorAndDraftFromPage({
-          profile,
-          profilePageUrl: fetched.url,
-          profilePageText: fetched.text,
-          userId,
+        const message = [
+          `Extract professor info and draft a cold email from this faculty page.`,
+          `URL: ${sanitizeField(fetched.url, 2000)}`,
+          `\nReturn JSON: { "profName", "profEmail", "university", "researchArea", "emailSubject", "emailBody" }`,
+        ].join("\n");
+
+        const agentResult = await runTask("email-drafter", message, userId, {
+          url: fetched.url,
         });
+
+        const raw = agentResult.reply.trim();
+        const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
+        const candidate = fenced ? fenced[1] : raw;
+        const parsed2 = JSON.parse(candidate) as Record<string, string>;
 
         const updated = await prisma.profEmail.update({
           where: { id: params.id },
           data: {
-            profName: result.profName,
-            profEmail: result.profEmail,
-            university: result.university,
-            researchArea: result.researchArea,
-            emailSubject: result.emailSubject,
-            emailBody: result.emailBody,
+            profName: parsed2.profName ?? row.profName,
+            profEmail: parsed2.profEmail ?? row.profEmail,
+            university: parsed2.university ?? row.university,
+            researchArea: parsed2.researchArea ?? row.researchArea,
+            emailSubject: parsed2.emailSubject ?? row.emailSubject,
+            emailBody: parsed2.emailBody ?? row.emailBody,
             profileUrl: fetched.url,
           },
         });
@@ -191,29 +198,35 @@ export const draft = withAuth<{ id: string }>(
       }
     }
 
-    let result;
     try {
-      result = await draftProfessorEmail({
-        profile,
-        profName: row.profName ?? "Professor",
-        university: row.university ?? "",
-        researchArea: row.researchArea,
-        userNotes: row.notes,
-        profilePageUrl: null,
-        profilePageText: null,
-        userId,
+      const message = [
+        `Draft a cold email to ${sanitizeField(row.profName) || "a professor"} at ${sanitizeField(row.university) || "their university"}.`,
+        row.researchArea ? `Research area: ${sanitizeField(row.researchArea)}` : "",
+        row.notes ? `Notes: ${sanitizeField(row.notes, 1000)}` : "",
+        `\nReturn JSON: { "emailSubject": string, "emailBody": string }`,
+      ].filter(Boolean).join("\n");
+
+      const agentResult = await runTask("email-drafter", message, userId, {
+        profEmailId: params.id,
       });
+
+      const raw = agentResult.reply.trim();
+      const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
+      const candidate = fenced ? fenced[1] : raw;
+      const parsed2 = JSON.parse(candidate) as Record<string, string>;
+
+      const updated = await prisma.profEmail.update({
+        where: { id: params.id },
+        data: {
+          emailSubject: parsed2.emailSubject ?? parsed2.subject,
+          emailBody: parsed2.emailBody ?? parsed2.body,
+        },
+      });
+
+      await finalizeAiConsumption(userId);
+      return ok(updated);
     } catch (e) {
       return bad(formatLlmFailureMessage(e), 500);
     }
-
-    const updated = await prisma.profEmail.update({
-      where: { id: params.id },
-      data: { emailSubject: result.subject, emailBody: result.body },
-    });
-
-    await finalizeAiConsumption(userId);
-
-    return ok(updated);
   },
 );

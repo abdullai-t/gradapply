@@ -6,7 +6,6 @@ import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -15,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Icon } from "@/components/icon";
+import { AIEnhanceTextarea } from "@/components/ai-enhance-textarea";
 import { useProfile, useUpdateProfile } from "@/features/profile/api";
 import {
   DEGREE_OPTIONS,
@@ -313,12 +313,13 @@ export default function ProfilePage() {
                 <Label className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--outline)]">
                   Research interests
                 </Label>
-                <Textarea
+                <AIEnhanceTextarea
                   value={form.researchInterests}
-                  onChange={(e) =>
-                    setForm({ ...form, researchInterests: e.target.value })
+                  onChange={(v) =>
+                    setForm({ ...form, researchInterests: v })
                   }
                   placeholder="One or two sentences on the questions and methods that excite you most."
+                  enhancePrompt="Enhance this research interests text for a graduate school application profile. Make it clear, concise, and academically professional while preserving the core ideas and the applicant's voice."
                 />
               </div>
               <div className="space-y-3">
@@ -392,11 +393,12 @@ export default function ProfilePage() {
             description="Personal context surfaced in AI prompts."
             icon="article"
           >
-            <Textarea
+            <AIEnhanceTextarea
               className="min-h-[160px]"
               value={form.bio}
-              onChange={(e) => setForm({ ...form, bio: e.target.value })}
+              onChange={(v) => setForm({ ...form, bio: v })}
               placeholder="Three sentences about who you are, what you're working on, and where you want to go next."
+              enhancePrompt="Enhance this bio for a graduate school application profile. Make it compelling, clear, and professional while maintaining the applicant's authentic voice and personal story."
             />
           </Section>
 

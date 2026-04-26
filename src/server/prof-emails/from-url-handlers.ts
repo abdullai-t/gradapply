@@ -1,6 +1,7 @@
 import { EmailStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 
+import { runTask } from "@/lib/agents";
 import {
   billingPrecheckResponse,
   finalizeAiConsumption,
@@ -13,9 +14,8 @@ import {
   type ProfEmailLlmDenial,
 } from "@/lib/prof-email-llm-rate-limit";
 import { prisma } from "@/lib/prisma";
+import { sanitizeField } from "@/lib/agents/sanitize";
 import { fetchProfilePagePlainText } from "@/lib/profile-page-fetch";
-import { extractProfessorAndDraftFromPage } from "@/lib/professor-from-url-ai";
-
 import { bad, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
 
@@ -50,46 +50,56 @@ export const fromUrl = withAuth(async (req, { userId }) => {
   const rawUrl = parsed.data.profileUrl.trim();
 
   let fetchedPage: { url: string; text: string };
-  let profile: Awaited<ReturnType<typeof prisma.profile.findUnique>>;
   try {
-    [fetchedPage, profile] = await Promise.all([
-      fetchProfilePagePlainText(rawUrl),
-      prisma.profile.findUnique({ where: { userId } }),
-    ]);
+    fetchedPage = await fetchProfilePagePlainText(rawUrl);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Could not load page";
     return bad(msg, 422);
   }
 
-  let result;
   try {
-    result = await extractProfessorAndDraftFromPage({
-      profile,
-      profilePageUrl: fetchedPage.url,
-      profilePageText: fetchedPage.text,
-      userId,
+    const message = [
+      `Extract professor info and draft a cold email from this faculty page.`,
+      `URL: ${sanitizeField(fetchedPage.url, 2000)}`,
+      `\nReturn JSON: { "profName", "profEmail", "university", "researchArea", "emailSubject", "emailBody" }`,
+    ].join("\n");
+
+    const agentResult = await runTask("email-drafter", message, userId, {
+      url: fetchedPage.url,
     });
+
+    const raw = agentResult.reply.trim();
+    const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
+    const candidate = fenced ? fenced[1] : raw;
+    const parsed2 = JSON.parse(candidate) as {
+      profName?: string;
+      profEmail?: string;
+      university?: string;
+      researchArea?: string;
+      emailSubject?: string;
+      emailBody?: string;
+    };
+
+    const row = await prisma.profEmail.create({
+      data: {
+        userId,
+        profName: parsed2.profName ?? null,
+        profEmail: parsed2.profEmail ?? null,
+        university: parsed2.university ?? null,
+        profileUrl: fetchedPage.url,
+        researchArea: parsed2.researchArea ?? null,
+        emailSubject: parsed2.emailSubject ?? null,
+        emailBody: parsed2.emailBody ?? null,
+        status: EmailStatus.DRAFT,
+      },
+    });
+
+    await Promise.all([
+      finalizeAiConsumption(userId),
+      markProfEmailLlmSuccess(userId),
+    ]);
+    return ok(row);
   } catch (e) {
     return bad(formatLlmFailureMessage(e), 500);
   }
-
-  const row = await prisma.profEmail.create({
-    data: {
-      userId,
-      profName: result.profName,
-      profEmail: result.profEmail,
-      university: result.university,
-      profileUrl: fetchedPage.url,
-      researchArea: result.researchArea,
-      emailSubject: result.emailSubject,
-      emailBody: result.emailBody,
-      status: EmailStatus.DRAFT,
-    },
-  });
-
-  await Promise.all([
-    finalizeAiConsumption(userId),
-    markProfEmailLlmSuccess(userId),
-  ]);
-  return ok(row);
 });

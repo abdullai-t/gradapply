@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
+import { runTask } from "@/lib/agents";
 import {
   billingPrecheckResponse,
   finalizeAiConsumption,
 } from "@/lib/billing-allowance";
-import { discoverFacultyMatches } from "@/lib/faculty-discovery-ai";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
 import {
   assertProfEmailLlmAllowed,
@@ -13,6 +13,7 @@ import {
   type ProfEmailLlmDenial,
 } from "@/lib/prof-email-llm-rate-limit";
 import { prisma } from "@/lib/prisma";
+import { sanitizeField } from "@/lib/agents/sanitize";
 import { fetchProfilePageForDiscovery } from "@/lib/profile-page-fetch";
 
 import { bad, ok } from "../_responses";
@@ -62,38 +63,43 @@ export const discover = withAuth(async (req, { userId }) => {
 
   const uniqueIds = Array.from(new Set(parsed.data.schoolIds));
 
-  const [schools, profile] = await Promise.all([
-    prisma.school.findMany({
-      where: { userId, id: { in: uniqueIds } },
-    }),
-    prisma.profile.findUnique({ where: { userId } }),
-  ]);
+  const schools = await prisma.school.findMany({
+    where: { userId, id: { in: uniqueIds } },
+  });
 
   if (schools.length !== uniqueIds.length)
     return bad("One or more school ids are invalid.");
 
   try {
-    const result = await discoverFacultyMatches({
-      profile,
-      profilePageUrl: page.url,
-      profilePageText: page.text,
-      links: page.links,
-      schools: schools.map((s) => ({
-        id: s.id,
-        name: s.name,
-        program: s.program,
-        degree: s.degree,
-        country: s.country,
-      })),
-      userId,
+    const schoolSummary = schools.map((s) => `- ${sanitizeField(s.name)} (${sanitizeField(s.program) || "N/A"}, ${sanitizeField(s.degree) || "N/A"})`).join("\n");
+    const message = [
+      `Discover faculty members from this department page who match my research interests.`,
+      `\nPage URL: ${sanitizeField(page.url, 2000)}`,
+      `\nTarget schools:\n${schoolSummary}`,
+      `\nReturn JSON: { "candidates": [{ "profName", "university", "department", "researchArea", "matchScore" (1-5), "profileUrl", "email" }] }`,
+    ].join("\n");
+
+    const result = await runTask("faculty-discovery", message, userId, {
+      url: page.url,
     });
 
     await Promise.all([
       finalizeAiConsumption(userId),
       markProfEmailLlmSuccess(userId),
     ]);
+
+    const raw = result.reply.trim();
+    const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
+    const candidate = fenced ? fenced[1] : raw;
+    let parsed2;
+    try {
+      parsed2 = JSON.parse(candidate);
+    } catch {
+      parsed2 = { candidates: [] };
+    }
+
     return ok({
-      ...result,
+      ...parsed2,
       pageFetchedUrl: page.url,
       linksExtracted: page.links.length,
     });

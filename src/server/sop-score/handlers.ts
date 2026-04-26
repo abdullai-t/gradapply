@@ -1,41 +1,14 @@
-import { completeOneShotLlm } from "@/lib/ai";
+import { runTask } from "@/lib/agents";
 import {
   billingPrecheckResponse,
   finalizeAiConsumption,
 } from "@/lib/billing-allowance";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
-import { prisma } from "@/lib/prisma";
 
 import { bad, ok } from "../_responses";
 import { withPlanGate } from "../_with-plan-gate";
 
 import { scoreSopSchema, type SopScoreResponse } from "./schemas";
-
-const SCORE_SYSTEM_PROMPT = `You are an admissions writing coach. Score a graduate-school statement of purpose (SOP) draft on persuasiveness, clarity, tone, and a structural checklist.
-
-Return ONLY valid JSON matching this exact shape — no prose, no markdown fences:
-
-{
-  "persuasiveness": <integer 0-100>,
-  "clarity": <integer 0-100>,
-  "tone": [
-    { "label": "Academic",   "active": <bool> },
-    { "label": "Ambitious",  "active": <bool> },
-    { "label": "Structured", "active": <bool> },
-    { "label": "Personal",   "active": <bool> }
-  ],
-  "checklist": [
-    { "label": "Academic goals stated",      "done": <bool> },
-    { "label": "Research background",        "done": <bool> },
-    { "label": "Why this school? (specifics)", "done": <bool> },
-    { "label": "Career objectives",          "done": <bool> }
-  ]
-}
-
-Persuasiveness: how compellingly the draft argues the applicant's fit and motivation.
-Clarity: how readable and well-structured the prose is.
-Tone: which descriptors apply (multiple may be active; at least one should be).
-Checklist: whether each element is concretely present in the draft.`;
 
 const FALLBACK_SCORE: SopScoreResponse = {
   persuasiveness: 0,
@@ -62,43 +35,27 @@ export const POST = withPlanGate("assistant", async (req, { userId }) => {
   const quota = await billingPrecheckResponse(userId);
   if (quota) return quota;
 
-  let schoolContext = "";
-  if (parsed.data.schoolId) {
-    const school = await prisma.school.findFirst({
-      where: { id: parsed.data.schoolId, userId },
-      select: { name: true, program: true, degree: true },
-    });
-    if (school) {
-      schoolContext = `Target school: ${school.name}${school.program ? ` — ${school.program}` : ""}${school.degree ? ` (${school.degree})` : ""}.\n\n`;
-    }
-  }
-
-  const userPrompt = `${schoolContext}Score this SOP draft:\n\n"""\n${parsed.data.body}\n"""`;
-
-  let raw: string;
   try {
-    raw = await completeOneShotLlm({
-      system: SCORE_SYSTEM_PROMPT,
-      user: userPrompt,
-      maxTokens: 1500,
-      qualityMode: "balanced",
+    const userPrompt = `Score this SOP draft:\n\n"""\n${parsed.data.body}\n"""`;
+    const result = await runTask("sop-scorer", userPrompt, userId, {
+      schoolId: parsed.data.schoolId ?? undefined,
     });
+
+    const score = parseScoreResponse(result.reply);
+    if (!score) {
+      console.warn("[sop-score] failed to parse agent response", {
+        userId,
+        length: result.reply.length,
+        preview: result.reply.slice(0, 200),
+      });
+      return ok(FALLBACK_SCORE);
+    }
+
+    await finalizeAiConsumption(userId);
+    return ok(score);
   } catch (e) {
     return bad(formatLlmFailureMessage(e), 500);
   }
-
-  const score = parseScoreResponse(raw);
-  if (!score) {
-    console.warn("[sop-score] failed to parse LLM response", {
-      userId,
-      length: raw.length,
-      preview: raw.slice(0, 200),
-    });
-    return ok(FALLBACK_SCORE);
-  }
-
-  await finalizeAiConsumption(userId);
-  return ok(score);
 });
 
 /** Parse the LLM JSON output, tolerating fenced or padded responses. */

@@ -14,4 +14,5 @@ export const sendMessageSchema = z.object({
   /// Scopes the chat to a specific school (SOP studio). When set, the chat
   /// agent loads school + saved variant + master text into context.
   schoolId: z.string().min(1).optional(),
+  stream: z.boolean().optional().default(false),
 });

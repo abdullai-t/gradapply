@@ -1,12 +1,21 @@
 "use client";
 
+import { memo } from "react";
+
 import { Icon } from "@/components/icon";
 
 /**
  * AI bubble — speech-bubble card with auto_awesome avatar to the left,
  * tactile shadow underneath, and bottom-left corner squared off.
+ *
+ * Memoized so unchanged messages don't re-render when sibling messages
+ * (e.g. the active streaming bubble) update their content.
  */
-export function AIBubble({ children }: { children: React.ReactNode }) {
+export const AIBubble = memo(function AIBubble({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex max-w-[85%] gap-3.5">
       <div
@@ -28,12 +37,15 @@ export function AIBubble({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
-}
+});
 
 /**
  * User bubble — primary-tinted on the right, with a primary-fixed avatar.
+ *
+ * Memoized so unchanged messages don't re-render when sibling messages
+ * (e.g. the active streaming bubble) update their content.
  */
-export function UserBubble({
+export const UserBubble = memo(function UserBubble({
   initials,
   children,
 }: {
@@ -63,4 +75,4 @@ export function UserBubble({
       </div>
     </div>
   );
-}
+});

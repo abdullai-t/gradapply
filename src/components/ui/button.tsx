@@ -96,7 +96,17 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ) : icon ? (
           <Icon name={icon} size={iconSize} />
         ) : null}
-        {children ? <span>{children}</span> : null}
+        {/*
+          inline-flex on the children wrapper so call sites that pass an icon
+          element + text as JSX children (e.g. <Button><Send /> Send via Gmail</Button>)
+          stay laid out horizontally. Tailwind's preflight applies `display:block`
+          to <svg>, which would otherwise force the text onto a second line
+          inside the span. gap-2 here mirrors the outer button spacing so a leading
+          inline icon sits a consistent 8px from the label.
+        */}
+        {children ? (
+          <span className="inline-flex items-center gap-2">{children}</span>
+        ) : null}
         {!loading && iconRight ? (
           <Icon name={iconRight} size={iconSize} />
         ) : null}
