@@ -154,26 +154,31 @@
     filter: brightness(1.05);
   }
   .tactile:active:not(:disabled) {
-    transform: translateY(3px);
+    /* Translate matches the shadow offset so the button "lands" with no
+       gap between its bottom edge and the surface beneath it. */
+    transform: translateY(4px);
     box-shadow: var(--tactile-primary-active);
   }
 
-  /* ---------- Tactile cards (deepened press behaviour) ---------- */
+  /* ---------- Cards — soft elevation, not press behaviour ----------
+     Cards aren't press targets, so they don't simulate a button press.
+     Hover gets a gentle lift (-2px) and a slightly stronger blur, no
+     translate on active. */
   .tactile-card {
     background: var(--surface-container-lowest);
     border: 1px solid var(--outline-variant);
     border-radius: var(--radius-xl);
     box-shadow: var(--tactile-card);
     transition:
-      transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
-      box-shadow 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .tactile-card:hover {
-    transform: translateY(-6px);
+    transform: translateY(-2px);
     box-shadow: var(--tactile-card-hover);
   }
   .tactile-card:active {
-    transform: translateY(3px) scale(0.995);
+    transform: translateY(0);
     box-shadow: var(--tactile-card-active);
   }
 
