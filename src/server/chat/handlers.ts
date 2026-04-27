@@ -17,10 +17,23 @@ import { withPlanGate } from "../_with-plan-gate";
 
 import { sendMessageSchema } from "./schemas";
 
+function chatSupportsSchoolScope(): boolean {
+  try {
+    const modelFields =
+      (prisma as any)?._runtimeDataModel?.models?.ChatMessage?.fields;
+    return Array.isArray(modelFields)
+      ? modelFields.some((f: { name?: string }) => f.name === "schoolId")
+      : false;
+  } catch {
+    return false;
+  }
+}
+
 export const history = withAuth(async (req, { userId }) => {
   const url = new URL(req.url);
   const mode = url.searchParams.get("mode");
   const schoolId = url.searchParams.get("schoolId");
+  const supportsSchoolScope = chatSupportsSchoolScope();
 
   // Run plan check + history query in parallel (was sequential, ~150ms savings)
   const [planTier, messages] = await Promise.all([
@@ -32,7 +45,11 @@ export const history = withAuth(async (req, { userId }) => {
         // When schoolId is supplied (SOP studio), scope strictly to that school.
         // When omitted, return only non-school-scoped messages so general chats
         // don't include per-school SOP exchanges.
-        ...(schoolId ? { schoolId } : { schoolId: null }),
+        ...(supportsSchoolScope
+          ? schoolId
+            ? { schoolId }
+            : { schoolId: null }
+          : {}),
       },
       // Only the fields the client uses — skips the implicit userId column
       // and avoids serializing fields the UI never reads.
@@ -41,7 +58,7 @@ export const history = withAuth(async (req, { userId }) => {
         role: true,
         content: true,
         mode: true,
-        schoolId: true,
+        ...(supportsSchoolScope ? { schoolId: true } : {}),
       },
       orderBy: { createdAt: "asc" },
       take: 200,
@@ -89,6 +106,7 @@ export const send = withPlanGate("assistant", async (req, { userId }) => {
   const mode = parsed.data.mode;
   const message = parsed.data.message;
   const schoolId = parsed.data.schoolId ?? null;
+  const supportsSchoolScope = chatSupportsSchoolScope();
   const wantStream = parsed.data.stream;
 
   // --- Streaming path ---
@@ -97,7 +115,11 @@ export const send = withPlanGate("assistant", async (req, { userId }) => {
       where: {
         userId,
         mode,
-        ...(schoolId ? { schoolId } : { schoolId: null }),
+        ...(supportsSchoolScope
+          ? schoolId
+            ? { schoolId }
+            : { schoolId: null }
+          : {}),
       },
       orderBy: { createdAt: "desc" },
       take: 40,
@@ -156,7 +178,13 @@ export const send = withPlanGate("assistant", async (req, { userId }) => {
 
           await prisma.$transaction([
             prisma.chatMessage.create({
-              data: { userId, role: "user", content: message, mode, schoolId },
+              data: {
+                userId,
+                role: "user",
+                content: message,
+                mode,
+                ...(supportsSchoolScope ? { schoolId } : {}),
+              },
             }),
             prisma.chatMessage.create({
               data: {
@@ -164,7 +192,7 @@ export const send = withPlanGate("assistant", async (req, { userId }) => {
                 role: "assistant",
                 content: result.reply,
                 mode,
-                schoolId,
+                ...(supportsSchoolScope ? { schoolId } : {}),
               },
             }),
           ]);
@@ -199,7 +227,11 @@ export const send = withPlanGate("assistant", async (req, { userId }) => {
     where: {
       userId,
       mode,
-      ...(schoolId ? { schoolId } : { schoolId: null }),
+      ...(supportsSchoolScope
+        ? schoolId
+          ? { schoolId }
+          : { schoolId: null }
+        : {}),
     },
     orderBy: { createdAt: "desc" },
     take: 40,
@@ -240,7 +272,7 @@ export const send = withPlanGate("assistant", async (req, { userId }) => {
       tabMode: mode,
       effectiveMode: result.agentId,
       label: result.agentId,
-      routedFromGeneral: mode === "general" && result.agentId !== "navigator",
+      routedFromGeneral: false,
       creditFallback: false,
     };
     console.info("[chat][agent-system]", {
@@ -265,7 +297,7 @@ export const send = withPlanGate("assistant", async (req, { userId }) => {
         role: "user",
         content: message,
         mode,
-        schoolId,
+        ...(supportsSchoolScope ? { schoolId } : {}),
       },
     }),
     prisma.chatMessage.create({
@@ -274,7 +306,7 @@ export const send = withPlanGate("assistant", async (req, { userId }) => {
         role: "assistant",
         content: reply,
         mode,
-        schoolId,
+        ...(supportsSchoolScope ? { schoolId } : {}),
       },
     }),
   ]);

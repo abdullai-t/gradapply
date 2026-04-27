@@ -66,7 +66,7 @@ function AssistantChat() {
   const { data: session } = useSession();
   const initials = computeInitials(session?.user?.name, session?.user?.email);
 
-  const [mode, setMode] = useState<ChatMode>("general");
+  const [mode, setMode] = useState<ChatMode>("sop");
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -130,7 +130,7 @@ function AssistantChat() {
       <FreePlanGate
         icon="auto_awesome"
         title="Unlock the AI assistant"
-        body="The assistant is available on Plus and Pro plans. Upgrade in Settings to start chatting with the SOP, email, grammar, and feedback agents."
+          body="The assistant is available on Plus and Pro plans. Upgrade in Settings to start chatting with the SOP, email, and feedback agents."
       />
     );
   }
@@ -157,8 +157,7 @@ function AssistantChat() {
           >
             uploaded documents
           </Link>{" "}
-          when available. On <strong>General</strong>, the app infers the best
-          agent from your message.
+          when available.
         </p>
       </header>
 
@@ -302,10 +301,6 @@ function AssistantChat() {
 }
 
 const HINTS: Record<ChatMode, string> = {
-  general:
-    "Hi! Ask anything about your applications. I'll route to the right specialist if you mention drafts, grammar, or feedback.",
-  grammar:
-    "Paste paragraphs and I'll tighten language while keeping your voice intact.",
   sop:
     "Let's work on your statement of purpose — narrative arc, specificity, fit. Where do you want to start?",
   email:

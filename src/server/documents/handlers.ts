@@ -1,7 +1,13 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
+import { PlanTier } from "@prisma/client";
 
 import { destroyStoredAsset, isCloudinaryConfigured, uploadDocumentBuffer } from "@/lib/cloudinary";
+import {
+  extractPlainTextFromStoredDocument,
+  getStoredDocumentExtractionStatus,
+} from "@/lib/llm-user-context";
+import { getUserPlanTier } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
 import {
   deleteObject,
@@ -18,6 +24,43 @@ import {
   patchDocumentSchema,
   uploadKindSchema,
 } from "./schemas";
+
+const DOC_STORAGE_LIMIT_BYTES: Record<PlanTier, number> = {
+  FREE: 10 * 1024 * 1024, // 10MB
+  PLUS: 50 * 1024 * 1024, // 50MB
+  PRO: 100 * 1024 * 1024, // 100MB
+};
+const MAX_SINGLE_UPLOAD_BYTES = 1 * 1024 * 1024; // 1MB
+
+function storageLimitForPlan(planTier: PlanTier | null): number {
+  if (!planTier) return DOC_STORAGE_LIMIT_BYTES.FREE;
+  return DOC_STORAGE_LIMIT_BYTES[planTier];
+}
+
+async function enforceFreeTierStorageLimit(
+  userId: string,
+  incomingBytes: number,
+): Promise<Response | null> {
+  const planTier = await getUserPlanTier(userId);
+  const limitBytes = storageLimitForPlan(planTier);
+
+  const current = await prisma.document.aggregate({
+    where: { userId },
+    _sum: { size: true },
+  });
+  const usedBytes = current._sum.size ?? 0;
+  const projectedBytes = usedBytes + Math.max(0, incomingBytes);
+
+  if (projectedBytes <= limitBytes) return null;
+
+  const tierLabel = planTier ?? "FREE";
+  const limitMb = Math.round(limitBytes / (1024 * 1024));
+
+  return bad(
+    `${tierLabel} storage limit reached. You can store up to ${limitMb}MB of documents total (currently ${(usedBytes / (1024 * 1024)).toFixed(2)}MB). Remove files or upgrade your plan.`,
+    402,
+  );
+}
 
 /**
  * GET /api/documents
@@ -38,10 +81,15 @@ import {
  */
 export const list = withPlanGate("documents", async (req, { userId }) => {
   const url = new URL(req.url);
+  const supportsFolders = Boolean(
+    (prisma as unknown as { folder?: unknown }).folder,
+  );
 
   const folderParam = url.searchParams.get("folderId");
   const folderFilter =
-    folderParam === "none"
+    !supportsFolders
+      ? {}
+      : folderParam === "none"
       ? { folderId: null }
       : folderParam
         ? { folderId: folderParam }
@@ -59,7 +107,9 @@ export const list = withPlanGate("documents", async (req, { userId }) => {
       orderBy: { createdAt: "desc" },
       take: take + 1, // peek one ahead to detect more
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      include: { folder: { select: { id: true, name: true } } },
+      ...(supportsFolders
+        ? { include: { folder: { select: { id: true, name: true } } } }
+        : {}),
     });
     const hasMore = documents.length > take;
     const items = hasMore ? documents.slice(0, take) : documents;
@@ -74,7 +124,9 @@ export const list = withPlanGate("documents", async (req, { userId }) => {
   const documents = await prisma.document.findMany({
     where: { userId, ...folderFilter },
     orderBy: { createdAt: "desc" },
-    include: { folder: { select: { id: true, name: true } } },
+    ...(supportsFolders
+      ? { include: { folder: { select: { id: true, name: true } } } }
+      : {}),
   });
 
   return ok(documents);
@@ -82,12 +134,20 @@ export const list = withPlanGate("documents", async (req, { userId }) => {
 
 /** POST /api/documents — create a document record (from a pre-uploaded URL). */
 export const create = withPlanGate("documents", async (req, { userId }) => {
+  const supportsFolders = Boolean(
+    (prisma as unknown as { folder?: unknown }).folder,
+  );
   const json = await req.json().catch(() => null);
   const parsed = createDocumentSchema.safeParse(json);
   if (!parsed.success) return bad(parsed.error.flatten());
+  const { folderId: _folderId, ...createDataWithoutFolder } = parsed.data;
+
+  const sizeBytes = parsed.data.size ?? 0;
+  const limitError = await enforceFreeTierStorageLimit(userId, sizeBytes);
+  if (limitError) return limitError;
 
   // Verify folder ownership if one was provided.
-  if (parsed.data.folderId) {
+  if (supportsFolders && parsed.data.folderId) {
     const folder = await prisma.folder.findFirst({
       where: { id: parsed.data.folderId, userId },
       select: { id: true },
@@ -97,7 +157,7 @@ export const create = withPlanGate("documents", async (req, { userId }) => {
 
   const doc = await prisma.document.create({
     data: {
-      ...parsed.data,
+      ...(supportsFolders ? parsed.data : createDataWithoutFolder),
       userId,
     },
   });
@@ -109,6 +169,9 @@ export const create = withPlanGate("documents", async (req, { userId }) => {
 export const patch = withPlanGate<{ id: string }>(
   "documents",
   async (req, { userId, params }) => {
+    const supportsFolders = Boolean(
+      (prisma as unknown as { folder?: unknown }).folder,
+    );
     const json = await req.json().catch(() => null);
     const parsed = patchDocumentSchema.safeParse(json);
     if (!parsed.success) return bad(parsed.error.flatten());
@@ -119,7 +182,7 @@ export const patch = withPlanGate<{ id: string }>(
     if (!existing) return notFound();
 
     // If moving into a folder, verify the folder belongs to this user.
-    if (parsed.data.folderId) {
+    if (supportsFolders && parsed.data.folderId) {
       const folder = await prisma.folder.findFirst({
         where: { id: parsed.data.folderId, userId },
         select: { id: true },
@@ -130,7 +193,7 @@ export const patch = withPlanGate<{ id: string }>(
     const updated = await prisma.document.update({
       where: { id: params.id },
       data: {
-        ...(parsed.data.folderId !== undefined
+        ...(supportsFolders && parsed.data.folderId !== undefined
           ? { folderId: parsed.data.folderId }
           : {}),
         ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
@@ -191,6 +254,9 @@ export const remove = withPlanGate<{ id: string }>(
  * pagination on `GET /api/documents`.
  */
 export const summary = withPlanGate("documents", async (_req, { userId }) => {
+  const supportsFolders = Boolean(
+    (prisma as unknown as { folder?: unknown }).folder,
+  );
   const [groups, totalAgg, uncategorized] = await Promise.all([
     prisma.document.groupBy({
       by: ["type"],
@@ -203,7 +269,9 @@ export const summary = withPlanGate("documents", async (_req, { userId }) => {
       _count: { _all: true },
       _sum: { size: true },
     }),
-    prisma.document.count({ where: { userId, folderId: null } }),
+    supportsFolders
+      ? prisma.document.count({ where: { userId, folderId: null } })
+      : prisma.document.count({ where: { userId } }),
   ]);
 
   const byKind: Record<string, number> = {};
@@ -246,6 +314,14 @@ export const upload = withPlanGate("documents", async (req, { userId }) => {
   }
 
   const buf = Buffer.from(await file.arrayBuffer());
+  if (buf.length > MAX_SINGLE_UPLOAD_BYTES) {
+    return bad(
+      `File too large. Maximum allowed upload size is 1MB (received ${(buf.length / (1024 * 1024)).toFixed(2)}MB).`,
+      413,
+    );
+  }
+  const limitError = await enforceFreeTierStorageLimit(userId, buf.length);
+  if (limitError) return limitError;
   const safeName = file.name.replace(/[^\w.\-]+/g, "_");
   const mimeType = file.type || "application/octet-stream";
 
@@ -298,3 +374,83 @@ export const upload = withPlanGate("documents", async (req, { userId }) => {
     return bad(msg, 500);
   }
 });
+
+/** GET /api/documents/extraction-status — per-file extraction diagnostics. */
+export const extractionStatus = withPlanGate(
+  "documents",
+  async (req, { userId }) => {
+    const startedAt = Date.now();
+    const url = new URL(req.url);
+    const takeRaw = Number.parseInt(url.searchParams.get("take") ?? "", 10);
+    const take =
+      Number.isFinite(takeRaw) && takeRaw > 0 ? Math.min(takeRaw, 25) : 10;
+    const docs = await prisma.document.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take,
+      select: {
+        id: true,
+        name: true,
+        url: true,
+        s3Key: true,
+        mimeType: true,
+      },
+    });
+
+    const statuses = await Promise.all(
+      docs.map(async (doc) => ({
+        id: doc.id,
+        name: doc.name,
+        ...(await getStoredDocumentExtractionStatus({
+          url: doc.url,
+          s3Key: doc.s3Key,
+          mimeType: doc.mimeType,
+        })),
+      })),
+    );
+    console.info("[perf][documents.extraction-status]", {
+      userId,
+      docs: docs.length,
+      durationMs: Date.now() - startedAt,
+    });
+    return ok({ statuses });
+  },
+);
+
+/** GET /api/documents/[id]/parsed-text — inspect extracted text for one file. */
+export const parsedText = withPlanGate<{ id: string }>(
+  "documents",
+  async (_req, { userId, params }) => {
+    const startedAt = Date.now();
+    const doc = await prisma.document.findFirst({
+      where: { id: params.id, userId },
+      select: {
+        id: true,
+        name: true,
+        url: true,
+        s3Key: true,
+        mimeType: true,
+      },
+    });
+    if (!doc) return notFound();
+
+    const text = await extractPlainTextFromStoredDocument({
+      url: doc.url,
+      s3Key: doc.s3Key,
+      mimeType: doc.mimeType,
+    });
+    console.info("[perf][documents.parsed-text]", {
+      userId,
+      docId: doc.id,
+      chars: text?.length ?? 0,
+      durationMs: Date.now() - startedAt,
+    });
+    return ok({
+      id: doc.id,
+      name: doc.name,
+      extracted: Boolean(text),
+      chars: text?.length ?? 0,
+      text: text ?? "",
+    });
+  },
+);

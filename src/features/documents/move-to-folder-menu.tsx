@@ -59,7 +59,7 @@ export function MoveToFolderMenu({
       {open ? (
         <div
           role="menu"
-          className="tactile-card absolute right-0 top-full z-30 mt-1 w-56 overflow-hidden rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] shadow-lg"
+          className="tactile-card absolute right-0 top-full z-50 mt-1 w-56 overflow-hidden rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] shadow-lg"
         >
           <div className="px-3 py-2 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[var(--on-surface-variant)]">
             Move to

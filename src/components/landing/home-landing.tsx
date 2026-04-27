@@ -67,7 +67,7 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
                 </span>{" "}
                 you care about.
               </h1>
-              <p className="t-body-lg mt-7 max-w-xl text-pretty text-[var(--on-surface-variant)]">
+              <p className="t-body-lg mt-7 max-w-xl text-pretty text-[var(--on-surface)]/88">
                 GradApply exists so you spend less time juggling spreadsheets
                 and inboxes, and more time on research fit, faculty outreach,
                 and stories only you can tell. Track schools and deadlines,
@@ -115,7 +115,7 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
         {/* ============== Vision pillars (3 cards w/ per-card CTA) ============== */}
         <section
           id="vision"
-          className="scroll-mt-24 border-t border-[var(--outline-variant)] bg-[var(--surface-container-low)] py-20 md:py-28"
+          className="scroll-mt-24 border-y border-[var(--outline-variant)] bg-[var(--surface-container)] py-20 md:py-28"
         >
           <div className="mx-auto max-w-7xl px-6">
             <SectionHeading
@@ -143,7 +143,7 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
             <div className="mt-14 grid gap-6 md:grid-cols-3">
               <ValueCard
                 tone="primary"
-                icon="explore"
+                icon="dashboard"
                 title="Clarity over chaos"
                 body="A single timeline and pipeline for programs, requirements, and deadlines — so nothing lives only in your head or buried in email threads."
                 cta={{ label: "Explore workspace", href: "/login" }}
@@ -169,7 +169,7 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
         {/* ============== Workspace Showcase ============== */}
         <section
           id="workspace"
-          className="scroll-mt-24 py-20 md:py-28"
+          className="scroll-mt-24 bg-[var(--surface-container-lowest)] py-20 md:py-28"
         >
           <div className="mx-auto max-w-7xl px-6">
             <div className="reveal-base reveal-left mb-14 flex flex-col justify-between gap-8 md:flex-row md:items-end">
@@ -200,7 +200,7 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
         {/* ============== Features grid (6 tiles) ============== */}
         <section
           id="features"
-          className="scroll-mt-24 border-t border-[var(--outline-variant)] bg-[var(--surface-container-low)] py-20 md:py-28"
+          className="scroll-mt-24 border-y border-[var(--outline-variant)] bg-[var(--surface-container)] py-20 md:py-28"
         >
           <div className="mx-auto max-w-7xl px-6">
             <SectionHeading
@@ -211,13 +211,13 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
             <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               <FeatureTile
                 tone="primary"
-                icon="track_changes"
+                icon="school"
                 title="School pipeline"
                 body="Track programs, statuses, and deadlines with reminders so rolling admissions don't surprise you."
               />
               <FeatureTile
                 tone="tertiary"
-                icon="event_available"
+                icon="timeline"
                 title="Application timeline"
                 body="See what's coming across schools in one view — fewer spreadsheet tabs, fewer near-misses."
               />
@@ -229,13 +229,13 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
               />
               <FeatureTile
                 tone="primary"
-                icon="folder_managed"
+                icon="description"
                 title="Documents & versions"
                 body="Upload SOPs, CVs, and supporting files with snapshots when you need to roll back a paragraph."
               />
               <FeatureTile
                 tone="tertiary"
-                icon="psychology"
+                icon="smart_toy"
                 title="Writing & chat assistant"
                 body="Grammar passes, structural suggestions, and feedback loops for statements and emails."
               />
@@ -252,7 +252,7 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
         {/* ============== How it works (3 steps + connecting line) ============== */}
         <section
           id="how"
-          className="scroll-mt-24 bg-white py-20 md:py-28"
+          className="scroll-mt-24 border-y border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] py-20 md:py-28"
         >
           <div className="mx-auto max-w-6xl px-6">
             <SectionHeading
@@ -262,7 +262,7 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
             />
             <div className="relative mt-14 grid gap-12 md:grid-cols-3">
               <div
-                className="absolute left-0 top-8 hidden h-0.5 w-full bg-[var(--surface-container-high)] md:block"
+                className="absolute left-0 top-8 hidden h-0.5 w-full bg-[var(--outline-variant)] md:block"
                 aria-hidden
               />
               <Step
@@ -356,31 +356,57 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
         {/* ============== FAQ ============== */}
         <section
           id="faq"
-          className="scroll-mt-24 border-t border-[var(--outline-variant)] bg-[var(--surface-container-low)] py-20 md:py-28"
+          className="scroll-mt-24 border-y border-[var(--outline-variant)] bg-[var(--surface-container)] py-20 md:py-28"
         >
           <div className="mx-auto max-w-3xl px-6">
             <SectionHeading
               eyebrow="FAQ"
               title="Common questions"
-              body=""
+              body="Straight answers to what applicants ask before they commit."
               centered
             />
-            <div className="mt-12 space-y-4">
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-2">
+              <span className="rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] px-3 py-1 text-[11px] font-bold text-[var(--on-surface-variant)]">
+                Pricing & access
+              </span>
+              <span className="rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] px-3 py-1 text-[11px] font-bold text-[var(--on-surface-variant)]">
+                AI writing support
+              </span>
+              <span className="rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] px-3 py-1 text-[11px] font-bold text-[var(--on-surface-variant)]">
+                Data & privacy
+              </span>
+              <span className="rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] px-3 py-1 text-[11px] font-bold text-[var(--on-surface-variant)]">
+                Workflow setup
+              </span>
+            </div>
+            <div className="mt-8 space-y-4">
               <FaqCard
-                q="Do I need a credit card to try GradApply?"
-                a="No. You can create an account and use the Free tier without payment. Paid tiers appear when your deployment enables billing (Stripe or Paystack)."
+q="Can I start without paying first?"
+a="Yes. Create a free account and start using the app right away. When you're ready for more, paid plans and credit packs are available in Settings."
               />
               <FaqCard
-                q="Will AI write my statement of purpose for me?"
-                a="GradApply is built so AI supports editing and structure — you stay the author. Use suggestions as a springboard, then revise until the story is unmistakably yours."
+                q="Will this write my SOP or emails for me?"
+                a="It helps you draft and improve faster, but you stay in control of final wording and decisions. Think of AI here as a strong editor and co-pilot, not an autopilot."
               />
               <FaqCard
-                q="Can I use this without Google?"
-                a="Yes. Google connectors are optional. Core tracking, email drafting, documents, and assistant features work with email/password or other sign-in your host configures."
+                q="How does GradApply personalize recommendations?"
+                a="Your profile, school list, and uploaded documents (when readable) are used to ground suggestions and drafts. That context helps the assistant match tone, fit, and priorities."
               />
               <FaqCard
-                q="Can I export my data?"
-                a="Yes. Schools, documents, and email drafts can be exported anytime. Your data is yours — we don't lock it in."
+                q="Can I use GradApply without Google integrations?"
+                a="Absolutely. Google connectors are optional. School tracking, drafting, document management, and assistant workflows still work without connecting Gmail or Drive."
+              />
+              <FaqCard
+                q="Can I edit everything before sending?"
+                a="Yes. You can revise professor details, subject lines, body copy, status, and notes before any send action. The workflow is built for review-first, then send."
+              />
+              <FaqCard
+                q="Can I export or delete my data later?"
+                a="Yes. Your schools, drafts, and documents remain your data. You can export records and remove content when needed."
+              />
+              <FaqCard
+                q="How quickly can I get setup for this cycle?"
+                a="Most applicants can set up profile + first school list + first outreach draft in one session. The product is designed to give useful momentum on day one."
               />
             </div>
           </div>
@@ -390,11 +416,11 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
         <section className="px-6 pb-24">
           <div className="mx-auto max-w-7xl">
             <div
-              className="reveal-base reveal-up relative overflow-hidden rounded-[2.5rem] p-12 text-center text-white md:p-24"
+            className="reveal-base reveal-up relative overflow-hidden rounded-[2.5rem] p-12 text-center text-white md:p-24"
               style={{
                 background:
-                  "linear-gradient(135deg, var(--primary-container), var(--primary))",
-                boxShadow: "0 24px 60px -20px rgba(0,98,157,0.45)",
+                  "linear-gradient(140deg, #0d6da9 0%, #034a74 55%, #02314e 100%)",
+                boxShadow: "0 24px 60px -20px rgba(0,68,112,0.48)",
               }}
             >
               <div
@@ -409,7 +435,7 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
                 <h2 className="t-display-lg m-0 leading-tight">
                   Ready to make this cycle feel manageable?
                 </h2>
-                <p className="mt-6 text-lg opacity-90">
+                <p className="mt-6 text-lg text-white/92">
                   Join scholars who use GradApply to navigate their futures —
                   one calm command center for every application.
                 </p>
@@ -417,7 +443,7 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
                   <Button
                     asChild
                     size="lg"
-                    className="bg-white text-[var(--primary)] hover:bg-white"
+                    className="border-2 border-white/80 bg-white text-[#034a74] shadow-[0_6px_0_0_rgba(2,49,78,0.35)] hover:bg-white"
                     iconRight="arrow_forward"
                   >
                     <Link href="/register">Create your workspace</Link>
@@ -426,12 +452,12 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
                     asChild
                     size="lg"
                     variant="ghost"
-                    className="border-2 border-white/40 text-white hover:bg-white/10"
+                    className="border-2 border-white/60 bg-transparent text-white hover:bg-white/12"
                   >
                     <Link href="/login">Sign in</Link>
                   </Button>
                 </div>
-                <p className="mt-6 text-xs opacity-75">
+                <p className="mt-6 text-xs text-white/78">
                   No credit card required · Free forever plan available
                 </p>
               </div>
@@ -605,7 +631,7 @@ function ValueCard({
 }) {
   const tile = TILE_STYLES[tone];
   return (
-    <div className="reveal-base reveal-up group flex flex-col rounded-2xl border border-[var(--outline-variant)] bg-white p-8 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md">
+    <div className="reveal-base reveal-up group flex flex-col rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-8 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md">
       <div
         className="mb-7 grid h-16 w-16 place-items-center rounded-2xl shadow-inner transition-transform group-hover:rotate-6"
         style={{ background: tile.bg, color: tile.fg }}
@@ -642,7 +668,7 @@ function FeatureTile({
 }) {
   const tile = TILE_STYLES[tone];
   return (
-    <div className="reveal-base reveal-up rounded-2xl border border-[var(--outline-variant)] bg-white p-6 transition-all hover:-translate-y-0.5 hover:shadow-md">
+    <div className="reveal-base reveal-up rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-6 transition-all hover:-translate-y-0.5 hover:shadow-md">
       <div
         className="mb-5 grid h-12 w-12 place-items-center rounded-xl"
         style={{ background: tile.bg, color: tile.fg }}
@@ -669,7 +695,7 @@ function Step({
   body: string;
 }) {
   return (
-    <div className="reveal-base reveal-up relative flex flex-col items-center bg-white text-center">
+    <div className="reveal-base reveal-up relative flex flex-col items-center text-center">
       <div
         className="z-10 mb-6 grid h-16 w-16 place-items-center rounded-full border-4 border-white text-2xl font-black text-white shadow-[0_6px_0_0_var(--on-primary-fixed-variant)] transition-transform hover:scale-110"
         style={{ background: "var(--primary)" }}
@@ -705,7 +731,7 @@ function PricingCard({
   return (
     <div
       className={cn(
-        "reveal-base reveal-up tactile-card flex flex-col rounded-3xl border-2 bg-white p-8",
+        "reveal-base reveal-up tactile-card flex flex-col rounded-3xl border-2 bg-[var(--surface-container-lowest)] p-8",
         highlight
           ? "border-[var(--primary)] [box-shadow:var(--tactile-secondary)]"
           : "border-[var(--outline-variant)]",
@@ -761,18 +787,20 @@ function PricingCard({
 
 function FaqCard({ q, a }: { q: string; a: string }) {
   return (
-    <details className="reveal-base reveal-up tactile-card group overflow-hidden rounded-2xl border border-[var(--outline-variant)] bg-white">
-      <summary className="flex cursor-pointer list-none items-center justify-between p-6 text-left transition-colors hover:bg-[var(--surface-container-low)]">
-        <span className="text-sm font-bold text-[var(--on-surface)] group-hover:text-[var(--primary)]">
+    <details className="reveal-base reveal-up tactile-card group overflow-hidden rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] shadow-sm">
+      <summary className="flex cursor-pointer list-none items-center justify-between px-6 py-5 text-left transition-colors hover:bg-[var(--surface-container-low)]">
+        <span className="pr-4 text-[15px] font-extrabold leading-snug text-[var(--on-surface)] group-hover:text-[var(--primary)]">
           {q}
         </span>
-        <Icon
-          name="expand_more"
-          size={20}
-          className="text-[var(--outline)] transition-transform group-open:rotate-180"
-        />
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container)]">
+          <Icon
+            name="expand_more"
+            size={20}
+            className="text-[var(--outline)] transition-transform group-open:rotate-180"
+          />
+        </span>
       </summary>
-      <div className="px-6 pb-6 text-[14px] leading-relaxed text-[var(--on-surface-variant)]">
+      <div className="border-t border-[var(--outline-variant)] px-6 pb-6 pt-4 text-[14px] leading-relaxed text-[var(--on-surface)]/85">
         {a}
       </div>
     </details>
@@ -847,6 +875,7 @@ const TILE_STYLES: Record<
   },
   tertiary: {
     bg: "var(--tertiary-fixed)",
-    fg: "var(--on-tertiary-container)",
+    // Use explicit dark foreground to guarantee contrast on bright tertiary chips.
+    fg: "#0b3d24",
   },
 };

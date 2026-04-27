@@ -7,9 +7,9 @@ import { Icon } from "@/components/icon";
 type TabKey = "pipeline" | "timeline" | "studio" | "vault";
 
 const TABS: { key: TabKey; label: string; icon: string }[] = [
-  { key: "pipeline", label: "School pipeline", icon: "account_tree" },
-  { key: "timeline", label: "Timeline", icon: "schedule" },
-  { key: "studio", label: "Professor studio", icon: "history_edu" },
+  { key: "pipeline", label: "School pipeline", icon: "school" },
+  { key: "timeline", label: "Timeline", icon: "timeline" },
+  { key: "studio", label: "Professor studio", icon: "mail" },
   { key: "vault", label: "Document vault", icon: "description" },
 ];
 
@@ -39,7 +39,7 @@ export function WorkspaceShowcase() {
                 "flex cursor-pointer flex-col items-center rounded-xl p-5 text-center transition-all duration-150 " +
                 (isActive
                   ? "bg-[var(--primary)] text-white [box-shadow:0_4px_0_0_var(--primary-fixed-dim)] -translate-y-1"
-                  : "bg-[var(--surface-container)] text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)]")
+                  : "border border-[var(--outline-variant)] bg-[var(--surface-container-low)] text-[var(--on-surface)] hover:bg-[var(--surface-container)]")
               }
             >
               <Icon
@@ -57,10 +57,10 @@ export function WorkspaceShowcase() {
       </div>
 
       {/* Showcase canvas */}
-      <div className="overflow-hidden rounded-3xl border border-[var(--outline-variant)] bg-white shadow-[0_24px_60px_-30px_rgba(0,98,157,0.35)]">
+      <div className="overflow-hidden rounded-3xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] shadow-[0_24px_60px_-30px_rgba(0,98,157,0.35)]">
         <div className="grid lg:grid-cols-5 min-h-[480px]">
           {/* Left pitch panel — common to every tab */}
-          <div className="border-b border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-10 lg:col-span-2 lg:border-b-0 lg:border-r">
+          <div className="border-b border-[var(--outline-variant)] bg-[var(--surface-container)] p-10 lg:col-span-2 lg:border-b-0 lg:border-r">
             <h4 className="t-headline-md m-0 text-[var(--primary)]">
               {TAB_PITCH[active].title}
             </h4>
@@ -87,7 +87,7 @@ export function WorkspaceShowcase() {
           </div>
 
           {/* Right preview panel — switches per tab */}
-          <div className="bg-white p-7 lg:col-span-3">
+          <div className="bg-[var(--surface-container-lowest)] p-7 lg:col-span-3">
             {active === "pipeline" ? <PipelinePreview /> : null}
             {active === "timeline" ? <TimelinePreview /> : null}
             {active === "studio" ? <StudioPreview /> : null}
@@ -241,7 +241,7 @@ function PipelineRow({
 }) {
   const tone = TONE_STYLES[statusTone];
   return (
-    <div className="group flex cursor-pointer items-center rounded-2xl border border-[var(--outline-variant)] bg-white p-4 shadow-sm transition-all hover:translate-x-2 hover:shadow-md">
+    <div className="group flex cursor-pointer items-center rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-4 shadow-sm transition-all hover:translate-x-2 hover:shadow-md">
       <div
         className="mr-4 grid h-12 w-12 shrink-0 place-items-center rounded-xl text-lg font-black text-white transition-transform group-hover:scale-110"
         style={{ background: avatarBg }}
@@ -255,11 +255,7 @@ function PipelineRow({
           </h5>
           <div className="flex shrink-0 items-center gap-1.5">
             {statusTone === "green" ? (
-              <Icon
-                name="verified"
-                size={14}
-                style={{ color: tone.dot }}
-              />
+              <Icon name="check_circle" size={14} style={{ color: tone.dot }} />
             ) : (
               <span className="relative flex h-2 w-2">
                 <span
@@ -423,7 +419,7 @@ function TimelineRow({
         ? "var(--primary)"
         : "var(--outline)";
   return (
-    <li className="flex items-center gap-3 rounded-xl bg-white p-3 transition-colors hover:bg-[var(--primary-fixed)]/40">
+    <li className="flex items-center gap-3 rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-3 transition-colors hover:bg-[var(--primary-fixed)]/30">
       <div
         className="grid h-10 w-12 shrink-0 place-items-center rounded-lg text-[10px] font-black uppercase leading-none text-white"
         style={{ background: accent }}
@@ -486,7 +482,7 @@ function StudioPreview() {
         statusTone="green"
         statusLabel="Reply received"
       />
-      <div className="rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-4 text-[11px] text-[var(--on-surface-variant)]">
+      <div className="rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container)] p-4 text-[11px] text-[var(--on-surface)]/82">
         <div className="flex items-center gap-2 text-[var(--primary)]">
           <Icon name="auto_awesome" size={14} fill />
           <span className="font-extrabold uppercase tracking-[0.08em]">
@@ -517,7 +513,7 @@ function ThreadRow({
 }) {
   const tone = TONE_STYLES[statusTone];
   return (
-    <div className="cursor-pointer rounded-2xl border border-[var(--outline-variant)] bg-white p-4 transition-all hover:translate-x-1 hover:shadow-md">
+    <div className="cursor-pointer rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-4 transition-all hover:translate-x-1 hover:shadow-md">
       <div className="mb-2 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <span className="text-sm font-bold text-[var(--on-surface)]">
@@ -632,7 +628,7 @@ function FileTile({
   const meta = FILE_META[type];
   return (
     <div
-      className="flex cursor-pointer flex-col items-start rounded-xl border border-[var(--outline-variant)] bg-white p-3 transition-all hover:-translate-y-0.5 hover:shadow-md"
+      className="flex cursor-pointer flex-col items-start rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-3 transition-all hover:-translate-y-0.5 hover:shadow-md"
       style={{ borderBottom: `3px solid ${meta.accent}` }}
     >
       <div

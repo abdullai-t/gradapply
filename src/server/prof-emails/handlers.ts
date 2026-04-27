@@ -6,9 +6,24 @@ import { withAuth } from "../_with-auth";
 import { createProfEmailSchema } from "./schemas";
 
 export const list = withAuth(async (_req, { userId }) => {
+  const startedAt = Date.now();
   const emails = await prisma.profEmail.findMany({
     where: { userId },
     orderBy: { updatedAt: "desc" },
+    select: {
+      id: true,
+      profName: true,
+      profEmail: true,
+      university: true,
+      researchArea: true,
+      status: true,
+      updatedAt: true,
+    },
+  });
+  console.info("[perf][prof-emails.list.light]", {
+    userId,
+    rows: emails.length,
+    durationMs: Date.now() - startedAt,
   });
 
   return ok(emails);

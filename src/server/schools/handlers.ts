@@ -128,9 +128,25 @@ export const recommend = withAuth(async (_req, { userId }) => {
   if (quota) return quota;
 
   try {
+    const profile = await prisma.profile.findUnique({
+      where: { userId },
+      select: { countriesOfInterest: true },
+    });
+    const countriesOfInterest = Array.isArray(profile?.countriesOfInterest)
+      ? profile.countriesOfInterest.filter((c) => typeof c === "string" && c.trim())
+      : [];
+    const countryHint =
+      countriesOfInterest.length > 0
+        ? `Only recommend schools in these countries of interest: ${countriesOfInterest.join(", ")}.`
+        : "If no countries of interest are set, you may recommend across countries.";
+
     const result = await runTask(
       "school-intel",
-      "Recommend 8 graduate schools for my tracking list based on my profile. Return ONLY valid JSON with shape: { \"schools\": [{ \"name\", \"program\", \"degree\", \"country\", \"whyFit\", \"notes\", \"portalUrl\" }] }",
+      [
+        "Recommend 8 graduate schools for my tracking list based on my profile.",
+        countryHint,
+        "Return ONLY valid JSON with shape: { \"schools\": [{ \"name\", \"program\", \"degree\", \"country\", \"whyFit\", \"notes\", \"portalUrl\" }] }",
+      ].join("\n"),
       userId,
     );
 
@@ -140,7 +156,22 @@ export const recommend = withAuth(async (_req, { userId }) => {
     const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
     const candidate = fenced ? fenced[1] : raw;
     const parsed = JSON.parse(candidate) as { schools?: unknown[] };
-    return ok({ schools: Array.isArray(parsed?.schools) ? parsed.schools : [] });
+    const schools = Array.isArray(parsed?.schools) ? parsed.schools : [];
+
+    if (countriesOfInterest.length === 0) {
+      return ok({ schools });
+    }
+
+    const countrySet = new Set(countriesOfInterest.map((c) => c.toLowerCase()));
+    const countryMatched = schools.filter((row) => {
+      const country =
+        typeof (row as { country?: unknown }).country === "string"
+          ? (row as { country: string }).country.trim().toLowerCase()
+          : "";
+      return country.length > 0 && countrySet.has(country);
+    });
+
+    return ok({ schools: countryMatched.length > 0 ? countryMatched : schools });
   } catch (e) {
     return bad(formatLlmFailureMessage(e), 500);
   }

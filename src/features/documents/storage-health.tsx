@@ -4,14 +4,18 @@ import { Icon } from "@/components/icon";
 import { Progress } from "@/components/ui/progress";
 import { formatBytes } from "@/lib/utils";
 
-const QUOTA_BYTES = 5 * 1024 * 1024 * 1024; // 5GB visual cap
+const DEFAULT_QUOTA_BYTES = 100 * 1024 * 1024; // 100MB fallback
 
-/**
- * Friendly storage quota display. Pure visual derivation — back-end has no
- * quota yet, so we show usage against a fixed 5 GB target.
- */
-export function StorageHealth({ bytesUsed }: { bytesUsed: number }) {
-  const pct = Math.min(100, Math.round((bytesUsed / QUOTA_BYTES) * 100));
+/** Friendly storage quota display for the current plan cap. */
+export function StorageHealth({
+  bytesUsed,
+  quotaBytes = DEFAULT_QUOTA_BYTES,
+}: {
+  bytesUsed: number;
+  quotaBytes?: number;
+}) {
+  const safeQuota = Math.max(1, quotaBytes);
+  const pct = Math.min(100, Math.round((bytesUsed / safeQuota) * 100));
   return (
     <div className="relative overflow-hidden rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-6">
       <div
@@ -26,10 +30,10 @@ export function StorageHealth({ bytesUsed }: { bytesUsed: number }) {
             className="grid h-11 w-11 place-items-center rounded-xl"
             style={{
               background: "var(--primary-fixed)",
-              color: "var(--on-primary-container)",
+              color: "var(--primary)",
             }}
           >
-            <Icon name="hard_drive" size={22} />
+            <Icon name="description" size={22} />
           </div>
           <span className="text-sm font-bold text-[var(--on-surface-variant)]">
             {pct}% used
@@ -42,7 +46,7 @@ export function StorageHealth({ bytesUsed }: { bytesUsed: number }) {
           <Progress value={pct} tone="primary" size="default" />
         </div>
         <p className="mt-3 text-sm text-[var(--on-surface-variant)]">
-          Using {formatBytes(bytesUsed)} of {formatBytes(QUOTA_BYTES)}.
+          Using {formatBytes(bytesUsed)} of {formatBytes(safeQuota)}.
         </p>
       </div>
     </div>

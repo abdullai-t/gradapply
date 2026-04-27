@@ -16,8 +16,12 @@ import { withAuth } from "../_with-auth";
 import { createEmailSchema, patchEmailSchema } from "./schemas";
 
 export const list = withAuth(async (req, { userId }) => {
+  const startedAt = Date.now();
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
+  const takeRaw = Number.parseInt(searchParams.get("take") ?? "", 10);
+  const take =
+    Number.isFinite(takeRaw) && takeRaw > 0 ? Math.min(takeRaw, 100) : 50;
 
   const where = {
     userId,
@@ -31,6 +35,13 @@ export const list = withAuth(async (req, { userId }) => {
   const emails = await prisma.profEmail.findMany({
     where,
     orderBy: { updatedAt: "desc" },
+    take,
+  });
+  console.info("[perf][prof-emails.list]", {
+    userId,
+    rows: emails.length,
+    take,
+    durationMs: Date.now() - startedAt,
   });
 
   return ok(emails);

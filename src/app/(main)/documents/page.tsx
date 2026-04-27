@@ -35,6 +35,7 @@ import {
   foldersKeys,
   useCreateFolder,
   useDeleteDocument,
+  useDocumentExtractionStatuses,
   useDeleteFolder,
   useDocuments,
   useDocumentsSummary,
@@ -59,6 +60,9 @@ export default function DocumentsPage() {
   // every loaded row flattened.
   const docsQuery = useDocuments({ folderId: activeFolder });
   const summaryQuery = useDocumentsSummary();
+  const extractionStatusQuery = useDocumentExtractionStatuses({
+    enabled: Boolean(docsQuery.data?.pages?.length),
+  });
   const foldersQuery = useFolders();
 
   const deleteDocument = useDeleteDocument();
@@ -86,6 +90,12 @@ export default function DocumentsPage() {
   const uncategorizedCount = summary?.uncategorized ?? 0;
   const bytesUsed =
     summary?.bytesUsed ?? pageRows.reduce((s, d) => s + (d.size ?? 0), 0);
+  const quotaBytes =
+    planTier === "PRO"
+      ? 100 * 1024 * 1024
+      : planTier === "PLUS"
+        ? 50 * 1024 * 1024
+        : 10 * 1024 * 1024;
   const counts: CategoryCounts | undefined = summary
     ? bucketByKind(summary.byKind)
     : undefined;
@@ -104,12 +114,19 @@ export default function DocumentsPage() {
         ? `${tableTotal} ${tableTotal === 1 ? "file" : "files"}`
         : `${pageRows.length} of ${tableTotal} files`
       : undefined;
+  const extractionById = useMemo(() => {
+    const rows = extractionStatusQuery.data?.statuses ?? [];
+    return Object.fromEntries(rows.map((r) => [r.id, r]));
+  }, [extractionStatusQuery.data]);
 
   // The AddDocumentModal POSTs to /api/documents directly; we forward its
   // onSaved into our cache so docs list and summary stay in sync.
   const onUploaded = () => {
     void qc.invalidateQueries({ queryKey: documentsKeys.all });
     void qc.invalidateQueries({ queryKey: foldersKeys.all });
+    void qc.invalidateQueries({
+      queryKey: [...documentsKeys.all, "extraction-status"],
+    });
   };
 
   const remove = async (id: string) => {
@@ -164,7 +181,7 @@ export default function DocumentsPage() {
 
       {/* Storage health + quick access */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_2fr]">
-        <StorageHealth bytesUsed={bytesUsed} />
+        <StorageHealth bytesUsed={bytesUsed} quotaBytes={quotaBytes} />
         {showQuickAccess ? (
           <QuickAccess docs={pageRows} />
         ) : (
@@ -200,6 +217,7 @@ export default function DocumentsPage() {
           onDelete={remove}
           folders={folders}
           onMove={move}
+          extractionById={extractionById}
           hasMore={hasMore}
           loadingMore={loadingMore}
           onLoadMore={loadMore}

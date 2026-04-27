@@ -9,6 +9,7 @@ import { DOCUMENT_KIND_LABEL } from "@/components/add-document-modal";
 
 import { MoveToFolderMenu } from "./move-to-folder-menu";
 import type { FolderSummary } from "./types";
+import type { ExtractionStatusRow } from "./api";
 
 export type DocRow = {
   id: string;
@@ -30,6 +31,7 @@ export function DocumentsTable({
   onDelete,
   folders = [],
   onMove,
+  extractionById,
   hasMore = false,
   loadingMore = false,
   onLoadMore,
@@ -39,6 +41,7 @@ export function DocumentsTable({
   onDelete: (id: string) => void;
   folders?: FolderSummary[];
   onMove?: (docId: string, folderId: string | null) => void;
+  extractionById?: Record<string, ExtractionStatusRow>;
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
@@ -47,7 +50,7 @@ export function DocumentsTable({
   totalLabel?: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)]">
+    <div className="overflow-visible rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)]">
       <div className="flex items-center justify-between border-b border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-5">
         <h4 className="m-0 text-lg font-bold tracking-tight text-[var(--on-surface)]">
           All documents
@@ -56,40 +59,44 @@ export function DocumentsTable({
           {totalLabel ?? `${rows.length} ${rows.length === 1 ? "file" : "files"}`}
         </span>
       </div>
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-[var(--surface-container-low)]">
-            <Th>Name</Th>
-            <Th>Type</Th>
-            <Th>Date uploaded</Th>
-            <Th>Size</Th>
-            <Th className="text-right">Actions</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td
-                colSpan={5}
-                className="px-6 py-12 text-center text-sm text-[var(--on-surface-variant)]"
-              >
-                No documents yet — tap the upload button to add your first
-                file.
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-[var(--surface-container-low)]">
+              <Th>Name</Th>
+              <Th>Type</Th>
+              <Th>Date uploaded</Th>
+              <Th>Size</Th>
+              <Th>Extraction</Th>
+              <Th className="text-right">Actions</Th>
             </tr>
-          ) : (
-            rows.map((doc) => (
-              <DocumentRow
-                key={doc.id}
-                doc={doc}
-                onDelete={onDelete}
-                folders={folders}
-                onMove={onMove}
-              />
-            ))
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="px-6 py-12 text-center text-sm text-[var(--on-surface-variant)]"
+                >
+                  No documents yet — tap the upload button to add your first
+                  file.
+                </td>
+              </tr>
+            ) : (
+              rows.map((doc) => (
+                <DocumentRow
+                  key={doc.id}
+                  doc={doc}
+                  onDelete={onDelete}
+                  folders={folders}
+                  onMove={onMove}
+                  extraction={extractionById?.[doc.id]}
+                />
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
       {hasMore && onLoadMore ? (
         <div className="flex justify-center border-t border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-3">
           <button
@@ -160,11 +167,13 @@ function DocumentRow({
   onDelete,
   folders,
   onMove,
+  extraction,
 }: {
   doc: DocRow;
   onDelete: (id: string) => void;
   folders: FolderSummary[];
   onMove?: (docId: string, folderId: string | null) => void;
+  extraction?: ExtractionStatusRow;
 }) {
   const tone = TYPE_TONE[doc.type] ?? TYPE_TONE.other!;
   const label =
@@ -194,6 +203,17 @@ function DocumentRow({
       </td>
       <td className="px-5 py-4 text-sm text-[var(--on-surface-variant)]">
         {doc.size != null ? formatBytes(doc.size) : "—"}
+      </td>
+      <td className="px-5 py-4">
+        <span className="inline-flex items-center rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container)] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--on-surface-variant)]">
+          {extraction
+            ? extraction.status === "extracted"
+              ? `Extracted (${extraction.extractedChars.toLocaleString()} chars)`
+              : extraction.status === "download_failed"
+                ? "Download failed"
+                : "Unsupported/scan-only"
+            : "Checking..."}
+        </span>
       </td>
       <td className="px-5 py-4">
         <div className="flex justify-end gap-1">

@@ -54,6 +54,7 @@ import { useDocuments } from "@/features/documents/api";
 import {
   contentVersionsKeys,
   profEmailsKeys,
+  useProfEmail,
   useProfEmails,
   useVersions,
 } from "@/features/emails/api";
@@ -90,6 +91,7 @@ type EmailRow = {
   suggestedReplyDraft?: string | null;
   replyRationale?: string | null;
   lastClassifiedAt?: string | null;
+  updatedAt?: string | null;
 };
 
 type DocType = "cv" | "transcript" | "gre";
@@ -152,11 +154,13 @@ export default function EmailsPage() {
   const documentsQuery = useDocuments({});
   const schoolsQueryRaw = useSchools();
   const connectorsQuery = useConnectors();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const rows: EmailRow[] = useMemo(
     () => (profEmailsQuery.data ?? []) as EmailRow[],
     [profEmailsQuery.data],
   );
+  const selectedDetailQuery = useProfEmail(selectedId);
   const documents: DocumentRow[] = useMemo(() => {
     const pages = documentsQuery.data?.pages ?? [];
     return pages.flatMap((p) => (p.items as unknown) as DocumentRow[]);
@@ -166,7 +170,6 @@ export default function EmailsPage() {
   const [drafting, setDrafting] = useState<string | null>(null);
   const [profileUrlInput, setProfileUrlInput] = useState("");
   const [working, setWorking] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const gmailConnected = useMemo(() => {
     const list = connectorsQuery.data?.connectors ?? [];
     return Boolean(list.find((c) => c.provider === "gmail")?.connected);
@@ -261,11 +264,13 @@ export default function EmailsPage() {
 
   useEffect(() => {
     if (!selectedId) return;
+    const detail = selectedDetailQuery.data as EmailRow | undefined;
     const row = rows.find((r) => r.id === selectedId);
-    if (!row) return;
-    setDraftSubject(row.emailSubject ?? "");
-    setDraftBody(row.emailBody ?? "");
-  }, [selectedId, rows]);
+    const current = detail?.id === selectedId ? detail : row;
+    if (!current) return;
+    setDraftSubject(current.emailSubject ?? "");
+    setDraftBody(current.emailBody ?? "");
+  }, [selectedId, rows, selectedDetailQuery.data]);
 
   useEffect(() => {
     setCompareLeftId("");
@@ -278,9 +283,12 @@ export default function EmailsPage() {
   }, [selectedId]);
 
   useEffect(() => {
+    if (!selectedId) return;
+    const detail = selectedDetailQuery.data as EmailRow | undefined;
     const row = rows.find((r) => r.id === selectedId);
-    setSuggestedDraftEdit(row?.suggestedReplyDraft ?? "");
-  }, [selectedId, rows]);
+    const current = detail?.id === selectedId ? detail : row;
+    setSuggestedDraftEdit(current?.suggestedReplyDraft ?? "");
+  }, [selectedId, rows, selectedDetailQuery.data]);
 
   // `useVersions` runs only when an email is selected (enabled flag).
   // Local `versions` state above is kept as a write-through cache for the
@@ -310,7 +318,11 @@ export default function EmailsPage() {
     });
   }, [rows]);
 
-  const selected = rows.find((r) => r.id === selectedId) ?? null;
+  const selected = useMemo(() => {
+    const fallback = rows.find((r) => r.id === selectedId) ?? null;
+    const detail = selectedDetailQuery.data as EmailRow | undefined;
+    return detail ?? fallback;
+  }, [rows, selectedId, selectedDetailQuery.data]);
   const filteredRows = useMemo(() => {
     const q = threadQuery.trim().toLowerCase();
     if (!q) return rows;

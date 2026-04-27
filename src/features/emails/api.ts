@@ -33,7 +33,15 @@ export function useProfEmails() {
   return useQuery({
     queryKey: profEmailsKeys.list(),
     queryFn: async () =>
-      jsonOrThrow<unknown[]>(await fetch("/api/prof-emails")),
+      jsonOrThrow<unknown[]>(await fetch("/api/prof-emails?take=50")),
+  });
+}
+
+export function useProfEmail(id: string | null) {
+  return useQuery({
+    queryKey: [...profEmailsKeys.all, "detail", id] as const,
+    queryFn: async () => jsonOrThrow<unknown>(await fetch(`/api/prof-emails/${id}`)),
+    enabled: Boolean(id),
   });
 }
 

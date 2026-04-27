@@ -3,18 +3,16 @@
 import { Icon } from "@/components/icon";
 import { cn } from "@/lib/utils";
 
-export type ChatMode = "general" | "grammar" | "sop" | "email" | "feedback";
+export type ChatMode = "sop" | "email" | "feedback";
 
 const MODES: { id: ChatMode; label: string; icon: string }[] = [
-  { id: "general", label: "General", icon: "smart_toy" },
-  { id: "grammar", label: "Grammar", icon: "spellcheck" },
   { id: "sop", label: "SOP editor", icon: "edit_note" },
   { id: "email", label: "Email", icon: "mail" },
   { id: "feedback", label: "Feedback", icon: "psychology_alt" },
 ];
 
 /**
- * Pill bar that switches between the 5 chat modes. Each mode owns its own
+ * Pill bar that switches between assistant chat modes. Each mode owns its own
  * server-side history (see `/api/chat?mode=…`), so swapping is just a state
  * change.
  */

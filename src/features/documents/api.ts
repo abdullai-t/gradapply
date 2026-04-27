@@ -46,6 +46,22 @@ export type DocumentsPage = {
   nextCursor: string | null;
 };
 
+export type ExtractionStatusRow = {
+  id: string;
+  name: string;
+  status: "extracted" | "download_failed" | "unsupported";
+  extractedChars: number;
+  detail?: string;
+};
+
+export type ParsedTextPayload = {
+  id: string;
+  name: string;
+  extracted: boolean;
+  chars: number;
+  text: string;
+};
+
 // ---- Fetch helpers --------------------------------------------------
 
 function buildDocsUrl(opts: {
@@ -108,6 +124,29 @@ export function useDocumentsSummary() {
     queryFn: async () =>
       jsonOrThrow<DocumentsSummary>(await fetch("/api/documents/summary")),
   });
+}
+
+export function useDocumentExtractionStatuses(opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: [...documentsKeys.all, "extraction-status"] as const,
+    queryFn: async () =>
+      jsonOrThrow<{ statuses: ExtractionStatusRow[] }>(
+        await fetch("/api/documents/extraction-status?take=10", {
+          cache: "no-store",
+        }),
+      ),
+    staleTime: 10000,
+    enabled: opts?.enabled ?? true,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export async function fetchParsedDocumentText(
+  id: string,
+): Promise<ParsedTextPayload> {
+  return jsonOrThrow<ParsedTextPayload>(
+    await fetch(`/api/documents/${id}/parsed-text`, { cache: "no-store" }),
+  );
 }
 
 export function useDeleteDocument() {

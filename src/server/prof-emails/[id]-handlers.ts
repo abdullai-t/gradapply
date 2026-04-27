@@ -5,6 +5,15 @@ import { withAuth } from "../_with-auth";
 
 import { updateProfEmailSchema } from "./schemas";
 
+export const get = withAuth<{ id: string }>(async (_req, { userId, params }) => {
+  const { id } = params;
+  const row = await prisma.profEmail.findFirst({
+    where: { id, userId },
+  });
+  if (!row) return notFound();
+  return ok(row);
+});
+
 export const update = withAuth<{ id: string }>(
   async (req, { userId, params }) => {
     const { id } = params;
