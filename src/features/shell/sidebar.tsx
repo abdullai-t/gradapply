@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/icon";
@@ -27,13 +29,32 @@ export function Sidebar() {
     return true;
   });
   const { main, footer } = partitionNav(visible);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const stored = globalThis.localStorage?.getItem("ga:sidebar-collapsed");
+    setCollapsed(stored === "1");
+  }, []);
+
+  useEffect(() => {
+    globalThis.localStorage?.setItem("ga:sidebar-collapsed", collapsed ? "1" : "0");
+  }, [collapsed]);
 
   return (
-    <aside className="glass-rail sticky top-0 hidden h-screen w-64 shrink-0 flex-col gap-1 px-4 py-4 md:flex">
+    <aside
+      className={cn(
+        "glass-rail sticky top-0 hidden h-screen shrink-0 flex-col gap-1 py-4 transition-[width,padding] duration-200 md:flex",
+        collapsed ? "w-20 px-2.5" : "w-64 px-4",
+      )}
+    >
       {/* Brand */}
       <Link
         href="/dashboard"
-        className="mb-3 flex items-center gap-2.5 px-2 py-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-container)] rounded-xl"
+        className={cn(
+          "mb-3 flex items-center px-2 py-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-container)] rounded-xl",
+          collapsed ? "justify-center" : "gap-2.5",
+        )}
+        aria-label="Go to dashboard"
       >
         <div
           className="grid h-9 w-9 place-items-center rounded-xl text-white shadow-[0_3px_0_0_var(--on-primary-fixed-variant)]"
@@ -44,15 +65,37 @@ export function Sidebar() {
         >
           <Icon name="auto_stories" fill size={20} />
         </div>
-        <div className="leading-tight">
-          <div className="text-base font-extrabold tracking-tight text-[var(--primary)]">
-            GradApply
+        {!collapsed ? (
+          <div className="leading-tight">
+            <div className="text-base font-extrabold tracking-tight text-[var(--primary)]">
+              GradApply
+            </div>
+            <div className="text-[9px] font-extrabold uppercase tracking-[0.15em] text-[var(--outline)]">
+              Scholar Pursuit Hub
+            </div>
           </div>
-          <div className="text-[9px] font-extrabold uppercase tracking-[0.15em] text-[var(--outline)]">
-            Scholar Pursuit Hub
-          </div>
-        </div>
+        ) : null}
       </Link>
+
+      <button
+        type="button"
+        onClick={() => setCollapsed((v) => !v)}
+        className={cn(
+          "mb-2 inline-flex h-9 items-center rounded-lg border border-[var(--outline-variant)] bg-[var(--surface-container-low)] text-[var(--on-surface-variant)] hover:bg-[var(--surface-container)]",
+          collapsed ? "justify-center px-2" : "justify-between px-2.5",
+        )}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      >
+        {collapsed ? (
+          <PanelLeftOpen className="h-4 w-4" />
+        ) : (
+          <>
+            <span className="text-xs font-semibold">Collapse</span>
+            <PanelLeftClose className="h-4 w-4" />
+          </>
+        )}
+      </button>
 
       <nav className="flex flex-1 flex-col gap-1">
         {main.map((item) => (
@@ -60,6 +103,7 @@ export function Sidebar() {
             key={item.key}
             item={item}
             active={isActive(pathname, item.href)}
+            collapsed={collapsed}
           />
         ))}
       </nav>
@@ -70,10 +114,11 @@ export function Sidebar() {
             key={item.key}
             item={item}
             active={isActive(pathname, item.href)}
+            collapsed={collapsed}
           />
         ))}
         <div className="mt-1 px-1.5">
-          <UserMenu />
+          <UserMenu compact={collapsed} />
         </div>
       </div>
     </aside>
@@ -84,13 +129,23 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
+function SidebarLink({
+  item,
+  active,
+  collapsed,
+}: {
+  item: NavItem;
+  active: boolean;
+  collapsed: boolean;
+}) {
   return (
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
+      aria-label={item.label}
       className={cn(
-        "group relative flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-bold transition-all duration-200 ease-spring outline-none",
+        "group relative flex items-center rounded-xl py-3 text-sm font-bold transition-all duration-200 ease-spring outline-none",
+        collapsed ? "justify-center px-2" : "gap-3 px-3.5",
         active
           ? "bg-[color-mix(in_srgb,var(--primary-container)_18%,transparent)] text-[var(--primary)] -translate-y-0.5 [box-shadow:0_2px_0_0_var(--primary-container)]"
           : "text-[var(--on-surface-variant)] hover:bg-[var(--surface-container)] hover:translate-x-0.5",
@@ -102,7 +157,7 @@ function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
       }
     >
       <Icon name={item.icon} fill={active} size={22} />
-      <span>{item.label}</span>
+      {!collapsed ? <span>{item.label}</span> : null}
     </Link>
   );
 }

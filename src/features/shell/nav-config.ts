@@ -61,8 +61,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: "school",
     title: "Schools",
     searchPlaceholder: "Search schools...",
-    showFab: true,
-    fabIcon: "add",
+    showFab: false,
   },
   {
     key: "emails",

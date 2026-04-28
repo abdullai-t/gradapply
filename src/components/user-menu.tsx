@@ -12,8 +12,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Icon } from "@/components/icon";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { cn } from "@/lib/utils";
 
-export function UserMenu() {
+export function UserMenu({ compact = false }: { compact?: boolean }) {
   const { data } = useSession();
   const user = data?.user;
 
@@ -32,7 +33,10 @@ export function UserMenu() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="relative h-11 w-full justify-start gap-2.5 px-2 text-left"
+          className={cn(
+            "relative h-11 w-full gap-2.5 px-2 text-left",
+            compact ? "justify-center" : "justify-start",
+          )}
         >
           <Avatar className="h-8 w-8 border-2 border-[var(--primary-fixed)] bg-[var(--primary-fixed)]">
             <AvatarImage src={user?.image ?? undefined} alt="" />
@@ -40,7 +44,12 @@ export function UserMenu() {
               {initials}
             </AvatarFallback>
           </Avatar>
-          <span className="hidden min-w-0 flex-1 truncate text-sm font-bold md:inline">
+          <span
+            className={cn(
+              "hidden min-w-0 flex-1 truncate text-sm font-bold md:inline",
+              compact && "hidden",
+            )}
+          >
             {user?.name ?? user?.email}
           </span>
         </Button>

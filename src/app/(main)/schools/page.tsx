@@ -29,7 +29,6 @@ import {
   useSchools,
   useUpdateSchool,
 } from "@/features/schools/api";
-import { useFabClick } from "@/hooks/use-fab-click";
 import type { SchoolRow } from "@/features/schools/types";
 
 export default function SchoolsPage() {
@@ -47,9 +46,6 @@ export default function SchoolsPage() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  // The global FAB defers to this page when route === "schools".
-  useFabClick("schools", () => setAddOpen(true));
 
   const sorted = useMemo(
     () =>

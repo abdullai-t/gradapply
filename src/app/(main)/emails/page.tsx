@@ -9,12 +9,14 @@ import {
   History,
   Loader2,
   MessageSquareText,
+  RefreshCw,
   Search,
   Send,
   Sparkles,
   Trash2,
   X,
 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -147,6 +149,8 @@ const statuses: EmailStatus[] = [
 
 export default function EmailsPage() {
   const qc = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Cached, deduped, focus-revalidated reads. Mutations below invalidate
   // the relevant query keys instead of re-running per-page `load()` helpers.
@@ -244,6 +248,18 @@ export default function EmailsPage() {
     null,
   );
   const [threadQuery, setThreadQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | EmailStatus>("ALL");
+  const [createDraftOpen, setCreateDraftOpen] = useState(false);
+  const [createDraftTab, setCreateDraftTab] = useState<"url" | "schools">("schools");
+  const [detailTab, setDetailTab] = useState<"profile" | "insights" | "publications">(
+    "profile",
+  );
+  const [profEmailDraft, setProfEmailDraft] = useState("");
+  const [auditLatestResearch, setAuditLatestResearch] = useState<
+    Array<{ title: string; year: string | null; summary: string; evidence: string | null }>
+  >([]);
+  const [auditingResearch, setAuditingResearch] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
 
   const toggleSchool = (id: string) => {
     setSelectedSchoolIds((prev) =>
@@ -290,6 +306,20 @@ export default function EmailsPage() {
     setSuggestedDraftEdit(current?.suggestedReplyDraft ?? "");
   }, [selectedId, rows, selectedDetailQuery.data]);
 
+  useEffect(() => {
+    if (!selectedId) return;
+    const detail = selectedDetailQuery.data as EmailRow | undefined;
+    const row = rows.find((r) => r.id === selectedId);
+    const current = detail?.id === selectedId ? detail : row;
+    setProfEmailDraft(current?.profEmail ?? "");
+  }, [selectedId, rows, selectedDetailQuery.data]);
+
+  useEffect(() => {
+    setAuditLatestResearch([]);
+    setAuditError(null);
+    setDetailTab("profile");
+  }, [selectedId]);
+
   // `useVersions` runs only when an email is selected (enabled flag).
   // Local `versions` state above is kept as a write-through cache for the
   // diff viewer, mirrored from the query result.
@@ -311,12 +341,17 @@ export default function EmailsPage() {
   // useEffect required here.
 
   useEffect(() => {
-    setSelectedId((prev) => {
-      if (rows.length === 0) return null;
-      if (prev && rows.some((r) => r.id === prev)) return prev;
-      return rows[0].id;
-    });
-  }, [rows]);
+    if (!selectedId) return;
+    if (!rows.some((r) => r.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [rows, selectedId]);
+
+  useEffect(() => {
+    const qThread = searchParams.get("thread");
+    if (!qThread) return;
+    setSelectedId((prev) => (prev === qThread ? prev : qThread));
+  }, [searchParams]);
 
   const selected = useMemo(() => {
     const fallback = rows.find((r) => r.id === selectedId) ?? null;
@@ -325,8 +360,9 @@ export default function EmailsPage() {
   }, [rows, selectedId, selectedDetailQuery.data]);
   const filteredRows = useMemo(() => {
     const q = threadQuery.trim().toLowerCase();
-    if (!q) return rows;
     return rows.filter((row) => {
+      if (statusFilter !== "ALL" && row.status !== statusFilter) return false;
+      if (!q) return true;
       const haystack = [
         row.profName ?? "",
         row.university ?? "",
@@ -337,7 +373,16 @@ export default function EmailsPage() {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [rows, threadQuery]);
+  }, [rows, threadQuery, statusFilter]);
+  const existingProfessorEmails = useMemo(
+    () =>
+      new Set(
+        rows
+          .map((r) => (r.profEmail ?? "").trim().toLowerCase())
+          .filter((email) => email.length > 0),
+      ),
+    [rows],
+  );
 
   const textDiff = useMemo(() => {
     if (!compareLeftId || !compareRightId || compareLeftId === compareRightId) {
@@ -570,7 +615,12 @@ export default function EmailsPage() {
     }
   };
 
-  const draftFromDiscovery = async (c: DiscoveryCand) => {
+  const addThreadFromDiscovery = async (c: DiscoveryCand) => {
+    const normalizedEmail = (c.profEmail ?? "").trim().toLowerCase();
+    if (normalizedEmail && existingProfessorEmails.has(normalizedEmail)) {
+      alert("This professor email already exists in your thread list.");
+      return;
+    }
     const key = `${c.name}\0${c.profileUrl ?? ""}`;
     setDraftingDiscoverId(key);
     try {
@@ -594,21 +644,7 @@ export default function EmailsPage() {
         alert(messageFromApiErrorPayload(payload));
         return;
       }
-      const created = payload as EmailRow;
-      const draftRes = await fetch(`/api/prof-emails/${created.id}/draft`, {
-        method: "POST",
-      });
-      if (!draftRes.ok) {
-        const j = (await draftRes.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        alert(j.error ?? "Could not generate tailored email.");
-        await load();
-        setSelectedId(created.id);
-        return;
-      }
       await load();
-      setSelectedId(created.id);
     } finally {
       setDraftingDiscoverId(null);
     }
@@ -627,6 +663,45 @@ export default function EmailsPage() {
         j.error ??
           "Regeneration failed. Add a profile URL or set OPENROUTER_API_KEY or ANTHROPIC_API_KEY.",
       );
+    }
+  };
+
+  const runProfessorAudit = async (id: string) => {
+    setAuditingResearch(true);
+    setAuditError(null);
+    try {
+      const res = await fetch(`/api/prof-emails/${id}/audit`, {
+        method: "POST",
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        latestResearch?: Array<{
+          title?: string;
+          year?: string | null;
+          summary?: string;
+          evidence?: string | null;
+        }>;
+      };
+      if (!res.ok) {
+        setAuditLatestResearch([]);
+        setAuditError(j.error ?? "Audit failed.");
+        return;
+      }
+      const rows =
+        Array.isArray(j.latestResearch) && j.latestResearch.length > 0
+          ? j.latestResearch
+              .map((r) => ({
+                title: (r.title ?? "").trim(),
+                year: r.year ?? null,
+                summary: (r.summary ?? "").trim(),
+                evidence: r.evidence ?? null,
+              }))
+              .filter((r) => r.title.length > 0)
+          : [];
+      setAuditLatestResearch(rows.slice(0, 3));
+      setDetailTab("publications");
+    } finally {
+      setAuditingResearch(false);
     }
   };
 
@@ -666,6 +741,58 @@ export default function EmailsPage() {
         ) : null}
       </header>
 
+      <div className="rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-2.5">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={threadQuery}
+              onChange={(e) => setThreadQuery(e.target.value)}
+              placeholder="Search threads by professor, school, email, or research area"
+              className="h-10 border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] pl-8 text-sm"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant={statusFilter === "ALL" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setStatusFilter("ALL")}
+            >
+              All ({rows.length})
+            </Button>
+            <Button
+              type="button"
+              variant={statusFilter === "DRAFT" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setStatusFilter("DRAFT")}
+            >
+              Draft ({rows.filter((r) => r.status === "DRAFT").length})
+            </Button>
+            <Button
+              type="button"
+              variant={statusFilter === "SENT" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setStatusFilter("SENT")}
+            >
+              Sent ({rows.filter((r) => r.status === "SENT").length})
+            </Button>
+            <Button
+              type="button"
+              variant={statusFilter === "REPLIED" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setStatusFilter("REPLIED")}
+            >
+              Replied ({rows.filter((r) => r.status === "REPLIED").length})
+            </Button>
+            <Button type="button" size="sm" onClick={() => setCreateDraftOpen(true)}>
+              <Sparkles className="mr-1.5 h-4 w-4" aria-hidden />
+              Add draft
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-col gap-8 xl:flex-row xl:items-start">
         {/* Manuscript workspace — left on xl */}
         <section className="order-2 min-w-0 flex-1 xl:order-1">
@@ -674,61 +801,76 @@ export default function EmailsPage() {
               Loading…
             </div>
           ) : !selected ? (
-            <div className="scholar-manuscript rounded-2xl border border-dashed border-[var(--outline-variant)] bg-gradient-to-b from-[var(--surface-container-low)] to-[var(--surface-container-lowest)] p-8 md:p-10">
-              <div className="mx-auto max-w-lg text-center">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/15 ring-1 ring-primary/25">
-                  <Sparkles className="h-6 w-6 text-primary" aria-hidden />
-                </div>
-                <p className="font-display text-xl font-semibold tracking-tight text-foreground">
-                  No draft selected yet
+            <div className="space-y-3">
+              <div>
+                <h2 className="font-display text-3xl font-semibold tracking-tight">Threads</h2>
+                <p className="text-sm text-muted-foreground">
+                  Select a draft to open the manuscript editor.
                 </p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Use <strong className="font-medium text-foreground/90">Find faculty</strong>{" "}
-                  on the right (or below on mobile): either paste one professor URL for a quick draft,
-                  or select schools to get suggestions from your profile—then open a thread here from
-                  the list.
-                </p>
-                <ol className="mt-6 space-y-3 text-left text-sm text-muted-foreground">
-                  <li className="flex gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-foreground">
-                      1
-                    </span>
-                    <span>
-                      <strong className="text-foreground/90">Option 1:</strong> paste a faculty profile
-                      URL and run <strong className="text-foreground/90">Quick draft from URL</strong>.
-                    </span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-foreground">
-                      2
-                    </span>
-                    <span>
-                      <strong className="text-foreground/90">Option 2:</strong> select schools and run{" "}
-                      <strong className="text-foreground/90">Suggest faculty from schools</strong>—then
-                      tap <strong className="text-foreground/90">Draft</strong> on a row.
-                    </span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-foreground">
-                      3
-                    </span>
-                    <span>
-                      Verify names on the official site; edit the manuscript and send when ready.
-                    </span>
-                  </li>
-                </ol>
-                <p className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                  <ArrowRight className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
-                  Threads you create appear in the sidebar list.
-                </p>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="mt-4 border-[var(--outline-variant)] bg-[var(--surface-container-low)]"
-                >
-                  <a href="#find-faculty-panel">Go to Find faculty</a>
-                </Button>
               </div>
+              {filteredRows.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-8 text-sm text-muted-foreground">
+                  No threads match your filters yet.
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {filteredRows.map((row) => (
+                    <div
+                      key={row.id}
+                      className="rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-4 transition hover:border-[var(--outline)] hover:bg-[var(--surface-container-lowest)]"
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedId(row.id);
+                            router.replace(`/emails?thread=${encodeURIComponent(row.id)}`);
+                          }}
+                          className="min-w-0 flex-1 text-left"
+                        >
+                          <p className="line-clamp-1 font-semibold text-foreground">
+                            {row.profName ?? "Professor"}
+                          </p>
+                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="outline" className="text-[10px]">
+                            {row.status.replaceAll("_", " ")}
+                          </Badge>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            aria-label={`Delete ${row.profName ?? "thread"}`}
+                            onClick={() => void remove(row.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedId(row.id);
+                          router.replace(`/emails?thread=${encodeURIComponent(row.id)}`);
+                        }}
+                        className="w-full text-left"
+                      >
+                        <p className="line-clamp-1 text-sm text-muted-foreground">
+                          {row.university ?? "University"}
+                          {row.profEmail ? ` · ${row.profEmail}` : ""}
+                        </p>
+                        <p className="mt-2 line-clamp-2 text-sm text-foreground/90">
+                          {row.emailSubject || "No subject yet"}
+                        </p>
+                        <p className="mt-2 line-clamp-1 text-xs text-muted-foreground">
+                          {row.researchArea || "No research area"}
+                        </p>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <Card key={selected.id} className="glass-panel border-[var(--outline-variant)]">
@@ -741,40 +883,51 @@ export default function EmailsPage() {
                     <CardDescription className="mt-1">
                       {selected.profName ?? "Professor"} · {selected.university ?? "Institution"}
                     </CardDescription>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Tip: verify professor email + profile URL, then send from your own Gmail for
+                      best deliverability.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      To send: Professor email, Gmail connection
+                    </p>
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="h-auto px-0 pt-1 text-xs text-muted-foreground"
+                      onClick={() => {
+                        setSelectedId(null);
+                        router.replace("/emails");
+                      }}
+                    >
+                      Back to threads
+                    </Button>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="outline" className="border-primary/40 text-primary">
                       {selected.status.replaceAll("_", " ")}
                     </Badge>
-                    <Button
-                      size="sm"
-                      variant="default"
-                      disabled={
-                        sendingViaGmail ||
-                        !googleOAuthConfigured ||
-                        !gmailConnected ||
-                        !selected.profEmail?.trim() ||
-                        !draftSubject?.trim() ||
-                        !draftBody?.trim()
-                      }
-                      title={
-                        !googleOAuthConfigured
-                          ? "Google OAuth not configured on this server"
-                          : !gmailConnected
-                            ? "Connect your Gmail under Settings first"
-                            : !selected.profEmail?.trim()
-                              ? "Add professor email"
-                              : undefined
-                      }
-                      onClick={() => void sendViaGmail(selected.id)}
-                    >
-                      {sendingViaGmail ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                      ) : (
-                        <Send className="mr-2 h-4 w-4" aria-hidden />
-                      )}
-                      {sendingViaGmail ? "Sending…" : "Send via Gmail"}
-                    </Button>
+                    {googleOAuthConfigured && gmailConnected ? (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => {
+                          const missing: string[] = [];
+                          if (!selected.profEmail?.trim() && !profEmailDraft.trim()) {
+                            missing.push("Professor email");
+                          }
+                          if (!gmailConnected) missing.push("Gmail connection");
+                          if (!draftSubject.trim()) missing.push("Subject line");
+                          if (!draftBody.trim()) missing.push("Email body");
+                          if (missing.length > 0) {
+                            alert(`Complete these fields first:\n- ${missing.join("\n- ")}`);
+                            return;
+                          }
+                          void sendViaGmail(selected.id);
+                        }}
+                      >
+                        {sendingViaGmail ? "Sending…" : "Complete Required Fields"}
+                      </Button>
+                    ) : null}
                     <Button
                       size="sm"
                       variant="secondary"
@@ -787,400 +940,264 @@ export default function EmailsPage() {
                       onClick={() => aiDraft(selected.id)}
                     >
                       <Sparkles className="mr-2 h-4 w-4" />
-                      {drafting === selected.id ? "Working…" : "Regenerate"}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive"
-                      aria-label="Delete"
-                      onClick={() => remove(selected.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
+                      {drafting === selected.id ? "Working…" : "Improve with AI"}
                     </Button>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6 pt-6">
-                <div className="space-y-3 rounded-lg border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-foreground/90">Versions</p>
-                    {versionsLoading ? (
-                      <span className="text-xs text-muted-foreground">Loading…</span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">
-                        {versions.length} saved
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Name a snapshot of the current subject and body, compare any two, or
-                    restore the server draft from a past save.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setSaveVersionLabel("");
-                        setSaveVersionOpen(true);
-                      }}
-                    >
-                      <History className="mr-2 h-4 w-4" aria-hidden />
-                      Save version
-                    </Button>
-                    <Select
-                      value={restoreVersionId || VERSION_NONE}
-                      onValueChange={(v) =>
-                        setRestoreVersionId(v === VERSION_NONE ? "" : v)
-                      }
-                    >
-                      <SelectTrigger className="h-9 w-[min(100%,220px)] border-[var(--outline-variant)] bg-[var(--surface-container-low)] text-left text-sm">
-                        <SelectValue placeholder="Restore from…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={VERSION_NONE}>Pick a saved version…</SelectItem>
-                        {versions.map((v) => (
-                          <SelectItem key={v.id} value={v.id}>
-                            {format(new Date(v.createdAt), "MMM d HH:mm")} · {v.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={!restoreVersionId}
-                      onClick={() => void restoreFromVersion()}
-                      className="border-[var(--outline-variant)]"
-                    >
-                      Restore
-                    </Button>
-                  </div>
-                  <div className="grid gap-3 pt-2 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">
-                        Diff — earlier
-                      </Label>
-                      <Select
-                        value={compareLeftId || VERSION_NONE}
-                        onValueChange={(v) =>
-                          setCompareLeftId(v === VERSION_NONE ? "" : v)
-                        }
-                      >
-                        <SelectTrigger className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]">
-                          <SelectValue placeholder="Version A" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={VERSION_NONE}>None</SelectItem>
-                          {versions.map((v) => (
-                            <SelectItem key={v.id} value={v.id}>
-                              {format(new Date(v.createdAt), "MMM d HH:mm")} · {v.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">
-                        Diff — later
-                      </Label>
-                      <Select
-                        value={compareRightId || VERSION_NONE}
-                        onValueChange={(v) =>
-                          setCompareRightId(v === VERSION_NONE ? "" : v)
-                        }
-                      >
-                        <SelectTrigger className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]">
-                          <SelectValue placeholder="Version B" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={VERSION_NONE}>None</SelectItem>
-                          {versions.map((v) => (
-                            <SelectItem key={v.id} value={v.id}>
-                              {format(new Date(v.createdAt), "MMM d HH:mm")} · {v.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  {textDiff ? (
-                    <ScrollArea className="max-h-[220px] rounded-md border border-[var(--outline-variant)] bg-[var(--surface-container)]">
-                      <pre className="whitespace-pre-wrap break-words p-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
-                        {textDiff}
-                      </pre>
-                    </ScrollArea>
-                  ) : compareLeftId && compareRightId ? (
-                    <p className="text-xs text-muted-foreground">
-                      Pick two different versions to view a unified diff.
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor={`profName-${selected.id}`}>Professor name</Label>
-                    <Input
-                      id={`profName-${selected.id}`}
-                      className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]"
-                      defaultValue={selected.profName ?? ""}
-                      onBlur={(e) =>
-                        patch(selected.id, {
-                          profName: e.target.value.trim() || null,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`profEmail-${selected.id}`}>Professor email</Label>
-                    <Input
-                      id={`profEmail-${selected.id}`}
-                      type="email"
-                      className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]"
-                      defaultValue={selected.profEmail ?? ""}
-                      placeholder="If missing from page"
-                      onBlur={(e) =>
-                        patch(selected.id, {
-                          profEmail: e.target.value.trim() || null,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor={`university-${selected.id}`}>University / department</Label>
-                    <Input
-                      id={`university-${selected.id}`}
-                      className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]"
-                      defaultValue={selected.university ?? ""}
-                      onBlur={(e) =>
-                        patch(selected.id, {
-                          university: e.target.value.trim() || null,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor={`researchArea-${selected.id}`}>
-                      Their research (from page)
-                    </Label>
-                    <Input
-                      id={`researchArea-${selected.id}`}
-                      className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]"
-                      defaultValue={selected.researchArea ?? ""}
-                      onBlur={(e) =>
-                        patch(selected.id, {
-                          researchArea: e.target.value.trim() || null,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor={`profileUrl-${selected.id}`}>Source profile URL</Label>
-                    <Input
-                      id={`profileUrl-${selected.id}`}
-                      type="url"
-                      className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]"
-                      defaultValue={selected.profileUrl ?? ""}
-                      onBlur={(e) =>
-                        patch(selected.id, {
-                          profileUrl: e.target.value.trim() || null,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Subject line</Label>
-                  <Input
-                    className="border-[var(--outline-variant)] bg-[var(--surface-container-low)] font-medium"
-                    value={draftSubject}
-                    onChange={(e) => setDraftSubject(e.target.value)}
-                    onBlur={() =>
-                      patch(selected.id, { emailSubject: draftSubject })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Email body</Label>
-                  <Textarea
-                    className="font-display min-h-[280px] resize-y border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] text-[15px] leading-relaxed text-foreground/95"
-                    value={draftBody}
-                    onChange={(e) => setDraftBody(e.target.value)}
-                    onBlur={() => patch(selected.id, { emailBody: draftBody })}
-                  />
-                </div>
-
-                <div className="space-y-3 rounded-lg border border-[var(--primary-container)]/30 bg-[var(--surface-container-low)] p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+                  <div className="w-full space-y-3 rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-4">
                     <div>
-                      <p className="text-sm font-medium text-foreground/90">
-                        Their reply
-                      </p>
+                      <p className="text-sm font-medium text-foreground/90">Email draft</p>
                       <p className="text-xs text-muted-foreground">
-                        Paste the professor&apos;s message. We classify intent and save a
-                        suggested follow-up on this thread.
+                        Versioned content for this professor thread.
                       </p>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      {selected.replyIntent ? (
-                        <Badge
-                          variant="outline"
-                          className={replyIntentBadgeClass(
-                            selected.replyIntent as ReplyIntentKind,
-                          )}
-                        >
-                          {replyIntentLabel(selected.replyIntent as ReplyIntentKind)}
-                        </Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          Not classified yet
-                        </span>
-                      )}
-                      {selected.lastClassifiedAt ? (
-                        <span className="text-[10px] text-muted-foreground">
-                          Updated{" "}
-                          {format(
-                            new Date(selected.lastClassifiedAt),
-                            "MMM d, yyyy HH:mm",
-                          )}
-                        </span>
-                      ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 border-[var(--outline-variant)] bg-[var(--surface-container-lowest)]"
+                        onClick={() => {
+                          if (!draftSubject.trim() && !draftBody.trim()) {
+                            setDraftSubject(
+                              `Prospective graduate applicant — research fit with ${selected.profName ?? "your lab"}`,
+                            );
+                            setDraftBody(
+                              `Dear ${selected.profName ?? "Professor"},\n\nI hope you are doing well. I am applying to graduate programs and I am reaching out because your recent work aligns with my research interests.\n\nI would be grateful for a brief conversation about potential fit and ways I can contribute to your group.\n\nBest regards,`,
+                            );
+                          }
+                        }}
+                      >
+                        Use template
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 border-[var(--outline-variant)] bg-[var(--surface-container-lowest)]"
+                        disabled={drafting === selected.id}
+                        onClick={() => aiDraft(selected.id)}
+                      >
+                        Personalize with AI
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 border-[var(--outline-variant)] bg-[var(--surface-container-lowest)]"
+                        onClick={() => setDraftBody((prev) => prev.replace(/\s{2,}/g, " ").trim())}
+                      >
+                        Improve clarity
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 border-[var(--outline-variant)] bg-[var(--surface-container-lowest)]"
+                        onClick={() =>
+                          setDraftBody((prev) => {
+                            const parts = prev
+                              .split(/\n{2,}/)
+                              .map((p) => p.trim())
+                              .filter(Boolean);
+                            return parts.length > 3 ? parts.slice(0, 3).join("\n\n") : prev;
+                          })
+                        }
+                      >
+                        Shorten
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Subject line</Label>
+                      <Input
+                        className="border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] font-medium"
+                        value={draftSubject}
+                        onChange={(e) => setDraftSubject(e.target.value)}
+                        onBlur={() => patch(selected.id, { emailSubject: draftSubject })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email body</Label>
+                      <Textarea
+                        className="font-display min-h-[330px] resize-y border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] text-[15px] leading-relaxed text-foreground/95"
+                        value={draftBody}
+                        onChange={(e) => setDraftBody(e.target.value)}
+                        onBlur={() => patch(selected.id, { emailBody: draftBody })}
+                      />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`reply-paste-${selected.id}`}>Paste reply</Label>
-                    <Textarea
-                      id={`reply-paste-${selected.id}`}
-                      className="min-h-[120px] border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] font-mono text-[13px] leading-relaxed"
-                      value={replyPasteText}
-                      onChange={(e) => setReplyPasteText(e.target.value)}
-                      placeholder="Paste the full text of the professor's reply…"
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={analyzingReply || replyPasteText.trim().length < 20}
-                    title={
-                      replyPasteText.trim().length < 20
-                        ? "Paste at least 20 characters"
-                        : undefined
-                    }
-                    onClick={() => void analyzeReply()}
-                  >
-                    {analyzingReply ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                    ) : (
-                      <MessageSquareText className="mr-2 h-4 w-4" aria-hidden />
-                    )}
-                    {analyzingReply ? "Analyzing…" : "Analyze reply"}
-                  </Button>
-                  {selected.replyRationale ? (
-                    <div className="rounded-md border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-3">
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                        Rationale
-                      </p>
-                      <p className="mt-1 text-sm text-foreground/90">
-                        {selected.replyRationale}
-                      </p>
-                    </div>
-                  ) : null}
-                  <div className="space-y-2">
-                    <Label htmlFor={`suggested-reply-${selected.id}`}>
-                      Suggested follow-up (editable)
-                    </Label>
-                    <Textarea
-                      id={`suggested-reply-${selected.id}`}
-                      className="min-h-[140px] resize-y border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] text-[14px] leading-relaxed"
-                      value={suggestedDraftEdit}
-                      onChange={(e) => setSuggestedDraftEdit(e.target.value)}
-                      onBlur={() =>
-                        patch(selected.id, {
-                          suggestedReplyDraft: suggestedDraftEdit || null,
-                        })
-                      }
-                      placeholder="After analysis, edit the draft here — it saves when you leave the field."
-                    />
-                  </div>
-                </div>
 
-                <div className="space-y-3 rounded-lg border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-3">
-                  <Label className="text-sm font-medium">Attachments (optional)</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Pick files to attach when sending via Gmail. Supported here: CV,
-                    transcript, GRE.
-                  </p>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">CV</Label>
-                      <Select
-                        value={attachmentSelection.cv}
-                        onValueChange={(v) =>
-                          setAttachmentSelection((prev) => ({ ...prev, cv: v }))
-                        }
+                  <div className="w-full space-y-3 rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-4 xl:w-[360px]">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full border-[var(--outline-variant)] bg-[var(--surface-container-lowest)]"
+                      disabled={auditingResearch}
+                      onClick={() => void runProfessorAudit(selected.id)}
+                    >
+                      <RefreshCw
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          auditingResearch && "animate-spin",
+                        )}
+                        aria-hidden
+                      />
+                      {auditingResearch ? "Refreshing research…" : "Refresh research audit"}
+                    </Button>
+                    <div className="grid grid-cols-3 rounded-lg border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-1">
+                      <button
+                        type="button"
+                        onClick={() => setDetailTab("profile")}
+                        className={cn(
+                          "h-8 rounded-md text-sm",
+                          detailTab === "profile"
+                            ? "bg-[var(--surface-container)] text-foreground"
+                            : "text-muted-foreground",
+                        )}
                       >
-                        <SelectTrigger className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]">
-                          <SelectValue placeholder="Select CV" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={ATTACHMENT_NONE}>No attachment</SelectItem>
-                          {docsForType("cv").map((doc) => (
-                            <SelectItem key={doc.id} value={doc.id}>
-                              {doc.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        Profile
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDetailTab("insights")}
+                        className={cn(
+                          "h-8 rounded-md text-sm",
+                          detailTab === "insights"
+                            ? "bg-[var(--surface-container)] text-foreground"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        Insights
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDetailTab("publications")}
+                        className={cn(
+                          "h-8 rounded-md text-sm",
+                          detailTab === "publications"
+                            ? "bg-[var(--surface-container)] text-foreground"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        Publications
+                      </button>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Transcript</Label>
-                      <Select
-                        value={attachmentSelection.transcript}
-                        onValueChange={(v) =>
-                          setAttachmentSelection((prev) => ({
-                            ...prev,
-                            transcript: v,
-                          }))
-                        }
-                      >
-                        <SelectTrigger className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]">
-                          <SelectValue placeholder="Select transcript" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={ATTACHMENT_NONE}>No attachment</SelectItem>
-                          {docsForType("transcript").map((doc) => (
-                            <SelectItem key={doc.id} value={doc.id}>
-                              {doc.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">GRE score</Label>
-                      <Select
-                        value={attachmentSelection.gre}
-                        onValueChange={(v) =>
-                          setAttachmentSelection((prev) => ({ ...prev, gre: v }))
-                        }
-                      >
-                        <SelectTrigger className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]">
-                          <SelectValue placeholder="Select GRE file" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={ATTACHMENT_NONE}>No attachment</SelectItem>
-                          {docsForType("gre").map((doc) => (
-                            <SelectItem key={doc.id} value={doc.id}>
-                              {doc.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-4">
+                      <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container)] text-lg font-semibold">
+                        {(selected.profName ?? "P")
+                          .split(" ")
+                          .map((p) => p[0] ?? "")
+                          .join("")
+                          .slice(0, 2)
+                          .toUpperCase()}
+                      </div>
+                      <p className="text-center text-xl font-semibold">
+                        {selected.profName ?? "Professor"}
+                      </p>
+                      <p className="text-center text-xs uppercase tracking-wide text-muted-foreground">
+                        {selected.university ?? "Institution"}
+                      </p>
+
+                      {detailTab === "profile" ? (
+                        <div className="mt-4 space-y-3">
+                          <div className="space-y-2">
+                            <Label>Professor email</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                value={profEmailDraft}
+                                onChange={(e) => setProfEmailDraft(e.target.value)}
+                                placeholder="name@university.edu"
+                                type="email"
+                                className="border-[var(--outline-variant)] bg-[var(--surface-container)]"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="border-[var(--outline-variant)]"
+                                onClick={() =>
+                                  patch(selected.id, {
+                                    profEmail: profEmailDraft.trim() || null,
+                                  })
+                                }
+                              >
+                                Save
+                              </Button>
+                            </div>
+                            {!profEmailDraft.trim() ? (
+                              <p className="rounded-md border border-[var(--streak-orange)]/35 bg-[var(--streak-orange-soft)] px-2 py-1 text-xs text-[#7a3a08] dark:text-[var(--streak-orange)]">
+                                Missing email.{" "}
+                                {selected.profileUrl ? (
+                                  <a
+                                    href={selected.profileUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="underline"
+                                  >
+                                    Find Email
+                                  </a>
+                                ) : (
+                                  "Find Email"
+                                )}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : detailTab === "insights" ? (
+                        <div className="mt-4 rounded-md border border-[var(--outline-variant)] bg-[var(--surface-container)] p-3 text-sm text-muted-foreground">
+                          {auditLatestResearch.length > 0
+                            ? auditLatestResearch.map((r, i) => (
+                                <p key={`${r.title}-${i}`} className={i > 0 ? "mt-2" : ""}>
+                                  <span className="font-medium text-foreground/90">
+                                    {r.year ? `${r.year} — ` : ""}
+                                    {r.title}
+                                  </span>
+                                  {r.summary ? `: ${r.summary}` : ""}
+                                </p>
+                              ))
+                            : selected.researchArea?.trim() ||
+                              "Run research audit to generate professor-specific insights."}
+                        </div>
+                      ) : (
+                        <div className="mt-4 space-y-2">
+                          {auditError ? (
+                            <p className="rounded-md border border-[var(--error)]/40 bg-[var(--error-container)] p-2 text-xs text-[var(--on-error-container)]">
+                              {auditError}
+                            </p>
+                          ) : null}
+                          {auditLatestResearch.length === 0 ? (
+                            <p className="rounded-md border border-[var(--outline-variant)] bg-[var(--surface-container)] p-3 text-sm text-muted-foreground">
+                              Run research audit to load the 3 latest research items.
+                            </p>
+                          ) : (
+                            auditLatestResearch.map((r, idx) => (
+                              <div
+                                key={`${r.title}-${idx}`}
+                                className="rounded-md border border-[var(--outline-variant)] bg-[var(--surface-container)] p-3"
+                              >
+                                <p className="text-sm font-semibold text-foreground/90">
+                                  {r.title}
+                                </p>
+                                {r.year ? (
+                                  <p className="text-xs text-muted-foreground">{r.year}</p>
+                                ) : null}
+                                {r.summary ? (
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    {r.summary}
+                                  </p>
+                                ) : null}
+                                {r.evidence ? (
+                                  <p className="mt-1 text-[11px] text-muted-foreground/85">
+                                    Source: {r.evidence}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1190,9 +1207,7 @@ export default function EmailsPage() {
                     <Label>Status</Label>
                     <Select
                       value={selected.status}
-                      onValueChange={(v) =>
-                        patch(selected.id, { status: v as EmailStatus })
-                      }
+                      onValueChange={(v) => patch(selected.id, { status: v as EmailStatus })}
                     >
                       <SelectTrigger className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]">
                         <SelectValue />
@@ -1221,7 +1236,7 @@ export default function EmailsPage() {
         </section>
 
         {/* AI Curator — top on mobile, right on xl */}
-        <aside className="order-1 w-full shrink-0 space-y-4 xl:sticky xl:top-6 xl:order-2 xl:w-[min(100%,420px)]">
+        <aside className="hidden">
           <Card id="find-faculty-panel" className="glass-panel border-[var(--outline-variant)]">
             <CardHeader className="space-y-2 pb-2">
               <CardTitle className="font-display text-xl">Find faculty</CardTitle>
@@ -1394,6 +1409,10 @@ export default function EmailsPage() {
                   <ul className="space-y-2">
                     {discoveryCandidates.map((c, idx) => {
                       const dk = `${c.name}\0${c.profileUrl ?? ""}`;
+                      const duplicateByEmail = Boolean(
+                        c.profEmail?.trim() &&
+                          existingProfessorEmails.has(c.profEmail.trim().toLowerCase()),
+                      );
                       const uni =
                         schools.find((x) => x.id === c.schoolId)?.name ??
                         c.targetSchoolLabel ??
@@ -1429,16 +1448,18 @@ export default function EmailsPage() {
                             size="sm"
                             variant="secondary"
                             className="h-9 shrink-0 gap-1.5 px-2.5 sm:min-w-[7.5rem]"
-                            disabled={draftingDiscoverId === dk}
-                            title="Create a thread and generate a tailored cold email"
-                            onClick={() => void draftFromDiscovery(c)}
+                            disabled={draftingDiscoverId === dk || duplicateByEmail}
+                            title="Create thread only (no AI generation yet)"
+                            onClick={() => void addThreadFromDiscovery(c)}
                           >
                             {draftingDiscoverId === dk ? (
                               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                             ) : (
                               <Sparkles className="h-4 w-4" aria-hidden />
                             )}
-                            <span className="hidden sm:inline">Draft</span>
+                            <span className="hidden sm:inline">
+                              {duplicateByEmail ? "Already added" : "Add to thread"}
+                            </span>
                           </Button>
                         </li>
                       );
@@ -1533,6 +1554,160 @@ export default function EmailsPage() {
           </Card>
         </aside>
       </div>
+
+      <Dialog open={createDraftOpen} onOpenChange={setCreateDraftOpen}>
+        <DialogContent className="max-w-3xl border-[var(--outline-variant)] bg-[var(--surface-container-lowest)]">
+          <DialogHeader>
+            <DialogTitle>Create outreach draft</DialogTitle>
+            <DialogDescription>
+              Pick one starting path. We&apos;ll guide you from discovery to a send-ready draft.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="rounded-lg border border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-3 py-2 text-xs text-muted-foreground">
+            Fastest path: use Professor URL when you already know who to contact. Use Schools +
+            Profile to discover strong matches first.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setCreateDraftTab("url")}
+              className={cn(
+                "rounded-xl border p-3 text-left",
+                createDraftTab === "url"
+                  ? "border-primary/60 bg-primary/10 ring-1 ring-primary/30"
+                  : "border-[var(--outline-variant)] bg-[var(--surface-container-low)]",
+              )}
+            >
+              <p className="font-semibold">Professor URL</p>
+              <p className="text-xs text-muted-foreground">Paste a faculty page and generate quickly.</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreateDraftTab("schools")}
+              className={cn(
+                "rounded-xl border p-3 text-left",
+                createDraftTab === "schools"
+                  ? "border-primary/60 bg-primary/10 ring-1 ring-primary/30"
+                  : "border-[var(--outline-variant)] bg-[var(--surface-container-low)]",
+              )}
+            >
+              <p className="font-semibold">Schools + Profile</p>
+              <p className="text-xs text-muted-foreground">
+                Get AI-ranked professor suggestions from your target schools.
+              </p>
+            </button>
+          </div>
+
+          {createDraftTab === "url" ? (
+            <form className="space-y-3" onSubmit={analyzeFromUrl}>
+              <div className="space-y-2">
+                <Label htmlFor="faculty-url-modal">Professor profile or lab URL</Label>
+                <Input
+                  id="faculty-url-modal"
+                  type="url"
+                  inputMode="url"
+                  placeholder="https://...faculty-page..."
+                  value={profileUrlInput}
+                  onChange={(e) => setProfileUrlInput(e.target.value)}
+                  disabled={discovering || working}
+                  className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Best sources: university faculty pages, lab pages, or Google Scholar profiles.
+                </p>
+              </div>
+              <Button type="submit" className="w-full" disabled={analyzeUrlBlocked}>
+                {working ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                    Analyzing…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" aria-hidden />
+                    Generate draft from URL
+                  </>
+                )}
+              </Button>
+            </form>
+          ) : (
+            <form className="space-y-3" onSubmit={discoverFacultyFromSchools}>
+              <div className="flex items-center justify-between">
+                <Label>Schools (from your tracker)</Label>
+                <span className="text-xs text-muted-foreground">
+                  {selectedSchoolIds.length} selected
+                </span>
+              </div>
+              <div className="max-h-[220px] space-y-2 overflow-y-auto rounded-lg border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-3">
+                {schools.map((s) => (
+                  <label key={s.id} className="flex cursor-pointer items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4"
+                      checked={selectedSchoolIds.includes(s.id)}
+                      onChange={() => toggleSchool(s.id)}
+                    />
+                    <span>
+                      <span className="font-medium">{s.name}</span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        · {s.program} · {s.degree}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <Button type="submit" className="w-full" disabled={discoverSchoolsBlocked}>
+                {discovering ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                    Suggesting…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" aria-hidden />
+                    Find best-match professors
+                  </>
+                )}
+              </Button>
+              {discoveryCandidates.length > 0 ? (
+                <ul className="max-h-[180px] space-y-2 overflow-y-auto rounded-lg border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-2">
+                  {discoveryCandidates.map((c, idx) => {
+                    const dk = `${c.name}\0${c.profileUrl ?? ""}`;
+                    const duplicateByEmail = Boolean(
+                      c.profEmail?.trim() &&
+                        existingProfessorEmails.has(c.profEmail.trim().toLowerCase()),
+                    );
+                    return (
+                      <li
+                        key={`${c.name}-${idx}`}
+                        className="flex items-start justify-between gap-2 rounded-md border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="line-clamp-1 text-sm font-medium">{c.name}</p>
+                          <p className="line-clamp-1 text-xs text-muted-foreground">
+                            {c.targetSchoolLabel ?? "School"}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">Match {c.matchScore}/5</p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          disabled={draftingDiscoverId === dk || duplicateByEmail}
+                          onClick={() => void addThreadFromDiscovery(c)}
+                        >
+                          {duplicateByEmail ? "Already added" : "Add to thread (draft)"}
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={saveVersionOpen}

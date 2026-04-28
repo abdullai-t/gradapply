@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,6 +78,7 @@ type ProfileRecommendation = {
 };
 
 export function AddSchoolModal({ open, onClose, onSaved }: Props) {
+  const [mounted, setMounted] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [mode, setMode] = useState<"manual" | "profile">("profile");
   const [aiLoading, setAiLoading] = useState(false);
@@ -89,6 +91,11 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     [],
   );
   const [recIndex, setRecIndex] = useState(0);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -286,9 +293,9 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     }
   }, [currentRec, onSaved]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--inverse-surface)]/40 p-4 backdrop-blur-sm"
       role="presentation"
@@ -781,7 +788,8 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
