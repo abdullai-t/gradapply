@@ -34,6 +34,8 @@ export function useProfEmails() {
     queryKey: profEmailsKeys.list(),
     queryFn: async () =>
       jsonOrThrow<unknown[]>(await fetch("/api/prof-emails?take=50")),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -42,6 +44,8 @@ export function useProfEmail(id: string | null) {
     queryKey: [...profEmailsKeys.all, "detail", id] as const,
     queryFn: async () => jsonOrThrow<unknown>(await fetch(`/api/prof-emails/${id}`)),
     enabled: Boolean(id),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -186,6 +190,8 @@ export function useVersions(input: { entityType: string; entityId: string }) {
         ),
       ),
     enabled: Boolean(input.entityId),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 

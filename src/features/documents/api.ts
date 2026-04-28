@@ -115,6 +115,8 @@ export function useDocuments(opts: {
         ),
       ),
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -123,6 +125,8 @@ export function useDocumentsSummary() {
     queryKey: documentsKeys.summary(),
     queryFn: async () =>
       jsonOrThrow<DocumentsSummary>(await fetch("/api/documents/summary")),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -188,6 +192,8 @@ export function useFolders() {
     queryKey: foldersKeys.list(),
     queryFn: async () =>
       jsonOrThrow<FolderSummary[]>(await fetch("/api/folders")),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 

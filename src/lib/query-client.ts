@@ -5,7 +5,8 @@ import { QueryClient } from "@tanstack/react-query";
  *
  * - `staleTime: 30s` keeps client navigation snappy without immediately refetching
  *   on every mount.
- * - `refetchOnWindowFocus: true` keeps long-lived tabs in sync.
+ * - `refetchOnWindowFocus: false` avoids surprise refetch spikes while users
+ *   are actively navigating between pages.
  * - `retry: 1` for queries / `retry: 0` for mutations matches the v3 PRD
  *   (a single retry guards against transient network blips, but mutations should
  *   surface failures so the UI can react explicitly).
@@ -15,7 +16,7 @@ export function makeQueryClient(): QueryClient {
     defaultOptions: {
       queries: {
         staleTime: 30_000,
-        refetchOnWindowFocus: true,
+        refetchOnWindowFocus: false,
         retry: 1,
       },
       mutations: {

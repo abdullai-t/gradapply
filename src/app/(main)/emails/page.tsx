@@ -1,17 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { format } from "date-fns";
-import { createTwoFilesPatch } from "diff";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ArrowRight,
-  History,
   Loader2,
-  MessageSquareText,
   RefreshCw,
   Search,
-  Send,
   Sparkles,
   Trash2,
   X,
@@ -45,20 +39,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  parseProfEmailSnapshot,
-  profEmailSnapshotToText,
-} from "@/lib/prof-email-version";
 import { messageFromApiErrorPayload } from "@/lib/api-error-json";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { useDocuments } from "@/features/documents/api";
 import {
   contentVersionsKeys,
   profEmailsKeys,
   useProfEmail,
   useProfEmails,
-  useVersions,
 } from "@/features/emails/api";
 import { useSchools } from "@/features/schools/api";
 import { useConnectors } from "@/features/connectors/api";
@@ -70,12 +58,6 @@ type EmailStatus =
   | "REPLIED"
   | "NO_REPLY"
   | "NOT_INTERESTED";
-
-type ReplyIntentKind =
-  | "INTERESTED"
-  | "NEUTRAL"
-  | "DECLINED"
-  | "UNKNOWN";
 
 type EmailRow = {
   id: string;
@@ -96,49 +78,6 @@ type EmailRow = {
   updatedAt?: string | null;
 };
 
-type DocType = "cv" | "transcript" | "gre";
-type DocumentRow = {
-  id: string;
-  name: string;
-  type: string;
-};
-
-type VersionRow = {
-  id: string;
-  label: string;
-  body: string | null;
-  createdAt: string;
-};
-
-const ATTACHMENT_NONE = "__none__";
-const VERSION_NONE = "__version_none__";
-
-function replyIntentBadgeClass(intent: ReplyIntentKind): string {
-  switch (intent) {
-    case "INTERESTED":
-      return "border-[var(--tertiary)]/45 bg-[var(--tertiary-container)]/15 text-[var(--tertiary)]";
-    case "DECLINED":
-      return "border-[var(--error)]/40 bg-[var(--error-container)] text-[var(--on-error-container)]";
-    case "NEUTRAL":
-      return "border-[var(--streak-orange)]/40 bg-[var(--streak-orange-soft)] text-[#7a3a08] dark:text-[var(--streak-orange)]";
-    default:
-      return "border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] text-muted-foreground";
-  }
-}
-
-function replyIntentLabel(intent: ReplyIntentKind): string {
-  switch (intent) {
-    case "INTERESTED":
-      return "Interested";
-    case "DECLINED":
-      return "Declined";
-    case "NEUTRAL":
-      return "Neutral";
-    default:
-      return "Unknown";
-  }
-}
-
 const statuses: EmailStatus[] = [
   "DRAFT",
   "SENT",
@@ -155,7 +94,6 @@ export default function EmailsPage() {
   // Cached, deduped, focus-revalidated reads. Mutations below invalidate
   // the relevant query keys instead of re-running per-page `load()` helpers.
   const profEmailsQuery = useProfEmails();
-  const documentsQuery = useDocuments({});
   const schoolsQueryRaw = useSchools();
   const connectorsQuery = useConnectors();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -165,10 +103,6 @@ export default function EmailsPage() {
     [profEmailsQuery.data],
   );
   const selectedDetailQuery = useProfEmail(selectedId);
-  const documents: DocumentRow[] = useMemo(() => {
-    const pages = documentsQuery.data?.pages ?? [];
-    return pages.flatMap((p) => (p.items as unknown) as DocumentRow[]);
-  }, [documentsQuery.data]);
   const loading = profEmailsQuery.isLoading;
 
   const [drafting, setDrafting] = useState<string | null>(null);
@@ -186,29 +120,11 @@ export default function EmailsPage() {
   const googleOAuthConfigured =
     connectorsQuery.data?.googleOAuthConfigured !== false;
   const [sendingViaGmail, setSendingViaGmail] = useState(false);
-  const [attachmentSelection, setAttachmentSelection] = useState<{
-    cv: string;
-    transcript: string;
-    gre: string;
-  }>({
-    cv: ATTACHMENT_NONE,
-    transcript: ATTACHMENT_NONE,
-    gre: ATTACHMENT_NONE,
-  });
-
   const [draftSubject, setDraftSubject] = useState("");
   const [draftBody, setDraftBody] = useState("");
-  const [versions, setVersions] = useState<VersionRow[]>([]);
-  const [versionsLoading, setVersionsLoading] = useState(false);
   const [saveVersionOpen, setSaveVersionOpen] = useState(false);
   const [saveVersionLabel, setSaveVersionLabel] = useState("");
   const [savingVersion, setSavingVersion] = useState(false);
-  const [compareLeftId, setCompareLeftId] = useState("");
-  const [compareRightId, setCompareRightId] = useState("");
-  const [restoreVersionId, setRestoreVersionId] = useState("");
-  const [replyPasteText, setReplyPasteText] = useState("");
-  const [suggestedDraftEdit, setSuggestedDraftEdit] = useState("");
-  const [analyzingReply, setAnalyzingReply] = useState(false);
 
   type SchoolPick = { id: string; name: string; program: string; degree: string };
   const schools: SchoolPick[] = useMemo(() => {
@@ -289,24 +205,6 @@ export default function EmailsPage() {
   }, [selectedId, rows, selectedDetailQuery.data]);
 
   useEffect(() => {
-    setCompareLeftId("");
-    setCompareRightId("");
-    setRestoreVersionId("");
-  }, [selectedId]);
-
-  useEffect(() => {
-    setReplyPasteText("");
-  }, [selectedId]);
-
-  useEffect(() => {
-    if (!selectedId) return;
-    const detail = selectedDetailQuery.data as EmailRow | undefined;
-    const row = rows.find((r) => r.id === selectedId);
-    const current = detail?.id === selectedId ? detail : row;
-    setSuggestedDraftEdit(current?.suggestedReplyDraft ?? "");
-  }, [selectedId, rows, selectedDetailQuery.data]);
-
-  useEffect(() => {
     if (!selectedId) return;
     const detail = selectedDetailQuery.data as EmailRow | undefined;
     const row = rows.find((r) => r.id === selectedId);
@@ -320,17 +218,6 @@ export default function EmailsPage() {
     setDetailTab("profile");
   }, [selectedId]);
 
-  // `useVersions` runs only when an email is selected (enabled flag).
-  // Local `versions` state above is kept as a write-through cache for the
-  // diff viewer, mirrored from the query result.
-  const versionsQuery = useVersions({
-    entityType: "PROF_EMAIL",
-    entityId: selectedId ?? "",
-  });
-  useEffect(() => {
-    setVersions((versionsQuery.data ?? []) as VersionRow[]);
-    setVersionsLoading(versionsQuery.isLoading);
-  }, [versionsQuery.data, versionsQuery.isLoading]);
   const loadVersions = useCallback(async () => {
     await qc.invalidateQueries({
       queryKey: contentVersionsKeys.list("PROF_EMAIL", selectedId ?? ""),
@@ -384,34 +271,6 @@ export default function EmailsPage() {
     [rows],
   );
 
-  const textDiff = useMemo(() => {
-    if (!compareLeftId || !compareRightId || compareLeftId === compareRightId) {
-      return null;
-    }
-    const L = versions.find((v) => v.id === compareLeftId);
-    const R = versions.find((v) => v.id === compareRightId);
-    if (!L || !R) return null;
-    const pL = parseProfEmailSnapshot(L.body) ?? {
-      emailSubject: null,
-      emailBody: null,
-    };
-    const pR = parseProfEmailSnapshot(R.body) ?? {
-      emailSubject: null,
-      emailBody: null,
-    };
-    const tL = profEmailSnapshotToText(pL);
-    const tR = profEmailSnapshotToText(pR);
-    return createTwoFilesPatch(
-      L.label,
-      R.label,
-      tL,
-      tR,
-      "",
-      "",
-      { context: 2 },
-    );
-  }, [compareLeftId, compareRightId, versions]);
-
   const submitSaveVersion = async () => {
     if (!selected || !saveVersionLabel.trim()) return;
     setSavingVersion(true);
@@ -441,54 +300,6 @@ export default function EmailsPage() {
       }
     } finally {
       setSavingVersion(false);
-    }
-  };
-
-  const restoreFromVersion = async () => {
-    if (!restoreVersionId) return;
-    if (
-      !confirm(
-        "Replace the current subject and body on the server with this saved version?",
-      )
-    ) {
-      return;
-    }
-    const res = await fetch(
-      `/api/content-versions/${restoreVersionId}/restore`,
-      { method: "POST" },
-    );
-    if (res.ok) {
-      await load();
-      await loadVersions();
-    } else {
-      const j = (await res.json().catch(() => ({}))) as { error?: string };
-      alert(j.error ?? "Could not restore this version.");
-    }
-  };
-
-  const analyzeReply = async () => {
-    if (!selected?.id) return;
-    const t = replyPasteText.trim();
-    if (t.length < 20) {
-      alert("Paste at least 20 characters of the professor's reply.");
-      return;
-    }
-    setAnalyzingReply(true);
-    try {
-      const res = await fetch(`/api/prof-emails/${selected.id}/analyze-reply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ replyText: t }),
-      });
-      const j = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        alert(j.error ?? "Analysis failed.");
-        return;
-      }
-      await load();
-      await loadVersions();
-    } finally {
-      setAnalyzingReply(false);
     }
   };
 
@@ -536,9 +347,6 @@ export default function EmailsPage() {
     if (res.ok) await load();
   };
 
-  const docsForType = (type: DocType) =>
-    documents.filter((d) => d.type === type);
-
   const discoverSchoolsBlocked = discovering || working || selectedSchoolIds.length === 0;
 
   const discoverSchoolsBlockedReason = (() => {
@@ -552,16 +360,10 @@ export default function EmailsPage() {
   const sendViaGmail = async (id: string) => {
     setSendingViaGmail(true);
     try {
-      const attachmentDocumentIds = [
-        attachmentSelection.cv,
-        attachmentSelection.transcript,
-        attachmentSelection.gre,
-      ].filter((v) => v !== ATTACHMENT_NONE);
-
       const res = await fetch(`/api/prof-emails/${id}/send-via-gmail`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attachmentDocumentIds }),
+        body: JSON.stringify({ attachmentDocumentIds: [] }),
       });
       const j = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {

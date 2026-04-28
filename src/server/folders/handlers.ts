@@ -9,12 +9,13 @@ import {
   patchFolderSchema,
 } from "./schemas";
 
+function hasFolderModel(): boolean {
+  return Boolean((prisma as unknown as { folder?: unknown }).folder);
+}
+
 /** GET /api/folders — list the caller's folders with their document counts. */
 export const list = withPlanGate("documents", async (_req, { userId }) => {
-  const folderModel = (prisma as any).folder as
-    | { findMany: (...args: any[]) => Promise<any[]> }
-    | undefined;
-  if (!folderModel) return ok([]);
+  if (!hasFolderModel()) return ok([]);
 
   const folders = await prisma.folder.findMany({
     where: { userId },
@@ -44,10 +45,7 @@ export const list = withPlanGate("documents", async (_req, { userId }) => {
  * unique-name constraint (DB-level via Prisma `P2002`).
  */
 export const create = withPlanGate("documents", async (req, { userId }) => {
-  const folderModel = (prisma as any).folder as
-    | { count: (...args: any[]) => Promise<number> }
-    | undefined;
-  if (!folderModel) return bad("Folders are not enabled in this deployment.", 501);
+  if (!hasFolderModel()) return bad("Folders are not enabled in this deployment.", 501);
 
   const json = await req.json().catch(() => null);
   const parsed = createFolderSchema.safeParse(json);
@@ -89,10 +87,7 @@ export const create = withPlanGate("documents", async (req, { userId }) => {
 export const patch = withPlanGate<{ id: string }>(
   "documents",
   async (req, { userId, params }) => {
-    const folderModel = (prisma as any).folder as
-      | { findFirst: (...args: any[]) => Promise<any> }
-      | undefined;
-    if (!folderModel) return bad("Folders are not enabled in this deployment.", 501);
+    if (!hasFolderModel()) return bad("Folders are not enabled in this deployment.", 501);
 
     const json = await req.json().catch(() => null);
     const parsed = patchFolderSchema.safeParse(json);
@@ -138,10 +133,7 @@ export const patch = withPlanGate<{ id: string }>(
 export const remove = withPlanGate<{ id: string }>(
   "documents",
   async (_req, { userId, params }) => {
-    const folderModel = (prisma as any).folder as
-      | { findFirst: (...args: any[]) => Promise<any> }
-      | undefined;
-    if (!folderModel) return bad("Folders are not enabled in this deployment.", 501);
+    if (!hasFolderModel()) return bad("Folders are not enabled in this deployment.", 501);
 
     const existing = await prisma.folder.findFirst({
       where: { id: params.id, userId },

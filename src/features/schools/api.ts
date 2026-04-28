@@ -31,6 +31,8 @@ export function useSchools(opts?: { sort?: string }) {
       jsonOrThrow<SchoolRow[]>(
         await fetch(sort ? `/api/schools?sort=${sort}` : "/api/schools"),
       ),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 

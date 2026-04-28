@@ -2,8 +2,13 @@ import { prisma } from "@/lib/prisma";
 
 export function chatSupportsSchoolScope(): boolean {
   try {
-    const modelFields =
-      (prisma as any)?._runtimeDataModel?.models?.ChatMessage?.fields;
+    const modelFields = (
+      prisma as unknown as {
+        _runtimeDataModel?: {
+          models?: { ChatMessage?: { fields?: Array<{ name?: string }> } };
+        };
+      }
+    )?._runtimeDataModel?.models?.ChatMessage?.fields;
     return Array.isArray(modelFields)
       ? modelFields.some((f: { name?: string }) => f.name === "schoolId")
       : false;

@@ -46,11 +46,10 @@ export function useBillingStatus() {
   return useQuery({
     queryKey: billingKeys.status(),
     queryFn: async () =>
-      jsonOrThrow<BillingStatus>(
-        await fetch("/api/billing/status", { cache: "no-store" }),
-      ),
+      jsonOrThrow<BillingStatus>(await fetch("/api/billing/status")),
     // Billing state changes after redirects from Stripe — keep it fresh.
-    staleTime: 30_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 

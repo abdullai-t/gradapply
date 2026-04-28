@@ -140,16 +140,16 @@ export const create = withPlanGate("documents", async (req, { userId }) => {
   const json = await req.json().catch(() => null);
   const parsed = createDocumentSchema.safeParse(json);
   if (!parsed.success) return bad(parsed.error.flatten());
-  const { folderId: _folderId, ...createDataWithoutFolder } = parsed.data;
+  const { folderId, ...createDataWithoutFolder } = parsed.data;
 
   const sizeBytes = parsed.data.size ?? 0;
   const limitError = await enforceFreeTierStorageLimit(userId, sizeBytes);
   if (limitError) return limitError;
 
   // Verify folder ownership if one was provided.
-  if (supportsFolders && parsed.data.folderId) {
+  if (supportsFolders && folderId) {
     const folder = await prisma.folder.findFirst({
-      where: { id: parsed.data.folderId, userId },
+      where: { id: folderId, userId },
       select: { id: true },
     });
     if (!folder) return notFound("Folder not found");
