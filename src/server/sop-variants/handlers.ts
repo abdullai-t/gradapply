@@ -130,12 +130,10 @@ export const POST = withAuth(async (req, { userId }) => {
       title,
       body: bodyText.trim(),
       sourceMasterId,
-      masterText: masterSopText,
     },
     update: {
       body: bodyText.trim(),
       sourceMasterId,
-      masterText: masterSopText,
       ...(parsed.data.title?.trim()
         ? { title: parsed.data.title.trim() }
         : {}),

@@ -84,6 +84,14 @@ export const list = withPlanGate("documents", async (req, { userId }) => {
   const supportsFolders = Boolean(
     (prisma as unknown as { folder?: unknown }).folder,
   );
+  const runtimeDocument = (
+    prisma as unknown as {
+      document: {
+        findMany: (args: unknown) => Promise<Array<Record<string, unknown>>>;
+        count: (args: unknown) => Promise<number>;
+      };
+    }
+  ).document;
 
   const folderParam = url.searchParams.get("folderId");
   const folderFilter =
@@ -102,32 +110,43 @@ export const list = withPlanGate("documents", async (req, { userId }) => {
   const paged = url.searchParams.has("take") || url.searchParams.has("cursor");
 
   if (paged) {
-    const documents = await prisma.document.findMany({
-      where: { userId, ...folderFilter },
-      orderBy: { createdAt: "desc" },
-      take: take + 1, // peek one ahead to detect more
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      ...(supportsFolders
-        ? { include: { folder: { select: { id: true, name: true } } } }
-        : {}),
-    });
+    const documents = supportsFolders
+      ? ((await runtimeDocument.findMany({
+          where: { userId, ...folderFilter },
+          orderBy: { createdAt: "desc" },
+          take: take + 1,
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+          include: { folder: { select: { id: true, name: true } } },
+        })) as Array<Record<string, unknown> & { id?: string }>)
+      : await prisma.document.findMany({
+          where: { userId, ...folderFilter },
+          orderBy: { createdAt: "desc" },
+          take: take + 1,
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        });
     const hasMore = documents.length > take;
     const items = hasMore ? documents.slice(0, take) : documents;
     return ok({
       items,
-      nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
+      nextCursor:
+        hasMore && typeof items[items.length - 1]?.id === "string"
+          ? (items[items.length - 1]?.id as string)
+          : null,
     });
   }
 
   // Legacy non-paginated response — preserved so existing callers (the v1
   // /documents page bootstrap) keep working.
-  const documents = await prisma.document.findMany({
-    where: { userId, ...folderFilter },
-    orderBy: { createdAt: "desc" },
-    ...(supportsFolders
-      ? { include: { folder: { select: { id: true, name: true } } } }
-      : {}),
-  });
+  const documents = supportsFolders
+    ? await runtimeDocument.findMany({
+        where: { userId, ...folderFilter },
+        orderBy: { createdAt: "desc" },
+        include: { folder: { select: { id: true, name: true } } },
+      })
+    : await prisma.document.findMany({
+        where: { userId, ...folderFilter },
+        orderBy: { createdAt: "desc" },
+      });
 
   return ok(documents);
 });
@@ -137,6 +156,13 @@ export const create = withPlanGate("documents", async (req, { userId }) => {
   const supportsFolders = Boolean(
     (prisma as unknown as { folder?: unknown }).folder,
   );
+  const runtimeFolder = (
+    prisma as unknown as {
+      folder?: {
+        findFirst: (args: unknown) => Promise<{ id: string } | null>;
+      };
+    }
+  ).folder;
   const json = await req.json().catch(() => null);
   const parsed = createDocumentSchema.safeParse(json);
   if (!parsed.success) return bad(parsed.error.flatten());
@@ -148,7 +174,7 @@ export const create = withPlanGate("documents", async (req, { userId }) => {
 
   // Verify folder ownership if one was provided.
   if (supportsFolders && folderId) {
-    const folder = await prisma.folder.findFirst({
+    const folder = await runtimeFolder?.findFirst({
       where: { id: folderId, userId },
       select: { id: true },
     });
@@ -172,6 +198,13 @@ export const patch = withPlanGate<{ id: string }>(
     const supportsFolders = Boolean(
       (prisma as unknown as { folder?: unknown }).folder,
     );
+    const runtimeFolder = (
+      prisma as unknown as {
+        folder?: {
+          findFirst: (args: unknown) => Promise<{ id: string } | null>;
+        };
+      }
+    ).folder;
     const json = await req.json().catch(() => null);
     const parsed = patchDocumentSchema.safeParse(json);
     if (!parsed.success) return bad(parsed.error.flatten());
@@ -183,7 +216,7 @@ export const patch = withPlanGate<{ id: string }>(
 
     // If moving into a folder, verify the folder belongs to this user.
     if (supportsFolders && parsed.data.folderId) {
-      const folder = await prisma.folder.findFirst({
+      const folder = await runtimeFolder?.findFirst({
         where: { id: parsed.data.folderId, userId },
         select: { id: true },
       });
@@ -257,6 +290,13 @@ export const summary = withPlanGate("documents", async (_req, { userId }) => {
   const supportsFolders = Boolean(
     (prisma as unknown as { folder?: unknown }).folder,
   );
+  const runtimeDocument = (
+    prisma as unknown as {
+      document: {
+        count: (args: unknown) => Promise<number>;
+      };
+    }
+  ).document;
   const [groups, totalAgg, uncategorized] = await Promise.all([
     prisma.document.groupBy({
       by: ["type"],
@@ -270,7 +310,7 @@ export const summary = withPlanGate("documents", async (_req, { userId }) => {
       _sum: { size: true },
     }),
     supportsFolders
-      ? prisma.document.count({ where: { userId, folderId: null } })
+      ? runtimeDocument.count({ where: { userId, folderId: null } })
       : prisma.document.count({ where: { userId } }),
   ]);
 

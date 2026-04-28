@@ -46,11 +46,8 @@ export const getSopVariantTool: ToolDefinition<z.infer<typeof sopVariantInput>, 
       id: variant.id,
       title: variant.title,
       body: variant.body.length > MAX ? `${variant.body.slice(0, MAX)}…` : variant.body,
-      masterText: variant.masterText
-        ? variant.masterText.length > MAX
-          ? `${variant.masterText.slice(0, MAX)}…`
-          : variant.masterText
-        : null,
+      // Some branches do not expose `masterText` in the generated Prisma client.
+      masterText: null,
     };
 
     setCached(ctx, "getSopVariant", input, result);
@@ -82,33 +79,33 @@ export const getMasterSopTool: ToolDefinition<z.infer<typeof masterSopInput>, Ma
     const cached = getCached<MasterSopOutput>(ctx, "getMasterSop", input);
     if (cached !== undefined) return cached;
 
-    // Try from the variant's masterText first
+    // Prefer school-specific SOP text when available.
     if (input.schoolId) {
       const variant = await prisma.sopVariant.findFirst({
         where: { schoolId: input.schoolId, userId: ctx.userId },
-        select: { masterText: true },
+        select: { body: true },
       });
-      if (variant?.masterText) {
+      if (variant?.body) {
         const result: MasterSopOutput = {
-          text: variant.masterText,
-          source: "sopVariant.masterText",
+          text: variant.body,
+          source: "sopVariant.body",
         };
         setCached(ctx, "getMasterSop", input, result);
         return result;
       }
     }
 
-    // Try from any variant that has a masterText
+    // Fallback to the latest SOP variant body.
     const anyVariant = await prisma.sopVariant.findFirst({
-      where: { userId: ctx.userId, masterText: { not: null } },
-      select: { masterText: true },
+      where: { userId: ctx.userId },
+      select: { body: true },
       orderBy: { updatedAt: "desc" },
     });
 
-    if (anyVariant?.masterText) {
+    if (anyVariant?.body) {
       const result: MasterSopOutput = {
-        text: anyVariant.masterText,
-        source: "sopVariant.masterText",
+        text: anyVariant.body,
+        source: "sopVariant.body",
       };
       setCached(ctx, "getMasterSop", input, result);
       return result;

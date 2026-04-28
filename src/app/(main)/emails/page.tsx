@@ -59,6 +59,12 @@ type EmailStatus =
   | "NO_REPLY"
   | "NOT_INTERESTED";
 
+type ReplyIntentKind =
+  | "INTERESTED"
+  | "NEUTRAL"
+  | "DECLINED"
+  | "UNKNOWN";
+
 type EmailRow = {
   id: string;
   profName: string | null;
