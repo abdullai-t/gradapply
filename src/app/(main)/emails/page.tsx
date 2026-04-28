@@ -10,7 +10,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -95,7 +95,6 @@ const statuses: EmailStatus[] = [
 export default function EmailsPage() {
   const qc = useQueryClient();
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   // Cached, deduped, focus-revalidated reads. Mutations below invalidate
   // the relevant query keys instead of re-running per-page `load()` helpers.
@@ -241,10 +240,11 @@ export default function EmailsPage() {
   }, [rows, selectedId]);
 
   useEffect(() => {
-    const qThread = searchParams.get("thread");
+    if (typeof window === "undefined") return;
+    const qThread = new URLSearchParams(window.location.search).get("thread");
     if (!qThread) return;
     setSelectedId((prev) => (prev === qThread ? prev : qThread));
-  }, [searchParams]);
+  }, []);
 
   const selected = useMemo(() => {
     const fallback = rows.find((r) => r.id === selectedId) ?? null;
