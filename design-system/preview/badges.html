@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en" class="dark"><head>
+<meta charset="utf-8"><title>Badges & Chips</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{margin:0;padding:22px;background:hsl(var(--background));color:hsl(var(--foreground));font-family:var(--font-sans);display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.badge{display:inline-flex;align-items:center;border-radius:6px;padding:2px 10px;font-size:12px;font-weight:600;border:1px solid transparent}
+.badge.primary{background:hsl(var(--primary));color:hsl(var(--primary-foreground))}
+.badge.outline{border-color:hsl(var(--border));color:hsl(var(--foreground))}
+.badge.plan{background:hsl(var(--amber-300) / .14);border-color:hsl(var(--amber-300) / .4);color:hsl(var(--amber-300))}
+.badge.appl{background:hsl(var(--sky-400) / .14);border-color:hsl(var(--sky-400) / .4);color:hsl(var(--sky-400))}
+.badge.wait{background:hsl(var(--violet-400) / .14);border-color:hsl(var(--violet-400) / .4);color:hsl(var(--violet-400))}
+.badge.acc{background:hsl(var(--emerald-500) / .14);border-color:hsl(var(--emerald-500) / .45);color:hsl(152 60% 65%)}
+.badge.rej{background:hsl(var(--destructive) / .18);border-color:hsl(var(--destructive) / .5);color:hsl(0 85% 75%)}
+.chip{display:inline-flex;align-items:center;border-radius:9999px;padding:2px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);color:hsl(var(--muted-foreground))}
+.chip.gold{color:hsl(var(--primary));border-color:hsl(var(--primary) / .3);background:hsl(var(--primary) / .1)}
+.gbadge{display:inline-flex;align-items:center;border-radius:9999px;padding:4px 12px;font-size:12px;font-weight:500;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:hsl(var(--foreground));backdrop-filter:blur(8px)}
+</style></head>
+<body class="ds-preview">
+<span class="badge plan">PLANNING</span>
+<span class="badge appl">APPLIED</span>
+<span class="badge wait">WAITING</span>
+<span class="badge acc">ACCEPTED</span>
+<span class="badge rej">REJECTED</span>
+<span class="badge outline">DRAFT</span>
+<span class="chip gold">Popular</span>
+<span class="chip">Campus spotlight</span>
+<span class="gbadge">Graduate admissions, treated like a serious project</span>
+</body></html>

@@ -1,52 +1,127 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Icon } from "@/components/icon";
 
+/**
+ * Tactile button — the design system's signature press-down control.
+ *
+ * Variants follow Material 3 + the GradApply tactile shadow language.
+ * Press behaviour is provided by the `.tactile` class (translateY + shadow drop).
+ */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ring-offset-background",
+  [
+    "tactile inline-flex items-center justify-center gap-2 whitespace-nowrap font-bold",
+    "rounded-xl ring-offset-background select-none",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-container)] focus-visible:ring-offset-2",
+    "disabled:pointer-events-none disabled:opacity-60 disabled:saturate-50",
+  ].join(" "),
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        primary:
+          "bg-[var(--primary)] text-[var(--on-primary)] shadow-tactile hover:brightness-105",
+        secondary:
+          "bg-[var(--surface-container-lowest)] text-[var(--primary)] border-2 border-[var(--primary)] shadow-tactile-active hover:bg-[var(--surface-container-low)]",
         outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+          "bg-[var(--surface-container-lowest)] text-[var(--on-surface)] border border-[var(--outline-variant)] hover:bg-[var(--surface-container-low)] [box-shadow:0_2px_0_0_var(--outline-variant)]",
+        ghost:
+          "bg-transparent text-[var(--on-surface-variant)] [box-shadow:none] hover:bg-[var(--surface-container)]",
+        link:
+          "bg-transparent text-[var(--primary)] [box-shadow:none] underline-offset-4 hover:underline",
+        destructive:
+          "bg-[var(--error)] text-[var(--on-error)] shadow-tactile-error hover:brightness-105",
+        // Legacy "default" for any callers we haven't migrated; alias of primary.
+        default:
+          "bg-[var(--primary)] text-[var(--on-primary)] shadow-tactile hover:brightness-105",
+        // Glass variant used over busy backgrounds.
         glass:
-          "border border-white/45 bg-white/35 text-foreground shadow-sm backdrop-blur-md hover:bg-white/45 dark:border-white/15 dark:bg-white/[0.07] dark:hover:bg-white/[0.12]",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+          "glass-panel text-[var(--on-surface)] [box-shadow:none] hover:bg-[color-mix(in_srgb,var(--surface-container-lowest)_85%,transparent)]",
       },
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-10 rounded-md px-8",
-        icon: "h-9 w-9",
+        sm: "h-9 px-3 text-xs",
+        default: "h-10 px-5 text-sm",
+        lg: "h-12 px-6 text-base",
+        icon: "h-10 w-10 p-0",
       },
     },
     defaultVariants: {
-      variant: "default",
+      variant: "primary",
       size: "default",
     },
   },
 );
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "children">,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
+  /** Material Symbols icon name shown on the left. */
+  icon?: string;
+  /** Material Symbols icon name shown on the right. */
+  iconRight?: string;
+  /** Show a spinner and disable the button. */
+  loading?: boolean;
+  children?: React.ReactNode;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  (
+    {
+      className,
+      variant,
+      size,
+      asChild = false,
+      icon,
+      iconRight,
+      loading,
+      disabled,
+      children,
+      ...props
+    },
+    ref,
+  ) => {
     const Comp = asChild ? Slot : "button";
+    const iconSize = size === "lg" ? 22 : size === "sm" ? 16 : 18;
+    const content = (
+      <>
+        {loading ? (
+          <Loader2
+            className="animate-spin"
+            size={iconSize}
+            aria-hidden
+          />
+        ) : icon ? (
+          <Icon name={icon} size={iconSize} />
+        ) : null}
+        {/*
+          inline-flex on the children wrapper so call sites that pass an icon
+          element + text as JSX children (e.g. <Button><Send /> Send via Gmail</Button>)
+          stay laid out horizontally. Tailwind's preflight applies `display:block`
+          to <svg>, which would otherwise force the text onto a second line
+          inside the span. gap-2 here mirrors the outer button spacing so a leading
+          inline icon sits a consistent 8px from the label.
+        */}
+        {children ? (
+          <span className="inline-flex items-center gap-2">{children}</span>
+        ) : null}
+        {!loading && iconRight ? (
+          <Icon name={iconRight} size={iconSize} />
+        ) : null}
+      </>
+    );
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
+        className={cn(buttonVariants({ variant, size, className }))}
+        disabled={disabled || loading}
+        aria-busy={loading || undefined}
         {...props}
-      />
+      >
+        {asChild ? (children as React.ReactElement) : content}
+      </Comp>
     );
   },
 );

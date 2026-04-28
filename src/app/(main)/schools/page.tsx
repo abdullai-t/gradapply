@@ -1,103 +1,51 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { format } from "date-fns";
-import {
-  ChevronRight,
-  ExternalLink,
-  Plus,
-  Sparkles,
-  Trash2,
-} from "lucide-react";
+import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import { useQueryClient } from "@tanstack/react-query";
+
 import { Button } from "@/components/ui/button";
+import { PageLoader } from "@/components/page-loader";
+
+// Add-school modal is dynamically imported so it doesn't bloat the initial
+// /schools route bundle. Renders only after a FAB / button gesture, so SSR
+// is not required.
+const AddSchoolModal = dynamic(
+  () =>
+    import("@/components/add-school-modal").then((m) => ({
+      default: m.AddSchoolModal,
+    })),
+  { ssr: false },
+);
+
+import { SchoolsStats } from "@/features/schools/schools-stats";
+import { SchoolGridCard } from "@/features/schools/school-grid-card";
+import { SchoolDetailForm } from "@/features/schools/school-detail-form";
+import { AddSchoolCard } from "@/features/schools/add-school-card";
+import { AIInsightCard } from "@/features/schools/ai-insight-card";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { AddSchoolModal } from "@/components/add-school-modal";
-import { SopTailorDialog } from "@/components/sop-tailor-dialog";
-import {
-  ADMISSION_TERM_OPTIONS,
-  admissionTermLabel,
-} from "@/lib/admission-term";
-import { progressFromStatus } from "@/lib/school-progress";
-import { formatDeadlineDateInput } from "@/lib/school-deadline";
-import { cn } from "@/lib/utils";
-import type { AdmissionTerm } from "@prisma/client";
-
-type SchoolStatus =
-  | "PLANNING"
-  | "APPLIED"
-  | "WAITING"
-  | "ACCEPTED"
-  | "REJECTED"
-  | "WITHDRAWN";
-
-type SchoolRow = {
-  id: string;
-  name: string;
-  program: string;
-  degree: string;
-  country: string | null;
-  term: AdmissionTerm | null;
-  deadline: string | null;
-  status: SchoolStatus;
-  funding: string | null;
-  notes: string | null;
-  portalUrl: string | null;
-  progress: number;
-  reminderAt: string | null;
-  reminderNote: string | null;
-  updatedAt: string;
-};
-
-const statuses: SchoolStatus[] = [
-  "PLANNING",
-  "APPLIED",
-  "WAITING",
-  "ACCEPTED",
-  "REJECTED",
-  "WITHDRAWN",
-];
-
-const TERM_SELECT_NONE = "__term_none__";
+  schoolsKeys,
+  useDeleteSchool,
+  useSchools,
+  useUpdateSchool,
+} from "@/features/schools/api";
+import type { SchoolRow } from "@/features/schools/types";
 
 export default function SchoolsPage() {
-  const [schools, setSchools] = useState<SchoolRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const { data, isLoading } = useSchools();
+  const updateSchool = useUpdateSchool();
+  const deleteSchoolMutation = useDeleteSchool();
+  const schools = useMemo(() => (data ?? []) as SchoolRow[], [data]);
+
+  // Bridge for the legacy AddSchoolModal which POSTs directly. It invokes
+  // `onSaved` after a successful write; we forward that to TanStack Query
+  // as a cache invalidation.
+  const invalidateSchools = () =>
+    void qc.invalidateQueries({ queryKey: schoolsKeys.all });
+
   const [addOpen, setAddOpen] = useState(false);
-  /** Expanded school cards — omitted id = collapsed (minimal). */
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [tailorTarget, setTailorTarget] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
-
-  const load = async () => {
-    setLoading(true);
-    const res = await fetch("/api/schools");
-    if (res.ok) setSchools(await res.json());
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    void load();
-  }, []);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const sorted = useMemo(
     () =>
@@ -108,386 +56,74 @@ export default function SchoolsPage() {
     [schools],
   );
 
-  const patchSchool = async (
+  const patchSchool = (
     id: string,
     body: Partial<SchoolRow> & Record<string, unknown>,
-  ) => {
-    const res = await fetch(`/api/schools/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) await load();
-  };
+  ) => updateSchool.mutateAsync({ id, data: body });
 
   const deleteSchool = async (id: string) => {
     if (!confirm("Delete this school record?")) return;
-    const res = await fetch(`/api/schools/${id}`, { method: "DELETE" });
-    if (res.ok) await load();
+    if (expandedId === id) setExpandedId(null);
+    await deleteSchoolMutation.mutateAsync(id);
   };
 
   const toggleExpanded = (id: string) => {
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+    setExpandedId((prev) => (prev === id ? null : id));
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 pb-24">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Schools</h1>
-        <p className="text-muted-foreground">
-          Track programs, deadlines, portals, and status as you move from planning to
-          applied.
-        </p>
-      </div>
+    <div className="slide-in space-y-10 pb-8">
+      {/* Header */}
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="t-headline-lg m-0 text-[var(--on-surface)]">
+            School applications
+          </h1>
+          <p className="mt-1.5 text-[15px] text-[var(--on-surface-variant)]">
+            Track your journey and manage deadlines across every program.
+          </p>
+        </div>
+        <Button icon="add" size="lg" onClick={() => setAddOpen(true)}>
+          Add school
+        </Button>
+      </header>
 
-      <Card className="glass-panel border-white/10">
-        <CardHeader>
-          <CardTitle>Your schools</CardTitle>
-          <CardDescription>
-            Tap a row to expand editing details; collapsed rows show a quick summary. Use the
-            floating button to add a school.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {loading ? (
-            <div className="text-sm text-muted-foreground">Loading schools…</div>
-          ) : sorted.length === 0 ? (
-            <div className="text-sm text-muted-foreground">
-              No schools yet — tap the add button to create your first entry.
-            </div>
-          ) : (
-            sorted.map((school) => {
-              const progressPct = progressFromStatus(school.status);
-              const isOpen = expanded[school.id] === true;
-              const summaryBits = [
-                school.country,
-                school.term ? admissionTermLabel(school.term) : null,
-                school.deadline
-                  ? `Due ${format(new Date(school.deadline), "MMM d, yyyy")}`
-                  : null,
-                school.reminderAt
-                  ? `Ping ${format(new Date(school.reminderAt), "MMM d")}`
-                  : null,
-              ].filter(Boolean);
+      {/* Stats bento */}
+      <SchoolsStats schools={schools} />
 
-              return (
-                <div
-                  key={school.id}
-                  className="rounded-xl border border-white/10 bg-muted/30 shadow-sm backdrop-blur-sm"
-                >
-                  <div className="flex gap-2 p-3 sm:p-4">
-                    <button
-                      type="button"
-                      className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-muted-foreground transition-colors hover:bg-white/[0.08] hover:text-foreground"
-                      aria-expanded={isOpen}
-                      aria-controls={`school-panel-${school.id}`}
-                      id={`school-trigger-${school.id}`}
-                      onClick={() => toggleExpanded(school.id)}
-                      aria-label={isOpen ? "Collapse details" : "Expand details"}
-                    >
-                      <ChevronRight
-                        className={cn(
-                          "h-5 w-5 transition-transform duration-200",
-                          isOpen && "rotate-90",
-                        )}
-                        aria-hidden
-                      />
-                    </button>
+      {/* Grid */}
+      {isLoading ? (
+        <PageLoader label="Loading schools…" />
+      ) : (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          {sorted.map((school) => (
+            <SchoolGridCard
+              key={school.id}
+              school={school}
+              expanded={expandedId === school.id}
+              onToggleExpand={() => toggleExpanded(school.id)}
+              onDelete={() => deleteSchool(school.id)}
+            >
+              <SchoolDetailForm
+                school={school}
+                onPatch={(body) => patchSchool(school.id, body)}
+              />
+            </SchoolGridCard>
+          ))}
+          <AddSchoolCard onClick={() => setAddOpen(true)} />
+        </div>
+      )}
 
-                    <button
-                      type="button"
-                      className="min-w-0 flex-1 cursor-pointer rounded-lg text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
-                      onClick={() => toggleExpanded(school.id)}
-                      aria-expanded={isOpen}
-                      aria-controls={`school-panel-${school.id}`}
-                    >
-                      <div className="font-display text-lg font-semibold leading-tight">
-                        {school.name}
-                      </div>
-                      <div className="mt-0.5 text-sm text-muted-foreground">
-                        {school.program} · {school.degree}
-                      </div>
-                      {!isOpen && summaryBits.length > 0 ? (
-                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                          {summaryBits.map((bit, i) => (
-                            <span key={`${school.id}-s-${i}`}>{bit}</span>
-                          ))}
-                        </div>
-                      ) : null}
-                    </button>
+      {/* AI insight */}
+      {!isLoading && schools.length > 0 ? (
+        <AIInsightCard schools={schools} />
+      ) : null}
 
-                    <div className="flex shrink-0 items-start gap-2">
-                      <Badge variant="outline" className="hidden sm:inline-flex">
-                        {school.status.replaceAll("_", " ")}
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0"
-                        aria-label="Tailor statement of purpose"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTailorTarget({ id: school.id, name: school.name });
-                        }}
-                      >
-                        <Sparkles className="h-4 w-4" aria-hidden />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0"
-                        aria-label="Delete school"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteSchool(school.id);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {!isOpen ? (
-                    <Badge
-                      variant="outline"
-                      className="mx-4 mb-3 ml-[4.25rem] sm:hidden"
-                    >
-                      {school.status.replaceAll("_", " ")}
-                    </Badge>
-                  ) : null}
-
-                  {isOpen ? (
-                    <div
-                      id={`school-panel-${school.id}`}
-                      role="region"
-                      aria-labelledby={`school-trigger-${school.id}`}
-                      className="border-t border-white/10"
-                    >
-                      <div className="space-y-4 px-4 pb-4 pt-3 sm:pl-[4.25rem]">
-                        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground sm:text-sm">
-                          {school.country ? (
-                            <span>{school.country}</span>
-                          ) : (
-                            <span className="italic">No country set</span>
-                          )}
-                          {school.term ? (
-                            <span>Term: {admissionTermLabel(school.term)}</span>
-                          ) : (
-                            <span className="italic">No term set</span>
-                          )}
-                          {school.deadline ? (
-                            <span>
-                              Deadline{" "}
-                              {format(new Date(school.deadline), "MMM d, yyyy")}
-                            </span>
-                          ) : (
-                            <span className="italic">No deadline</span>
-                          )}
-                          {school.funding?.trim() ? (
-                            <span>Funding: {school.funding}</span>
-                          ) : null}
-                          {school.portalUrl?.trim() ? (
-                            <a
-                              href={school.portalUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              Application portal
-                              <ExternalLink className="h-3 w-3" aria-hidden />
-                            </a>
-                          ) : null}
-                        </div>
-
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>Admission term</Label>
-                            <Select
-                              value={
-                                school.term != null ? school.term : TERM_SELECT_NONE
-                              }
-                              onValueChange={(v) =>
-                                patchSchool(school.id, {
-                                  term:
-                                    v === TERM_SELECT_NONE
-                                      ? null
-                                      : (v as AdmissionTerm),
-                                })
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Term" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={TERM_SELECT_NONE}>
-                                  Not specified
-                                </SelectItem>
-                                {ADMISSION_TERM_OPTIONS.map(({ value, label }) => (
-                                  <SelectItem key={value} value={value}>
-                                    {label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Status</Label>
-                            <Select
-                              value={school.status}
-                              onValueChange={(v) =>
-                                patchSchool(school.id, {
-                                  status: v as SchoolStatus,
-                                })
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {statuses.map((s) => (
-                                  <SelectItem key={s} value={s}>
-                                    {s.replaceAll("_", " ")}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Progress ({progressPct}%)</Label>
-                            <Progress value={progressPct} />
-                          </div>
-                          <div className="space-y-2 md:col-span-2">
-                            <Label>Notes</Label>
-                            <Textarea
-                              defaultValue={school.notes ?? ""}
-                              onBlur={(e) =>
-                                patchSchool(school.id, {
-                                  notes: e.target.value,
-                                })
-                              }
-                            />
-                          </div>
-                          <div className="space-y-3 md:col-span-2 rounded-xl border border-primary/20 bg-primary/[0.04] p-4">
-                            <div className="text-sm font-medium">
-                              School-specific statement of purpose
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              Generate a tailored draft from one master SOP (library file or
-                              paste). One saved variant per school — edit after generation.
-                            </p>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              className="gap-2"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setTailorTarget({
-                                  id: school.id,
-                                  name: school.name,
-                                });
-                              }}
-                            >
-                              <Sparkles className="h-4 w-4" aria-hidden />
-                              Tailor for this school
-                            </Button>
-                          </div>
-                          <div className="space-y-2 md:col-span-2 rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                            <div className="text-sm font-medium">Reminder</div>
-                            <p className="text-xs text-muted-foreground">
-                              Optional follow-up date (one per school). Cleared when you remove the date.
-                            </p>
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <div className="space-y-2">
-                                <Label htmlFor={`reminder-at-${school.id}`}>
-                                  Remind me on
-                                </Label>
-                                <Input
-                                  id={`reminder-at-${school.id}`}
-                                  type="date"
-                                  key={`${school.id}-ra-${school.reminderAt ?? "none"}`}
-                                  className="glass-input min-h-11"
-                                  defaultValue={formatDeadlineDateInput(
-                                    school.reminderAt,
-                                  )}
-                                  onBlur={(e) =>
-                                    patchSchool(school.id, {
-                                      reminderAt: e.target.value || null,
-                                    })
-                                  }
-                                />
-                              </div>
-                              <div className="space-y-2 sm:col-span-2">
-                                <Label htmlFor={`reminder-note-${school.id}`}>
-                                  Reminder note
-                                </Label>
-                                <Textarea
-                                  id={`reminder-note-${school.id}`}
-                                  key={`${school.id}-rn-${school.reminderNote ?? ""}`}
-                                  placeholder="e.g. Submit GRE scores"
-                                  defaultValue={school.reminderNote ?? ""}
-                                  onBlur={(e) =>
-                                    patchSchool(school.id, {
-                                      reminderNote: e.target.value || null,
-                                    })
-                                  }
-                                />
-                              </div>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="border-dashed"
-                              disabled={
-                                !school.reminderAt &&
-                                !(school.reminderNote?.trim())
-                              }
-                              onClick={() =>
-                                patchSchool(school.id, {
-                                  reminderAt: null,
-                                  reminderNote: null,
-                                })
-                              }
-                            >
-                              Clear reminder
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })
-          )}
-        </CardContent>
-      </Card>
-
-      <Button
-        type="button"
-        size="icon"
-        className="fixed bottom-6 right-6 z-40 h-14 w-14 rounded-full shadow-lg"
-        aria-label="Add school"
-        onClick={() => setAddOpen(true)}
-      >
-        <Plus className="h-7 w-7" aria-hidden />
-      </Button>
-
+      {/* Modals */}
       <AddSchoolModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onSaved={() => void load()}
-      />
-
-      <SopTailorDialog
-        open={tailorTarget !== null}
-        onOpenChange={(o) => {
-          if (!o) setTailorTarget(null);
-        }}
-        schoolId={tailorTarget?.id ?? ""}
-        schoolName={tailorTarget?.name ?? ""}
-        onSaved={() => void load()}
+        onSaved={invalidateSchools}
       />
     </div>
   );

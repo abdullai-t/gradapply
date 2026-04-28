@@ -1,0 +1,80 @@
+"use client";
+
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+
+export const billingKeys = {
+  all: ["billing"] as const,
+  status: () => ["billing", "status"] as const,
+};
+
+export type BillingStatus = {
+  billingEnabled: boolean;
+  checkoutConfigured: boolean;
+  stripeEnabled: boolean;
+  paystackEnabled: boolean;
+  canCheckoutPlus: boolean;
+  canCheckoutPro: boolean;
+  canCheckoutCredits: boolean;
+  planTier: string;
+  monthlyAllowance: number;
+  aiUsageUsed: number;
+  aiCreditsBalance: number;
+  subscriptionStatus: string | null;
+  currentPeriodEnd: string | null;
+  hasStripeCustomer: boolean;
+  hasSubscription: boolean;
+  hasPaystackCustomer: boolean;
+  settingsEnabled: boolean;
+  supportTabEnabled: boolean;
+};
+
+async function jsonOrThrow<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as
+      | { error?: string }
+      | null;
+    throw new Error(body?.error ?? `Request failed (${res.status})`);
+  }
+  return (await res.json()) as T;
+}
+
+export function useBillingStatus() {
+  return useQuery({
+    queryKey: billingKeys.status(),
+    queryFn: async () =>
+      jsonOrThrow<BillingStatus>(await fetch("/api/billing/status")),
+    // Billing state changes after redirects from Stripe — keep it fresh.
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useCheckout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (tier: "plus" | "pro" | "credits") =>
+      jsonOrThrow<{ url: string }>(
+        await fetch("/api/billing/checkout", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ tier }),
+        }),
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: billingKeys.all });
+    },
+  });
+}
+
+export function useOpenPortal() {
+  return useMutation({
+    mutationFn: async () =>
+      jsonOrThrow<{ url: string }>(
+        await fetch("/api/billing/portal", { method: "POST" }),
+      ),
+  });
+}

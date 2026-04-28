@@ -1,18 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
+
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -20,6 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Icon } from "@/components/icon";
+import { AIEnhanceTextarea } from "@/components/ai-enhance-textarea";
+import { useProfile, useUpdateProfile } from "@/features/profile/api";
 import {
   DEGREE_OPTIONS,
   PROGRAM_OPTIONS,
@@ -62,11 +58,13 @@ const empty: ProfileForm = {
 };
 
 export default function ProfilePage() {
+  const { data: session } = useSession();
   const [form, setForm] = useState<ProfileForm>(empty);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [countryDraft, setCountryDraft] = useState(SELECT_NONE);
+
+  const profileQuery = useProfile();
+  const updateProfile = useUpdateProfile();
 
   const targetDegreeItems = useMemo(
     () => optionsWithFallback(DEGREE_OPTIONS, form.targetDegree),
@@ -81,61 +79,55 @@ export default function ProfilePage() {
     [form.countriesOfInterest],
   );
 
+  // Hydrate the form from the cached query result. Runs once when the data
+  // first arrives; later refetches won't clobber unsaved edits.
+  const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
-    const load = async () => {
-      const res = await fetch("/api/profile");
-      if (!res.ok) {
-        setLoading(false);
-        return;
-      }
-      const p = await res.json();
-      setForm({
-        targetDegree: p.targetDegree ?? "",
-        focusArea: p.focusArea ?? "",
-        greScore: p.greScore ?? "",
-        greVerbal: p.greVerbal?.toString() ?? "",
-        greQuant: p.greQuant?.toString() ?? "",
-        greAWA: p.greAWA?.toString() ?? "",
-        undergradSchool: p.undergradSchool ?? "",
-        undergradDegree: p.undergradDegree ?? "",
-        undergradGPA: p.undergradGPA?.toString() ?? "",
-        yearsExperience: p.yearsExperience ?? "",
-        researchInterests: p.researchInterests ?? "",
-        countriesOfInterest: Array.isArray(p.countriesOfInterest)
-          ? p.countriesOfInterest
-          : [],
-        bio: p.bio ?? "",
-      });
-      setLoading(false);
-    };
-    void load();
-  }, []);
+    if (hydrated || !profileQuery.data) return;
+    const p = profileQuery.data as Record<string, unknown>;
+    setForm({
+      targetDegree: (p.targetDegree as string) ?? "",
+      focusArea: (p.focusArea as string) ?? "",
+      greScore: (p.greScore as string) ?? "",
+      greVerbal: (p.greVerbal as number)?.toString() ?? "",
+      greQuant: (p.greQuant as number)?.toString() ?? "",
+      greAWA: (p.greAWA as number)?.toString() ?? "",
+      undergradSchool: (p.undergradSchool as string) ?? "",
+      undergradDegree: (p.undergradDegree as string) ?? "",
+      undergradGPA: (p.undergradGPA as number)?.toString() ?? "",
+      yearsExperience: (p.yearsExperience as string) ?? "",
+      researchInterests: (p.researchInterests as string) ?? "",
+      countriesOfInterest: Array.isArray(p.countriesOfInterest)
+        ? (p.countriesOfInterest as string[])
+        : [],
+      bio: (p.bio as string) ?? "",
+    });
+    setHydrated(true);
+  }, [hydrated, profileQuery.data]);
+
+  const loading = profileQuery.isLoading;
+  const saving = updateProfile.isPending;
 
   const save = useCallback(async () => {
-    setSaving(true);
     setSaved(false);
-    const res = await fetch("/api/profile", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        targetDegree: form.targetDegree || null,
-        focusArea: form.focusArea || null,
-        greScore: form.greScore || null,
-        greVerbal: form.greVerbal ? Number(form.greVerbal) : null,
-        greQuant: form.greQuant ? Number(form.greQuant) : null,
-        greAWA: form.greAWA ? Number(form.greAWA) : null,
-        undergradSchool: form.undergradSchool || null,
-        undergradDegree: form.undergradDegree || null,
-        undergradGPA: form.undergradGPA ? Number(form.undergradGPA) : null,
-        yearsExperience: form.yearsExperience || null,
-        researchInterests: form.researchInterests || null,
-        countriesOfInterest: form.countriesOfInterest,
-        bio: form.bio || null,
-      }),
+    await updateProfile.mutateAsync({
+      targetDegree: form.targetDegree || null,
+      focusArea: form.focusArea || null,
+      greScore: form.greScore || null,
+      greVerbal: form.greVerbal ? Number(form.greVerbal) : null,
+      greQuant: form.greQuant ? Number(form.greQuant) : null,
+      greAWA: form.greAWA ? Number(form.greAWA) : null,
+      undergradSchool: form.undergradSchool || null,
+      undergradDegree: form.undergradDegree || null,
+      undergradGPA: form.undergradGPA ? Number(form.undergradGPA) : null,
+      yearsExperience: form.yearsExperience || null,
+      researchInterests: form.researchInterests || null,
+      countriesOfInterest: form.countriesOfInterest,
+      bio: form.bio || null,
     });
-    setSaving(false);
-    if (res.ok) setSaved(true);
-  }, [form]);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 4000);
+  }, [form, updateProfile]);
 
   const addCountryOfInterest = useCallback(() => {
     if (countryDraft === SELECT_NONE) return;
@@ -148,147 +140,201 @@ export default function ProfilePage() {
     setCountryDraft(SELECT_NONE);
   }, [countryDraft, form, selectedCountries]);
 
-  const removeCountryOfInterest = useCallback((country: string) => {
-    setForm({
-      ...form,
-      countriesOfInterest: form.countriesOfInterest.filter((c) => c !== country),
-    });
-  }, [form]);
+  const removeCountryOfInterest = useCallback(
+    (country: string) => {
+      setForm({
+        ...form,
+        countriesOfInterest: form.countriesOfInterest.filter(
+          (c) => c !== country,
+        ),
+      });
+    },
+    [form],
+  );
+
+  const initials = computeInitials(session?.user?.name, session?.user?.email);
+  const displayName = session?.user?.name || session?.user?.email || "Applicant";
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Applicant profile</h1>
-        <p className="text-muted-foreground">
-          This context powers professor email drafts and the AI assistant’s system
-          prompts.
-        </p>
+    <div className="slide-in space-y-8 pb-8">
+      {/* Header card with avatar */}
+      <div className="tactile-card relative overflow-hidden rounded-3xl border-2 border-[var(--outline-variant)] p-7 md:p-8">
+        <div
+          className="absolute inset-x-0 top-0 h-1.5"
+          style={{
+            background:
+              "linear-gradient(90deg, var(--primary-container), var(--secondary-container))",
+          }}
+        />
+        <div className="flex flex-col items-start gap-7 md:flex-row md:items-center">
+          <div
+            className="grid h-28 w-28 place-items-center rounded-3xl border-4 border-white text-4xl font-extrabold tracking-tight text-[var(--primary)]"
+            style={{
+              background:
+                "linear-gradient(135deg, var(--primary-fixed), var(--primary-fixed-dim))",
+              boxShadow: "0 8px 24px rgba(0, 0, 0, 0.1)",
+            }}
+          >
+            {initials}
+          </div>
+          <div className="flex-1">
+            <h1 className="t-headline-lg m-0 text-[var(--on-surface)]">
+              {displayName}
+            </h1>
+            {form.targetDegree || form.focusArea ? (
+              <p className="mt-1 inline-flex items-center gap-1.5 text-sm font-bold text-[var(--primary)]">
+                <Icon name="verified" fill size={16} />
+                {[form.targetDegree, form.focusArea]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            ) : null}
+            {form.bio?.trim() ? (
+              <p className="mt-3 text-[15px] leading-relaxed text-[var(--on-surface-variant)]">
+                {form.bio.trim()}
+              </p>
+            ) : (
+              <p className="mt-3 text-sm italic text-[var(--outline)]">
+                Add a bio below — the assistant uses it as context for every
+                draft.
+              </p>
+            )}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {form.undergradSchool ? (
+                <ProfileChip icon="school" label={form.undergradSchool} />
+              ) : null}
+              {form.undergradDegree ? (
+                <ProfileChip icon="account_balance" label={form.undergradDegree} />
+              ) : null}
+              {form.yearsExperience ? (
+                <ProfileChip icon="work" label={form.yearsExperience} />
+              ) : null}
+            </div>
+          </div>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Basics</CardTitle>
-          <CardDescription>
-            Degrees, focus areas, and experience summaries.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {loading ? (
-            <div className="text-sm text-muted-foreground">Loading profile…</div>
-          ) : (
-            <>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Target degree</Label>
-                  <Select
-                    value={form.targetDegree ? form.targetDegree : SELECT_NONE}
-                    onValueChange={(v) =>
-                      setForm({
-                        ...form,
-                        targetDegree: v === SELECT_NONE ? "" : v,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Not specified" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SELECT_NONE}>Not specified</SelectItem>
-                      {targetDegreeItems.map((d) => (
-                        <SelectItem key={d} value={d}>
-                          {d}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Focus area (program)</Label>
-                  <Select
-                    value={form.focusArea ? form.focusArea : SELECT_NONE}
-                    onValueChange={(v) =>
-                      setForm({
-                        ...form,
-                        focusArea: v === SELECT_NONE ? "" : v,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Not specified" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SELECT_NONE}>Not specified</SelectItem>
-                      {focusItems.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Field
-                  label="Years of experience"
-                  value={form.yearsExperience}
-                  onChange={(v) => setForm({ ...form, yearsExperience: v })}
-                />
-                <Field
-                  label="GRE score (combined or label)"
-                  value={form.greScore}
-                  onChange={(v) => setForm({ ...form, greScore: v })}
-                />
-                <Field
-                  label="GRE verbal"
-                  value={form.greVerbal}
-                  onChange={(v) => setForm({ ...form, greVerbal: v })}
-                  type="number"
-                />
-                <Field
-                  label="GRE quant"
-                  value={form.greQuant}
-                  onChange={(v) => setForm({ ...form, greQuant: v })}
-                  type="number"
-                />
-                <Field
-                  label="GRE AWA"
-                  value={form.greAWA}
-                  onChange={(v) => setForm({ ...form, greAWA: v })}
-                  type="number"
-                />
-                <Field
-                  label="Undergrad school"
-                  value={form.undergradSchool}
-                  onChange={(v) => setForm({ ...form, undergradSchool: v })}
-                />
-                <Field
-                  label="Undergrad degree"
-                  value={form.undergradDegree}
-                  onChange={(v) => setForm({ ...form, undergradDegree: v })}
-                />
-                <Field
-                  label="Undergrad GPA"
-                  value={form.undergradGPA}
-                  onChange={(v) => setForm({ ...form, undergradGPA: v })}
-                  type="number"
-                />
-              </div>
+      {/* Subtitle */}
+      <p className="text-[15px] text-[var(--on-surface-variant)]">
+        This context powers professor email drafts and the AI assistant&apos;s
+        system prompts.
+      </p>
+
+      {loading ? (
+        <div className="rounded-2xl border-2 border-dashed border-[var(--outline-variant)] p-10 text-center text-sm text-[var(--on-surface-variant)]">
+          Loading profile…
+        </div>
+      ) : (
+        <>
+          {/* Section: Basics */}
+          <Section
+            title="Basics"
+            description="Your target degree and focus shape every recommendation."
+            icon="explore"
+          >
+            <div className="grid gap-5 md:grid-cols-2">
+              <SelectField
+                label="Target degree"
+                value={form.targetDegree}
+                onChange={(v) => setForm({ ...form, targetDegree: v })}
+                options={targetDegreeItems}
+              />
+              <SelectField
+                label="Focus area (program)"
+                value={form.focusArea}
+                onChange={(v) => setForm({ ...form, focusArea: v })}
+                options={focusItems}
+              />
+              <Field
+                label="Years of experience"
+                value={form.yearsExperience}
+                onChange={(v) => setForm({ ...form, yearsExperience: v })}
+              />
+              <Field
+                label="GRE score (combined or label)"
+                value={form.greScore}
+                onChange={(v) => setForm({ ...form, greScore: v })}
+              />
+            </div>
+          </Section>
+
+          {/* Section: Academic stats */}
+          <Section
+            title="Academic stats"
+            description="Test scores and undergraduate background."
+            icon="analytics"
+          >
+            <div className="grid gap-5 md:grid-cols-3">
+              <Field
+                label="GRE verbal"
+                value={form.greVerbal}
+                onChange={(v) => setForm({ ...form, greVerbal: v })}
+                type="number"
+              />
+              <Field
+                label="GRE quant"
+                value={form.greQuant}
+                onChange={(v) => setForm({ ...form, greQuant: v })}
+                type="number"
+              />
+              <Field
+                label="GRE AWA"
+                value={form.greAWA}
+                onChange={(v) => setForm({ ...form, greAWA: v })}
+                type="number"
+              />
+              <Field
+                label="Undergrad school"
+                value={form.undergradSchool}
+                onChange={(v) => setForm({ ...form, undergradSchool: v })}
+              />
+              <Field
+                label="Undergrad degree"
+                value={form.undergradDegree}
+                onChange={(v) => setForm({ ...form, undergradDegree: v })}
+              />
+              <Field
+                label="Undergrad GPA"
+                value={form.undergradGPA}
+                onChange={(v) => setForm({ ...form, undergradGPA: v })}
+                type="number"
+              />
+            </div>
+          </Section>
+
+          {/* Section: Research focus */}
+          <Section
+            title="Research focus"
+            description="The assistant uses these to align outreach and SOPs."
+            icon="biotech"
+          >
+            <div className="space-y-5">
               <div className="space-y-2">
-                <Label>Research interests</Label>
-                <Textarea
+                <Label className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--outline)]">
+                  Research interests
+                </Label>
+                <AIEnhanceTextarea
                   value={form.researchInterests}
-                  onChange={(e) =>
-                    setForm({ ...form, researchInterests: e.target.value })
+                  onChange={(v) =>
+                    setForm({ ...form, researchInterests: v })
                   }
+                  placeholder="One or two sentences on the questions and methods that excite you most."
+                  enhancePrompt="Enhance this research interests text for a graduate school application profile. Make it clear, concise, and academically professional while preserving the core ideas and the applicant's voice."
                 />
               </div>
               <div className="space-y-3">
-                <Label>Countries of interest (max 5)</Label>
+                <Label className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--outline)]">
+                  Countries of interest (max 5)
+                </Label>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <Select value={countryDraft} onValueChange={setCountryDraft}>
                     <SelectTrigger className="sm:flex-1">
                       <SelectValue placeholder="Select country" />
                     </SelectTrigger>
                     <SelectContent className="max-h-[min(22rem,60vh)]">
-                      <SelectItem value={SELECT_NONE}>Choose a country</SelectItem>
+                      <SelectItem value={SELECT_NONE}>
+                        Choose a country
+                      </SelectItem>
                       {COUNTRY_OPTIONS.map((country) => (
                         <SelectItem key={country} value={country}>
                           {country}
@@ -298,7 +344,8 @@ export default function ProfilePage() {
                   </Select>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="secondary"
+                    icon="add"
                     onClick={addCountryOfInterest}
                     disabled={
                       countryDraft === SELECT_NONE ||
@@ -309,47 +356,114 @@ export default function ProfilePage() {
                     Add
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  School recommendations in the add-school modal will be narrowed to these countries.
+                <p className="text-xs text-[var(--outline)]">
+                  School recommendations in the add-school modal will be
+                  narrowed to these countries.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {form.countriesOfInterest.map((country) => (
-                    <Badge key={country} variant="secondary" className="gap-2">
+                    <span
+                      key={country}
+                      className="inline-flex items-center gap-2 rounded-full bg-[var(--secondary-container)]/30 px-3 py-1.5 text-xs font-bold text-[var(--on-secondary-container)] border border-[var(--secondary-container)]/40"
+                    >
                       {country}
                       <button
                         type="button"
                         aria-label={`Remove ${country}`}
-                        className="rounded-sm px-1 text-xs hover:bg-black/10"
                         onClick={() => removeCountryOfInterest(country)}
+                        className="grid h-4 w-4 place-items-center rounded-full hover:bg-black/10"
                       >
-                        x
+                        <Icon name="close" size={12} />
                       </button>
-                    </Badge>
+                    </span>
                   ))}
+                  {form.countriesOfInterest.length === 0 ? (
+                    <p className="text-sm italic text-[var(--outline)]">
+                      No countries selected yet.
+                    </p>
+                  ) : null}
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Bio / narrative notes</Label>
-                <Textarea
-                  className="min-h-[140px]"
-                  value={form.bio}
-                  onChange={(e) => setForm({ ...form, bio: e.target.value })}
-                />
-              </div>
+            </div>
+          </Section>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <Button onClick={() => void save()} disabled={saving}>
-                  {saving ? "Saving…" : "Save changes"}
-                </Button>
-                {saved && (
-                  <span className="text-sm text-emerald-600">Saved successfully.</span>
-                )}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+          {/* Section: Bio */}
+          <Section
+            title="Bio &amp; narrative notes"
+            description="Personal context surfaced in AI prompts."
+            icon="article"
+          >
+            <AIEnhanceTextarea
+              className="min-h-[160px]"
+              value={form.bio}
+              onChange={(v) => setForm({ ...form, bio: v })}
+              placeholder="Three sentences about who you are, what you're working on, and where you want to go next."
+              enhancePrompt="Enhance this bio for a graduate school application profile. Make it compelling, clear, and professional while maintaining the applicant's authentic voice and personal story."
+            />
+          </Section>
+
+          {/* Save bar */}
+          <div className="sticky bottom-4 z-20 flex items-center justify-between gap-3 rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-4 [box-shadow:0_8px_24px_-8px_rgba(15,23,42,0.12)]">
+            <div className="flex items-center gap-2 text-sm text-[var(--on-surface-variant)]">
+              {saved ? (
+                <span className="inline-flex items-center gap-1.5 text-[var(--tertiary)]">
+                  <Icon name="check_circle" fill size={18} />
+                  Saved successfully.
+                </span>
+              ) : (
+                <span>Changes save when you tap Save.</span>
+              )}
+            </div>
+            <Button
+              size="lg"
+              onClick={() => void save()}
+              disabled={saving}
+              loading={saving}
+              icon={saving ? undefined : "save"}
+            >
+              {saving ? "Saving…" : "Save changes"}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+function Section({
+  title,
+  description,
+  icon,
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-3xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-6 md:p-7">
+      <header className="mb-5 flex items-start gap-3">
+        <div
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
+          style={{
+            background: "rgba(0,98,157,0.08)",
+            color: "var(--primary)",
+          }}
+        >
+          <Icon name={icon} size={22} />
+        </div>
+        <div>
+          <h2 className="m-0 text-lg font-bold tracking-tight text-[var(--on-surface)]">
+            {title}
+          </h2>
+          <p className="m-0 mt-0.5 text-sm text-[var(--on-surface-variant)]">
+            {description}
+          </p>
+        </div>
+      </header>
+      {children}
+    </section>
   );
 }
 
@@ -365,8 +479,10 @@ function Field({
   type?: string;
 }) {
   return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
+    <div className="space-y-1.5">
+      <Label className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--outline)]">
+        {label}
+      </Label>
       <Input
         type={type}
         value={value}
@@ -374,4 +490,68 @@ function Field({
       />
     </div>
   );
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--outline)]">
+        {label}
+      </Label>
+      <Select
+        value={value || SELECT_NONE}
+        onValueChange={(v) => onChange(v === SELECT_NONE ? "" : v)}
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Not specified" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={SELECT_NONE}>Not specified</SelectItem>
+          {options.map((d) => (
+            <SelectItem key={d} value={d}>
+              {d}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+function ProfileChip({ icon, label }: { icon: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--surface-container)] px-3.5 py-1.5 text-xs font-bold text-[var(--on-surface-variant)]">
+      <Icon name={icon} size={14} />
+      {label}
+    </span>
+  );
+}
+
+function computeInitials(
+  name: string | null | undefined,
+  email: string | null | undefined,
+): string {
+  if (name?.trim()) {
+    return name
+      .trim()
+      .split(/\s+/)
+      .map((w) => w[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+  }
+  if (email?.trim()) {
+    return email.slice(0, 2).toUpperCase();
+  }
+  return "?";
 }

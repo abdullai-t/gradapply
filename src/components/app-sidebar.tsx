@@ -109,7 +109,7 @@ export function AppSidebar() {
               className={cn(
                 "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
                 active
-                  ? "bg-primary/15 text-primary ring-1 ring-primary/35"
+                  ? "bg-primary/12 text-primary ring-1 ring-primary/20"
                   : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
               )}
             >

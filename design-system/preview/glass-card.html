@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en" class="dark"><head>
+<meta charset="utf-8"><title>Glass Panel Card</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{margin:0;padding:22px;background:hsl(var(--background));color:hsl(var(--foreground));font-family:var(--font-sans)}
+.panel{position:relative;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:16px;padding:22px;backdrop-filter:blur(24px);box-shadow:0 12px 48px -12px rgba(0,0,0,.45);overflow:hidden;max-width:600px}
+.orb{position:absolute;right:-60px;top:-60px;width:160px;height:160px;border-radius:9999px;background:hsl(var(--primary) / .15);filter:blur(40px)}
+.icon{width:44px;height:44px;border-radius:12px;background:hsl(var(--primary) / .15);display:flex;align-items:center;justify-content:center;color:hsl(var(--primary));ring:1px solid hsl(var(--primary) / .25)}
+.icon svg{width:22px;height:22px;stroke-width:1.5}
+h3{margin:14px 0 6px;font-family:var(--font-display);font-size:18px;font-weight:600}
+p{margin:0;color:hsl(var(--muted-foreground));font-size:14px;line-height:1.6}
+</style></head>
+<body class="ds-preview">
+<div class="panel">
+  <div class="orb"></div>
+  <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></div>
+  <h3>Clarity over chaos</h3>
+  <p>A single timeline and pipeline for programs, requirements, and deadlines — so nothing lives only in your head or buried in email threads.</p>
+</div>
+</body></html>

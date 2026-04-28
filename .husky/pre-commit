@@ -1,0 +1,106 @@
+#!/usr/bin/env sh
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Pre-commit hook: Block commits that contain secrets or .env files
+# ──────────────────────────────────────────────────────────────────────────────
+
+# 1. Block .env files from being committed
+BLOCKED_FILES=$(git diff --cached --name-only | grep -E '^\.(env|env\.local|env\..+\.local)$' || true)
+if [ -n "$BLOCKED_FILES" ]; then
+  echo ""
+  echo "BLOCKED: Environment files detected in staged changes:"
+  echo "$BLOCKED_FILES"
+  echo ""
+  echo "These files contain secrets and must never be committed."
+  echo "Run: git reset HEAD <file> to unstage."
+  echo ""
+  exit 1
+fi
+
+# 2. Scan staged file contents for secret patterns
+# Get list of staged files (exclude deleted files and binary files)
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=d | grep -E '\.(ts|tsx|js|jsx|json|mjs|cjs|yml|yaml|toml|md|txt|sh|env)$' || true)
+
+if [ -n "$STAGED_FILES" ]; then
+  # Patterns that indicate leaked secrets
+  SECRETS_FOUND=0
+
+  # Check each staged file's content (only the staged version)
+  for FILE in $STAGED_FILES; do
+    # Get the staged content of the file
+    CONTENT=$(git show ":$FILE" 2>/dev/null || true)
+    if [ -z "$CONTENT" ]; then
+      continue
+    fi
+
+    # Anthropic API key
+    if echo "$CONTENT" | grep -qE 'sk-ant-api[0-9]{2}-[A-Za-z0-9_-]{20,}'; then
+      echo "SECRET DETECTED in $FILE: Anthropic API key (sk-ant-api...)"
+      SECRETS_FOUND=1
+    fi
+
+    # OpenAI API key
+    if echo "$CONTENT" | grep -qE 'sk-proj-[A-Za-z0-9_-]{20,}'; then
+      echo "SECRET DETECTED in $FILE: OpenAI API key (sk-proj-...)"
+      SECRETS_FOUND=1
+    fi
+
+    # OpenRouter API key
+    if echo "$CONTENT" | grep -qE 'sk-or-v1-[A-Za-z0-9]{20,}'; then
+      echo "SECRET DETECTED in $FILE: OpenRouter API key (sk-or-v1-...)"
+      SECRETS_FOUND=1
+    fi
+
+    # Groq API key
+    if echo "$CONTENT" | grep -qE 'gsk_[A-Za-z0-9]{20,}'; then
+      echo "SECRET DETECTED in $FILE: Groq API key (gsk_...)"
+      SECRETS_FOUND=1
+    fi
+
+    # Google/Gemini API key
+    if echo "$CONTENT" | grep -qE 'AIzaSy[A-Za-z0-9_-]{30,}'; then
+      echo "SECRET DETECTED in $FILE: Google API key (AIzaSy...)"
+      SECRETS_FOUND=1
+    fi
+
+    # Generic OpenAI key (older format)
+    if echo "$CONTENT" | grep -qE 'sk-[A-Za-z0-9]{40,}' | grep -vq 'sk-ant\|sk-or\|sk-proj'; then
+      echo "SECRET DETECTED in $FILE: Possible API key (sk-...)"
+      SECRETS_FOUND=1
+    fi
+
+    # Cloudinary URL with secret
+    if echo "$CONTENT" | grep -qE 'cloudinary://[0-9]+:[A-Za-z0-9_-]{10,}@'; then
+      echo "SECRET DETECTED in $FILE: Cloudinary credentials"
+      SECRETS_FOUND=1
+    fi
+
+    # Postgres connection string with password
+    if echo "$CONTENT" | grep -qE 'postgres(ql)?://[^:]+:[^@]{8,}@[^/]+/'; then
+      echo "SECRET DETECTED in $FILE: Database connection string with password"
+      SECRETS_FOUND=1
+    fi
+
+    # Stripe secret key
+    if echo "$CONTENT" | grep -qE 'sk_live_[A-Za-z0-9]{20,}'; then
+      echo "SECRET DETECTED in $FILE: Stripe live secret key"
+      SECRETS_FOUND=1
+    fi
+
+    # Paystack secret key
+    if echo "$CONTENT" | grep -qE 'sk_test_[A-Za-z0-9]{20,}|sk_live_[A-Za-z0-9]{20,}'; then
+      echo "SECRET DETECTED in $FILE: Paystack/Stripe secret key"
+      SECRETS_FOUND=1
+    fi
+  done
+
+  if [ "$SECRETS_FOUND" -eq 1 ]; then
+    echo ""
+    echo "COMMIT BLOCKED: Secrets detected in staged files."
+    echo ""
+    echo "If this is a false positive (e.g. regex pattern in code), bypass with:"
+    echo "  git commit --no-verify"
+    echo ""
+    exit 1
+  fi
+fi

@@ -17,7 +17,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "ops:release-check": "pnpm exec prisma generate && pnpm run lint && pnpm run typecheck"
+    "ops:release-check": "pnpm exec prisma generate && pnpm run lint && pnpm run typecheck",
+    "prepare": "husky"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
@@ -37,6 +38,14 @@
     "@radix-ui/react-slot": "^1.1.1",
     "@radix-ui/react-tabs": "^1.1.2",
     "@sentry/nextjs": "^10.49.0",
+    "@tanstack/react-query": "^5.100.5",
+    "@tanstack/react-query-devtools": "^5.100.5",
+    "@tiptap/core": "2",
+    "@tiptap/extension-bubble-menu": "2",
+    "@tiptap/extension-placeholder": "2",
+    "@tiptap/pm": "2",
+    "@tiptap/react": "2",
+    "@tiptap/starter-kit": "2",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.37.0",
     "bcryptjs": "^2.4.3",
@@ -55,6 +64,8 @@
     "react": "^18",
     "react-dom": "^18",
     "react-hook-form": "^7.54.2",
+    "react-markdown": "9",
+    "remark-gfm": "4",
     "stripe": "^17.4.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
@@ -64,6 +75,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.2.4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/nodemailer": "^6.4.17",
@@ -72,6 +84,7 @@
     "@types/react-dom": "^18",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
+    "husky": "^9.1.7",
     "postcss": "^8",
     "prisma": "5.22.0",
     "tailwindcss": "^3.4.1",

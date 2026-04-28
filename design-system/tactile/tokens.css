@@ -1,0 +1,247 @@
+/* ===========================================================
+   Tactile Fusion — ScholarQuest tokens
+   Locked in from the 6 reference HTML screens the user built.
+   Material-3 style palette + Plus Jakarta Sans + tactile 3D shadows.
+   =========================================================== */
+
+:root {
+  /* Core Material palette */
+  --primary: #00629d;
+  --primary-container: #00a3ff;
+  --on-primary: #ffffff;
+  --on-primary-container: #00375a;
+  --primary-fixed: #cfe5ff;
+  --primary-fixed-dim: #98cbff;
+  --on-primary-fixed: #001d33;
+  --on-primary-fixed-variant: #004a77;
+
+  --secondary: #006c4f;
+  --secondary-container: #53fac2;
+  --secondary-fixed: #56fdc5;
+  --secondary-fixed-dim: #2be0aa;
+  --on-secondary: #ffffff;
+  --on-secondary-container: #007153;
+  --on-secondary-fixed: #002116;
+  --on-secondary-fixed-variant: #00513b;
+
+  --tertiary: #2b6c00;
+  --tertiary-container: #4cb200;
+  --tertiary-fixed: #87fe45;
+  --tertiary-fixed-dim: #6be026;
+  --on-tertiary: #ffffff;
+  --on-tertiary-container: #153c00;
+  --on-tertiary-fixed: #082100;
+  --on-tertiary-fixed-variant: #1f5100;
+
+  --error: #ba1a1a;
+  --error-container: #ffdad6;
+  --on-error: #ffffff;
+  --on-error-container: #93000a;
+
+  /* Surfaces */
+  --background: #f7f9ff;
+  --surface: #f7f9ff;
+  --surface-bright: #f7f9ff;
+  --surface-dim: #d6dae2;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f0f4fc;
+  --surface-container: #eaeef6;
+  --surface-container-high: #e4e8f0;
+  --surface-container-highest: #dfe3ea;
+  --surface-variant: #dfe3ea;
+  --on-surface: #171c22;
+  --on-surface-variant: #3f4852;
+  --on-background: #171c22;
+  --outline: #6f7883;
+  --outline-variant: #bec7d4;
+  --inverse-surface: #2c3137;
+  --inverse-on-surface: #edf1f9;
+  --inverse-primary: #98cbff;
+  --surface-tint: #00629d;
+
+  /* Accent sparks used on the reference screens */
+  --streak-orange: #FF9600;
+  --streak-orange-soft: #FFF7ED;
+
+  /* Spacing */
+  --xs: 4px; --base: 8px; --sm: 12px; --md: 24px; --gutter: 24px;
+  --margin: 32px; --lg: 40px; --xl: 64px;
+
+  /* Radii */
+  --radius-sm: 0.5rem;
+  --radius: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+  --radius-full: 9999px;
+
+  /* Type scale (Plus Jakarta Sans) */
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+
+  /* Tactile shadows — the signature of this system */
+  --tactile-primary: 0 4px 0 0 #004a77;
+  --tactile-primary-lg: 0 6px 0 0 #004a77;
+  --tactile-primary-active: 0 1px 0 0 #004a77;
+  --tactile-card: 0 6px 0 0 #e2e8f0;
+  --tactile-card-hover: 0 10px 0 0 #cbd5e1;
+  --tactile-card-active: 0 2px 0 0 #e2e8f0;
+}
+
+/* Global baseline */
+html, body { margin: 0; padding: 0; background: var(--background); color: var(--on-background); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; }
+
+/* Type utility classes mirroring the reference tailwind config */
+.t-display-lg { font-size: 48px; line-height: 1.1; letter-spacing: -0.02em; font-weight: 800; }
+.t-headline-lg { font-size: 32px; line-height: 1.2; letter-spacing: -0.01em; font-weight: 700; }
+.t-headline-md { font-size: 24px; line-height: 1.3; font-weight: 700; }
+.t-body-lg { font-size: 18px; line-height: 1.6; font-weight: 400; }
+.t-body-md { font-size: 16px; line-height: 1.5; font-weight: 400; }
+.t-label-lg { font-size: 14px; line-height: 1; letter-spacing: 0.05em; font-weight: 600; text-transform: uppercase; }
+.t-button { font-size: 16px; line-height: 1; font-weight: 700; }
+
+/* Tactile button — tap bounces down */
+.tactile {
+  box-shadow: var(--tactile-primary);
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.12s cubic-bezier(0.34, 1.56, 0.64, 1),
+              filter 0.18s ease;
+}
+.tactile:hover { filter: brightness(1.05); }
+.tactile:active { transform: translateY(3px); box-shadow: var(--tactile-primary-active); }
+
+.tactile-card {
+  border-bottom-width: 6px !important;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.04), 0 10px 20px -8px rgba(0,0,0,0.03);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s;
+}
+.tactile-card:hover { transform: translateY(-4px); box-shadow: 0 20px 30px -10px rgba(0,0,0,0.06); }
+
+/* Glass surfaces */
+.glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+.glass-soft { background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+
+/* Material Symbols sizing helper */
+.ms { font-family: 'Material Symbols Outlined'; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; user-select: none; }
+.ms-fill { font-variation-settings: 'FILL' 1, 'wght' 500; }
+
+/* Animations used on reference screens */
+@keyframes flamePulse {
+  0%,100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.15) rotate(-5deg); }
+}
+.flame { animation: flamePulse 2s ease-in-out infinite; color: var(--streak-orange); }
+
+@keyframes auraPulse {
+  0% { box-shadow: 0 0 0 0 rgba(0,163,255,0.45); }
+  70% { box-shadow: 0 0 0 22px rgba(0,163,255,0); }
+  100% { box-shadow: 0 0 0 0 rgba(0,163,255,0); }
+}
+.aura { animation: auraPulse 3s infinite; }
+
+@keyframes fillUp {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.fill-up { animation: fillUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+@keyframes slideIn {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.slide-in { animation: slideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* Staggered entrance for dashboard cards */
+@keyframes riseIn {
+  from { transform: translateY(24px) scale(0.98); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+.rise-in { animation: riseIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* Count-up / number ticker */
+@keyframes popNumber {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.pop-number { animation: popNumber 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* Shine sweep — used on mission card */
+@keyframes shineSweep {
+  0% { transform: translateX(-120%) skewX(-20deg); }
+  100% { transform: translateX(220%) skewX(-20deg); }
+}
+.shine-sweep::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%);
+  transform: translateX(-120%) skewX(-20deg);
+  animation: shineSweep 3.5s ease-in-out infinite;
+  animation-delay: 1.2s;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+/* Dot blink (on-air indicator) */
+@keyframes dotBlink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+.dot-blink { animation: dotBlink 1.6s ease-in-out infinite; }
+
+/* Gauge sweep — draws the ring on load */
+@keyframes gaugeSweep {
+  from { --_gp: 0%; }
+  to   { --_gp: var(--gauge-pct, 82%); }
+}
+@property --_gp {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+.gauge-sweep {
+  background: conic-gradient(var(--primary-container) var(--_gp), #dfe3ea 0);
+  animation: gaugeSweep 1.4s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+
+/* Floating blob — used on mission aura background */
+@keyframes floatBlob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(12px, -14px) scale(1.08); }
+}
+.float-blob { animation: floatBlob 7s ease-in-out infinite; }
+
+/* Gentle bob — streak flame, badges */
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+.bob { animation: bob 2.6s ease-in-out infinite; }
+
+/* Hover lift for stat tiles */
+.stat-tile { transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s, border-color 0.2s; }
+.stat-tile:hover { transform: translateY(-3px); box-shadow: 0 10px 20px -8px rgba(0,0,0,0.08); }
+
+/* Tactile-card active press */
+.tactile-card:active { transform: translateY(2px) scale(0.995); }
+
+/* Shimmer underline for CTAs */
+@keyframes arrowNudge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+.arrow-nudge { animation: arrowNudge 1.4s ease-in-out infinite; }
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: padding-box; }
+
+/* Focus ring */
+:focus-visible { outline: 2px solid var(--primary-container); outline-offset: 2px; border-radius: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .flame, .aura, .fill-up, .slide-in, .rise-in, .pop-number, .shine-sweep::after,
+  .dot-blink, .gauge-sweep, .float-blob, .bob, .arrow-nudge { animation: none !important; }
+  .tactile, .tactile-card, .stat-tile { transition: none !important; }
+}

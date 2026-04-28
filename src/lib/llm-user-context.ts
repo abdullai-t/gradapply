@@ -1,4 +1,8 @@
 import type { Profile, User } from "@prisma/client";
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 import { getObjectBuffer } from "@/lib/s3";
 import { prisma } from "@/lib/prisma";
@@ -7,6 +11,117 @@ const MAX_TOTAL_DOC_CHARS = 22_000;
 const MAX_PER_DOC_CHARS = 10_000;
 const MAX_FETCH_BYTES = 6 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 22_000;
+
+function execFileAsync(
+  file: string,
+  args: string[],
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      file,
+      args,
+      { maxBuffer: 10 * 1024 * 1024 },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(stderr?.trim() || error.message));
+          return;
+        }
+        resolve({ stdout, stderr });
+      },
+    );
+  });
+}
+
+async function extractPdfTextViaPdftotext(buf: Buffer): Promise<string | null> {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "gradapply-pdf-"));
+  const inPath = path.join(tmpDir, "input.pdf");
+  const outPath = path.join(tmpDir, "output.txt");
+  try {
+    await writeFile(inPath, buf);
+    await execFileAsync("/opt/homebrew/bin/pdftotext", [inPath, outPath]);
+    const textRaw = await readFile(outPath, "utf8").catch(() => "");
+    const text = textRaw.replace(/\s+/g, " ").trim();
+    return text.length >= 20 ? text.slice(0, MAX_PER_DOC_CHARS) : null;
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+function decodePdfLiteral(input: string): string {
+  let out = "";
+  for (let i = 0; i < input.length; i += 1) {
+    const ch = input[i]!;
+    if (ch !== "\\") {
+      out += ch;
+      continue;
+    }
+    const next = input[i + 1];
+    if (!next) break;
+    if (/[0-7]/.test(next)) {
+      let oct = next;
+      if (/[0-7]/.test(input[i + 2] ?? "")) oct += input[i + 2];
+      if (/[0-7]/.test(input[i + 3] ?? "")) oct += input[i + 3];
+      out += String.fromCharCode(parseInt(oct, 8));
+      i += oct.length;
+      continue;
+    }
+    i += 1;
+    switch (next) {
+      case "n":
+        out += "\n";
+        break;
+      case "r":
+        out += "\r";
+        break;
+      case "t":
+        out += "\t";
+        break;
+      case "b":
+        out += "\b";
+        break;
+      case "f":
+        out += "\f";
+        break;
+      default:
+        out += next;
+    }
+  }
+  return out;
+}
+
+function extractPdfTextFromRawBytes(buf: Buffer): string {
+  const raw = buf.toString("latin1");
+  const chunks: string[] = [];
+
+  const singleMatcher = /\((?:\\.|[^\\)])*\)\s*Tj/g;
+  let singleMatch: RegExpExecArray | null = singleMatcher.exec(raw);
+  while (singleMatch) {
+    const token = singleMatch[0];
+    if (token) {
+      const start = token.indexOf("(");
+      const end = token.lastIndexOf(")");
+      if (start >= 0 && end > start) {
+        chunks.push(decodePdfLiteral(token.slice(start + 1, end)));
+      }
+    }
+    singleMatch = singleMatcher.exec(raw);
+  }
+
+  const arrayMatcher = /\[([\s\S]*?)\]\s*TJ/g;
+  let arrayMatch: RegExpExecArray | null = arrayMatcher.exec(raw);
+  while (arrayMatch) {
+    const body = arrayMatch[1];
+    if (body) {
+      const strings = body.match(/\((?:\\.|[^\\)])*\)/g) ?? [];
+      for (const s of strings) {
+        chunks.push(decodePdfLiteral(s.slice(1, -1)));
+      }
+    }
+    arrayMatch = arrayMatcher.exec(raw);
+  }
+
+  return chunks.join(" ").replace(/\s+/g, " ").trim();
+}
 
 const DOC_KIND_LABEL: Record<string, string> = {
   cv: "CV / resume",
@@ -36,7 +151,7 @@ const FETCH_HEADER_SETS: Record<string, string>[] = [
 async function fetchDocumentBufferOnce(
   url: string,
   headers: Record<string, string>,
-): Promise<Buffer | null> {
+): Promise<{ buffer: Buffer | null; reason?: string }> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -45,25 +160,36 @@ async function fetchDocumentBufferOnce(
       redirect: "follow",
       headers,
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { buffer: null, reason: `http_${res.status}` };
     const len = res.headers.get("content-length");
-    if (len && Number(len) > MAX_FETCH_BYTES) return null;
+    if (len && Number(len) > MAX_FETCH_BYTES) {
+      return { buffer: null, reason: "too_large_content_length" };
+    }
     const ab = await res.arrayBuffer();
-    if (ab.byteLength > MAX_FETCH_BYTES) return null;
-    return Buffer.from(ab);
-  } catch {
-    return null;
+    if (ab.byteLength > MAX_FETCH_BYTES) {
+      return { buffer: null, reason: "too_large_body" };
+    }
+    return { buffer: Buffer.from(ab) };
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      return { buffer: null, reason: "timeout" };
+    }
+    return { buffer: null, reason: "fetch_error" };
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function fetchDocumentBuffer(url: string): Promise<Buffer | null> {
+async function fetchDocumentBuffer(
+  url: string,
+): Promise<{ buffer: Buffer | null; reason?: string }> {
+  let lastReason: string | undefined;
   for (const h of FETCH_HEADER_SETS) {
-    const buf = await fetchDocumentBufferOnce(url, h);
-    if (buf && buf.length > 0) return buf;
+    const result = await fetchDocumentBufferOnce(url, h);
+    if (result.buffer && result.buffer.length > 0) return result;
+    lastReason = result.reason ?? lastReason;
   }
-  return null;
+  return { buffer: null, reason: lastReason ?? "fetch_failed" };
 }
 
 /**
@@ -72,16 +198,22 @@ async function fetchDocumentBuffer(url: string): Promise<Buffer | null> {
  * buckets still yield text for the assistant context.
  */
 async function fetchDocumentBufferForDoc(doc: {
+  id?: string;
+  name?: string;
   url: string;
   s3Key: string | null;
-}): Promise<Buffer | null> {
+}): Promise<{ buffer: Buffer | null; reason?: string }> {
   const fromUrl = await fetchDocumentBuffer(doc.url);
-  if (fromUrl && fromUrl.length > 0) return fromUrl;
+  if (fromUrl.buffer && fromUrl.buffer.length > 0) return fromUrl;
   if (doc.s3Key?.startsWith("users/")) {
     const fromS3 = await getObjectBuffer(doc.s3Key, MAX_FETCH_BYTES);
-    if (fromS3 && fromS3.length > 0) return fromS3;
+    if (fromS3 && fromS3.length > 0) return { buffer: fromS3 };
+    return {
+      buffer: null,
+      reason: `s3_fallback_failed:${fromUrl.reason ?? "url_fetch_failed"}`,
+    };
   }
-  return null;
+  return { buffer: null, reason: fromUrl.reason ?? "url_fetch_failed" };
 }
 
 async function bufferToPlainText(buf: Buffer, mime: string | null): Promise<string | null> {
@@ -99,13 +231,56 @@ async function bufferToPlainText(buf: Buffer, mime: string | null): Promise<stri
       try {
         const textResult = await parser.getText();
         const text = (textResult.text ?? "").replace(/\s+/g, " ").trim();
-        return text.slice(0, MAX_PER_DOC_CHARS);
+        if (text.length >= 20) return text.slice(0, MAX_PER_DOC_CHARS);
       } finally {
         await parser.destroy().catch(() => {});
       }
-    } catch {
-      return null;
+    } catch (e) {
+      console.warn("[doc-extraction] pdf-parse primary path failed", {
+        reason: e instanceof Error ? e.message : "unknown_error",
+      });
     }
+
+    try {
+      const mod = await import("pdf-parse");
+      const legacy = (
+        mod as unknown as {
+          default?: (data: Buffer) => Promise<{ text?: string }>;
+        }
+      ).default;
+      if (typeof legacy === "function") {
+        const parsed = await legacy(buf);
+        const text = (parsed.text ?? "").replace(/\s+/g, " ").trim();
+        if (text.length >= 20) return text.slice(0, MAX_PER_DOC_CHARS);
+      }
+    } catch (e) {
+      console.warn("[doc-extraction] pdf-parse fallback path failed", {
+        reason: e instanceof Error ? e.message : "unknown_error",
+      });
+    }
+
+    try {
+      const text = extractPdfTextFromRawBytes(buf);
+      if (text.length >= 20) return text.slice(0, MAX_PER_DOC_CHARS);
+      console.warn("[doc-extraction] raw-pdf fallback yielded too little text", {
+        extractedChars: text.length,
+      });
+    } catch (e) {
+      console.warn("[doc-extraction] raw-pdf fallback failed", {
+        reason: e instanceof Error ? e.message : "unknown_error",
+      });
+    }
+
+    try {
+      const text = await extractPdfTextViaPdftotext(buf);
+      if (text && text.length >= 20) return text;
+      console.warn("[doc-extraction] pdftotext fallback yielded too little text");
+    } catch (e) {
+      console.warn("[doc-extraction] pdftotext fallback failed", {
+        reason: e instanceof Error ? e.message : "unknown_error",
+      });
+    }
+    return null;
   }
 
   return null;
@@ -193,8 +368,8 @@ async function formatUploadedDocumentsSection(
     const label = DOC_KIND_LABEL[doc.type] ?? doc.type;
     const meta = `- **${doc.name}** (${label})`;
 
-    const buf = await fetchDocumentBufferForDoc(doc);
-    if (!buf) {
+    const fetched = await fetchDocumentBufferForDoc(doc);
+    if (!fetched.buffer) {
       stats.fetchFailed += 1;
       parts.push(
         `${meta}\n  _(Server could not download this file from the stored URL — it may be private, expired, or blocked. The applicant can re-upload or paste key facts in chat.)_`,
@@ -202,7 +377,7 @@ async function formatUploadedDocumentsSection(
       continue;
     }
 
-    const text = await bufferToPlainText(buf, doc.mimeType);
+    const text = await bufferToPlainText(fetched.buffer, doc.mimeType);
     if (!text || text.length < 20) {
       stats.unsupported += 1;
       parts.push(
@@ -260,15 +435,55 @@ export function assistantContextGroundingRules(): string {
  * Extract machine-readable text from a stored document (same pipeline as assistant context).
  */
 export async function extractPlainTextFromStoredDocument(doc: {
+  id?: string;
+  name?: string;
   url: string;
   s3Key: string | null;
   mimeType: string | null;
 }): Promise<string | null> {
-  const buf = await fetchDocumentBufferForDoc(doc);
-  if (!buf) return null;
-  const text = await bufferToPlainText(buf, doc.mimeType);
-  if (!text || text.length < 20) return null;
-  return text;
+  const fetched = await fetchDocumentBufferForDoc(doc);
+  if (!fetched.buffer) return null;
+  const text = await bufferToPlainText(fetched.buffer, doc.mimeType);
+  return text && text.length >= 20 ? text : null;
+}
+
+export type StoredDocumentExtractionStatus = {
+  status: "extracted" | "download_failed" | "unsupported";
+  extractedChars: number;
+  detail?: string;
+};
+
+/**
+ * Returns extraction diagnostics for a single stored document.
+ * Used by the Documents page to surface user-visible status.
+ */
+export async function getStoredDocumentExtractionStatus(doc: {
+  id?: string;
+  name?: string;
+  url: string;
+  s3Key: string | null;
+  mimeType: string | null;
+}): Promise<StoredDocumentExtractionStatus> {
+  const fetched = await fetchDocumentBufferForDoc(doc);
+  if (!fetched.buffer) {
+    return {
+      status: "download_failed",
+      extractedChars: 0,
+      detail: fetched.reason ?? "fetch_failed",
+    };
+  }
+  const text = await bufferToPlainText(fetched.buffer, doc.mimeType);
+  if (!text || text.length < 20) {
+    return {
+      status: "unsupported",
+      extractedChars: 0,
+      detail: `unsupported_mime_or_scan:${doc.mimeType ?? "unknown"}`,
+    };
+  }
+  return {
+    status: "extracted",
+    extractedChars: text.length,
+  };
 }
 
 export async function buildApplicantKnowledgeBlock(userId: string): Promise<string> {

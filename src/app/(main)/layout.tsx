@@ -1,9 +1,8 @@
-import { BrandLogoMark } from "@/components/brand-logo";
-import { AppSidebar } from "@/components/app-sidebar";
-import { MainShellBackdrop } from "@/components/layout/glass-scene";
-import { MobileNav } from "@/components/mobile-nav";
+import { Sidebar } from "@/features/shell/sidebar";
+import { TopBar } from "@/features/shell/topbar";
+import { FAB } from "@/features/shell/fab";
+import { MobileNav } from "@/features/shell/mobile-nav";
 import { ReminderBanner } from "@/components/reminder-banner";
-import { UserMenu } from "@/components/user-menu";
 
 export default function MainLayout({
   children,
@@ -11,24 +10,20 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative min-h-screen md:flex">
-      <MainShellBackdrop />
-      <AppSidebar />
+    <div className="relative min-h-screen md:flex bg-[var(--background)] text-[var(--on-background)]">
+      <Sidebar />
       <div className="flex min-h-screen flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-white/10 bg-[hsl(232_32%_11%/0.85)] px-4 py-3 backdrop-blur-xl md:hidden">
-          <div className="flex items-center gap-2">
-            <BrandLogoMark
-              size={36}
-              className="h-9 w-9 rounded-lg ring-1 ring-amber-400/30"
-            />
-            <span className="font-display font-semibold">GradApply</span>
-          </div>
-          <UserMenu />
-        </header>
-        <MobileNav />
+        <TopBar />
         <ReminderBanner />
-        <main className="flex-1 px-4 py-8 md:px-10">{children}</main>
+        <main
+          className="flex-1 px-4 py-6 md:px-8 md:py-8 pb-24 md:pb-12"
+          style={{ maxWidth: "1320px", margin: "0 auto", width: "100%" }}
+        >
+          {children}
+        </main>
       </div>
+      <MobileNav />
+      <FAB />
     </div>
   );
 }

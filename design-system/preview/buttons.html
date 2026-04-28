@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en" class="dark"><head>
+<meta charset="utf-8"><title>Buttons</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{margin:0;padding:22px;background:hsl(var(--background));color:hsl(var(--foreground));font-family:var(--font-sans);display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid transparent;border-radius:6px;font-family:var(--font-sans);font-size:14px;font-weight:500;padding:0 16px;height:36px;transition:all .2s;cursor:pointer}
+.btn.lg{height:40px;padding:0 32px}
+.btn.sm{height:32px;padding:0 12px;font-size:12px}
+.btn.primary{background:hsl(var(--primary));color:hsl(var(--primary-foreground));box-shadow:0 8px 28px -8px hsl(var(--primary) / .45)}
+.btn.glass{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.15);color:hsl(var(--foreground));backdrop-filter:blur(8px)}
+.btn.secondary{background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))}
+.btn.outline{background:transparent;border-color:hsl(var(--border));color:hsl(var(--foreground))}
+.btn.ghost{background:transparent;color:hsl(var(--muted-foreground))}
+.btn.destructive{background:hsl(var(--destructive));color:hsl(var(--destructive-foreground))}
+.btn.icon{width:36px;height:36px;padding:0;justify-content:center;border-radius:6px;background:transparent;color:hsl(var(--muted-foreground))}
+svg{width:14px;height:14px;stroke-width:1.5}
+</style></head>
+<body class="ds-preview">
+<button class="btn primary lg">Start free <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M13 5l7 7-7 7"/></svg></button>
+<button class="btn glass lg">I already have an account</button>
+<button class="btn primary">Get started</button>
+<button class="btn secondary">Library</button>
+<button class="btn outline">Open portal</button>
+<button class="btn ghost">Manage</button>
+<button class="btn destructive sm">Delete</button>
+<button class="btn icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+</body></html>

@@ -1,34 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Icon } from "@/components/icon";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-
-type BillingStatus = {
-  billingEnabled: boolean;
-  checkoutConfigured: boolean;
-  stripeEnabled: boolean;
-  paystackEnabled: boolean;
-  canCheckoutPlus: boolean;
-  canCheckoutPro: boolean;
-  canCheckoutCredits: boolean;
-  planTier: string;
-  monthlyAllowance: number;
-  aiUsageUsed: number;
-  aiCreditsBalance: number;
-  subscriptionStatus: string | null;
-  currentPeriodEnd: string | null;
-  hasStripeCustomer: boolean;
-  hasSubscription: boolean;
-};
+  useBillingStatus,
+  useCheckout,
+  useOpenPortal,
+} from "@/features/billing/api";
+import { cn } from "@/lib/utils";
 
 function toErrorMessage(value: unknown, fallback: string): string {
   if (typeof value === "string" && value.trim()) return value;
@@ -54,50 +36,37 @@ function toErrorMessage(value: unknown, fallback: string): string {
 }
 
 export function BillingSettings() {
-  const [status, setStatus] = useState<BillingStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  const statusQuery = useBillingStatus();
+  const checkoutMutation = useCheckout();
+  const portalMutation = useOpenPortal();
+
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    const res = await fetch("/api/billing/status");
-    if (!res.ok) {
-      const data = (await res.json().catch(() => null)) as { error?: unknown } | null;
-      setError(toErrorMessage(data?.error, "Could not load billing status."));
-      setLoading(false);
-      return;
-    }
-    setStatus((await res.json()) as BillingStatus);
-    setLoading(false);
-  }, []);
+  const status = statusQuery.data ?? null;
+  const loading = statusQuery.isLoading;
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Surface query errors as the local error banner.
+  const queryError =
+    statusQuery.isError && statusQuery.error instanceof Error
+      ? statusQuery.error.message
+      : null;
+  const visibleError = error ?? queryError;
 
   const startCheckout = async (tier: "plus" | "pro" | "credits") => {
     setCheckoutLoading(tier);
     setError(null);
     try {
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier }),
-      });
-      const data = (await res.json().catch(() => null)) as
-        | { url?: string; error?: unknown }
-        | null;
-      if (!res.ok) {
-        setError(toErrorMessage(data?.error, "Checkout failed."));
-        return;
-      }
+      const data = await checkoutMutation.mutateAsync(tier);
       if (data?.url) {
         window.location.href = data.url;
         return;
       }
       setError("No checkout URL returned.");
+    } catch (e) {
+      setError(
+        toErrorMessage(e instanceof Error ? e.message : e, "Checkout failed."),
+      );
     } finally {
       setCheckoutLoading(null);
     }
@@ -107,18 +76,15 @@ export function BillingSettings() {
     setCheckoutLoading("portal");
     setError(null);
     try {
-      const res = await fetch("/api/billing/portal", { method: "POST" });
-      const data = (await res.json().catch(() => null)) as
-        | { url?: string; error?: unknown }
-        | null;
-      if (!res.ok) {
-        setError(toErrorMessage(data?.error, "Portal failed."));
-        return;
-      }
+      const data = await portalMutation.mutateAsync();
       if (data?.url) {
         window.location.href = data.url;
         return;
       }
+    } catch (e) {
+      setError(
+        toErrorMessage(e instanceof Error ? e.message : e, "Portal failed."),
+      );
     } finally {
       setCheckoutLoading(null);
     }
@@ -126,28 +92,25 @@ export function BillingSettings() {
 
   if (loading) {
     return (
-      <Card className="glass-panel border-white/10">
-        <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          Loading billing…
-        </CardContent>
-      </Card>
+      <div className="flex items-center gap-2 rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-8 text-sm text-[var(--on-surface-variant)]">
+        <Icon name="progress_activity" className="animate-spin" size={18} />
+        Loading billing…
+      </div>
     );
   }
 
   if (!status?.billingEnabled) {
     return (
-      <Card className="glass-panel border-white/10">
-        <CardHeader>
-          <CardTitle className="font-display text-lg">Billing</CardTitle>
-          <CardDescription>
-            Billing is not configured on this deployment (
-            <code className="text-xs">STRIPE_SECRET_KEY</code> or{" "}
-            <code className="text-xs">PAYSTACK_SECRET_KEY</code>). All AI
-            features remain available without plan limits here.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <div className="rounded-2xl border-2 border-dashed border-[var(--outline-variant)] p-6 text-sm text-[var(--on-surface-variant)]">
+        <p className="m-0 font-bold text-[var(--on-surface)]">
+          Billing is not configured on this deployment.
+        </p>
+        <p className="mt-2 leading-relaxed">
+          Set <CodeChip>STRIPE_SECRET_KEY</CodeChip> or{" "}
+          <CodeChip>PAYSTACK_SECRET_KEY</CodeChip> in <CodeChip>.env</CodeChip>.
+          AI features remain available without plan limits in this state.
+        </p>
+      </div>
     );
   }
 
@@ -161,177 +124,275 @@ export function BillingSettings() {
   const proIsCurrent = currentPlan === "PRO";
 
   return (
-    <Card className="glass-panel border-emerald-500/15">
-      <CardHeader>
-        <CardTitle className="font-display text-lg">Plan and AI usage</CardTitle>
-        <CardDescription>
-          Subscription includes a monthly pool of AI actions (drafts, chat,
-          discovery, etc.). Bonus credits are used first, then your monthly
-          allowance.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error ? (
-          <p className="text-sm text-amber-200/90">{error}</p>
-        ) : null}
+    <div className="space-y-5">
+      {visibleError ? (
+        <div className="glass-alert-error" role="alert">
+          {visibleError}
+        </div>
+      ) : null}
 
-        <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-          <span>
-            Current plan:{" "}
-            <strong className="text-foreground">{status.planTier}</strong>
+      {/* Plan badge + period */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-5">
+        <div className="flex items-center gap-3">
+          <div
+            className={cn(
+              "grid h-12 w-12 place-items-center rounded-xl",
+              proIsCurrent
+                ? "bg-[var(--tertiary-fixed)] text-[var(--on-tertiary-container)]"
+                : plusIsCurrent
+                  ? "bg-[var(--primary-fixed)] text-[var(--primary)]"
+                  : "bg-[var(--surface-container)] text-[var(--on-surface-variant)]",
+            )}
+          >
+            <Icon
+              name={proIsCurrent ? "workspace_premium" : "verified"}
+              fill
+              size={24}
+            />
+          </div>
+          <div>
+            <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[var(--outline)]">
+              Current plan
+            </div>
+            <div className="text-xl font-extrabold tracking-tight text-[var(--on-surface)]">
+              {status.planTier}
+            </div>
             {status.subscriptionStatus ? (
-              <span className="text-muted-foreground">
-                {" "}
-                · {status.subscriptionStatus}
-              </span>
+              <div className="text-xs text-[var(--on-surface-variant)]">
+                {status.subscriptionStatus}
+              </div>
             ) : null}
-          </span>
-          {status.currentPeriodEnd ? (
-            <span className="text-xs text-muted-foreground">
-              Period ends{" "}
+          </div>
+        </div>
+        {status.currentPeriodEnd ? (
+          <div className="text-right">
+            <div className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-[var(--outline)]">
+              Period ends
+            </div>
+            <div className="text-sm font-bold text-[var(--on-surface)]">
               {new Date(status.currentPeriodEnd).toLocaleDateString(undefined, {
                 dateStyle: "medium",
               })}
-            </span>
-          ) : null}
-        </div>
-
-        <div>
-          <div className="mb-1 flex justify-between text-xs text-muted-foreground">
-            <span>Monthly allowance used</span>
-            <span>
-              {used} / {cap}
-            </span>
+            </div>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-black/30">
-            <div
-              className="h-full rounded-full bg-primary/80 transition-all"
-              style={{ width: `${pct}%` }}
+        ) : null}
+      </div>
+
+      {/* Usage bar */}
+      <div className="rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-5">
+        <div className="mb-3 flex items-baseline justify-between">
+          <div>
+            <div className="text-sm font-bold text-[var(--on-surface)]">
+              Monthly AI allowance
+            </div>
+            <div className="text-xs text-[var(--on-surface-variant)]">
+              Drafts, chat turns, and discovery flows. Bonus credits spend
+              first.
+            </div>
+          </div>
+          <div className="t-numeric text-base text-[var(--on-surface)]">
+            {used} / {cap}
+          </div>
+        </div>
+        <Progress
+          value={pct}
+          tone={pct >= 80 ? "warning" : "primary"}
+          size="default"
+        />
+        <div className="mt-3 flex items-center justify-between text-xs text-[var(--on-surface-variant)]">
+          <span className="inline-flex items-center gap-1.5">
+            <Icon
+              name="local_activity"
+              size={14}
+              className="text-[var(--secondary)]"
             />
+            Bonus credits:{" "}
+            <strong className="text-[var(--on-surface)]">
+              {status.aiCreditsBalance}
+            </strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => void statusQuery.refetch()}
+            className="inline-flex items-center gap-1 text-[var(--primary)] underline-offset-4 hover:underline"
+          >
+            <Icon name="refresh" size={14} />
+            Refresh usage
+          </button>
+        </div>
+      </div>
+
+      {/* Upgrade options */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <PlanCard
+          name="Plus"
+          tagline="Best for steady outreach and drafting."
+          icon="auto_awesome"
+          highlighted={plusIsCurrent}
+          ctaLabel={
+            plusIsCurrent
+              ? "Current plan"
+              : status.canCheckoutPlus
+                ? "Upgrade to Plus"
+                : "Plus unavailable"
+          }
+          ctaDisabled={
+            checkoutLoading !== null || plusIsCurrent || !status.canCheckoutPlus
+          }
+          ctaLoading={checkoutLoading === "plus"}
+          onClick={() => void startCheckout("plus")}
+          warning={
+            !plusIsCurrent && !status.canCheckoutPlus
+              ? "Plus checkout is temporarily unavailable."
+              : null
+          }
+        />
+        <PlanCard
+          name="Pro"
+          tagline="Highest monthly AI allowance for heavy usage."
+          icon="workspace_premium"
+          highlighted={proIsCurrent}
+          ctaLabel={
+            proIsCurrent
+              ? "Current plan"
+              : status.canCheckoutPro
+                ? "Upgrade to Pro"
+                : "Pro unavailable"
+          }
+          ctaDisabled={
+            checkoutLoading !== null || proIsCurrent || !status.canCheckoutPro
+          }
+          ctaLoading={checkoutLoading === "pro"}
+          onClick={() => void startCheckout("pro")}
+          warning={
+            !proIsCurrent && !status.canCheckoutPro
+              ? "Pro checkout is temporarily unavailable."
+              : null
+          }
+        />
+      </div>
+
+      {!status.canCheckoutPlus && !status.canCheckoutPro ? (
+        <div className="glass-alert-warning text-xs">
+          Plan upgrades are not available right now. Please try again shortly
+          or contact support.
+        </div>
+      ) : null}
+
+      {/* Credits + portal */}
+      <div className="flex flex-wrap gap-2">
+        {status.checkoutConfigured ? (
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={checkoutLoading !== null || !status.canCheckoutCredits}
+            loading={checkoutLoading === "credits"}
+            icon="local_activity"
+            onClick={() => void startCheckout("credits")}
+          >
+            Buy credits
+          </Button>
+        ) : (
+          <p className="text-xs text-[var(--on-surface-variant)]">
+            Checkout setup is incomplete — you can still refresh usage while
+            this is being fixed.
+          </p>
+        )}
+        {showPortal ? (
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={checkoutLoading !== null}
+            loading={checkoutLoading === "portal"}
+            icon="settings"
+            className="border border-[var(--outline-variant)]"
+            onClick={() => void openPortal()}
+          >
+            Manage billing (Stripe)
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function PlanCard({
+  name,
+  tagline,
+  icon,
+  highlighted,
+  ctaLabel,
+  ctaDisabled,
+  ctaLoading,
+  onClick,
+  warning,
+}: {
+  name: string;
+  tagline: string;
+  icon: string;
+  highlighted: boolean;
+  ctaLabel: string;
+  ctaDisabled: boolean;
+  ctaLoading: boolean;
+  onClick: () => void;
+  warning: string | null;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border-2 p-5",
+        highlighted
+          ? "border-[var(--primary)] bg-[var(--primary-fixed)]/30"
+          : "border-[var(--outline-variant)] bg-[var(--surface-container-lowest)]",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div
+            className="grid h-10 w-10 place-items-center rounded-xl"
+            style={{
+              background: highlighted
+                ? "var(--primary-container)"
+                : "rgba(0,98,157,0.08)",
+              color: highlighted ? "white" : "var(--primary)",
+            }}
+          >
+            <Icon name={icon} fill={highlighted} size={20} />
+          </div>
+          <div className="text-lg font-extrabold tracking-tight text-[var(--on-surface)]">
+            {name}
           </div>
         </div>
+        {highlighted ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--primary-container)]/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[var(--primary)]">
+            <Icon name="check" size={11} />
+            Active
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-2 text-xs text-[var(--on-surface-variant)]">{tagline}</p>
+      <Button
+        type="button"
+        size="sm"
+        className="mt-4 w-full"
+        variant={highlighted ? "ghost" : "primary"}
+        disabled={ctaDisabled}
+        loading={ctaLoading}
+        onClick={onClick}
+      >
+        {ctaLabel}
+      </Button>
+      {warning ? (
+        <p className="mt-2 text-xs text-[var(--streak-orange)]">{warning}</p>
+      ) : null}
+    </div>
+  );
+}
 
-        <p className="text-sm text-muted-foreground">
-          Bonus credits:{" "}
-          <strong className="text-foreground">{status.aiCreditsBalance}</strong>
-        </p>
-
-        <div className="space-y-3 rounded-lg border border-white/10 bg-black/20 p-4">
-          <p className="text-sm font-medium text-foreground">Upgrade your plan</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-              <p className="text-sm font-medium text-foreground">Plus</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Best for steady outreach and drafting.
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                className="mt-3 w-full"
-                variant={plusIsCurrent ? "secondary" : "default"}
-                disabled={
-                  checkoutLoading !== null || plusIsCurrent || !status.canCheckoutPlus
-                }
-                onClick={() => void startCheckout("plus")}
-              >
-                {checkoutLoading === "plus" ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                ) : null}
-                {plusIsCurrent
-                  ? "Current plan"
-                  : status.canCheckoutPlus
-                    ? "Upgrade to Plus"
-                    : "Plus unavailable"}
-              </Button>
-              {!plusIsCurrent && !status.canCheckoutPlus ? (
-                <p className="mt-2 text-xs text-amber-200/90">
-                  Plus checkout is temporarily unavailable.
-                </p>
-              ) : null}
-            </div>
-
-            <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-              <p className="text-sm font-medium text-foreground">Pro</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Highest monthly AI allowance for heavy usage.
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                className="mt-3 w-full"
-                variant={proIsCurrent ? "secondary" : "default"}
-                disabled={checkoutLoading !== null || proIsCurrent || !status.canCheckoutPro}
-                onClick={() => void startCheckout("pro")}
-              >
-                {checkoutLoading === "pro" ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                ) : null}
-                {proIsCurrent
-                  ? "Current plan"
-                  : status.canCheckoutPro
-                    ? "Upgrade to Pro"
-                    : "Pro unavailable"}
-              </Button>
-              {!proIsCurrent && !status.canCheckoutPro ? (
-                <p className="mt-2 text-xs text-amber-200/90">
-                  Pro checkout is temporarily unavailable.
-                </p>
-              ) : null}
-            </div>
-          </div>
-          {!status.canCheckoutPlus && !status.canCheckoutPro ? (
-            <p className="text-xs text-amber-200/90">
-              Plan upgrades are not available right now. Please try again shortly or contact support.
-            </p>
-          ) : null}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {!status.checkoutConfigured ? (
-            <p className="text-xs text-amber-200/85">
-              Checkout setup is incomplete. You can still refresh usage while this is being fixed.
-            </p>
-          ) : (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={
-                checkoutLoading !== null || !status.canCheckoutCredits
-              }
-              onClick={() => void startCheckout("credits")}
-            >
-              {checkoutLoading === "credits" ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-              ) : null}
-              Buy credits
-            </Button>
-          )}
-          {showPortal ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={checkoutLoading !== null}
-              onClick={() => void openPortal()}
-            >
-              {checkoutLoading === "portal" ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-              ) : null}
-              Manage billing (Stripe)
-            </Button>
-          ) : null}
-        </div>
-
-        <Button
-          type="button"
-          variant="link"
-          className="h-auto p-0 text-xs"
-          onClick={() => void load()}
-        >
-          Refresh usage
-        </Button>
-      </CardContent>
-    </Card>
+function CodeChip({ children }: { children: React.ReactNode }) {
+  return (
+    <code className="rounded-md bg-[var(--surface-container)] px-1.5 py-0.5 font-mono text-[0.7rem] text-[var(--on-surface)]">
+      {children}
+    </code>
   );
 }

@@ -1,19 +1,18 @@
 import type { Metadata } from "next";
-import { DM_Sans, Fraunces } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 
 import "./globals.css";
 
 import { BuildVersionBadge } from "@/components/build-version-badge";
+import { QueryProvider } from "@/components/providers";
 import { SessionProvider } from "@/components/providers/session-provider";
+import { ThemeProvider, themeBootScript } from "@/components/theme-provider";
 
-const dmSans = DM_Sans({
+const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
-});
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-display",
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -32,12 +31,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body
-        className={`${dmSans.variable} ${fraunces.variable} font-sans antialiased`}
-      >
-        <SessionProvider>{children}</SessionProvider>
-        <BuildVersionBadge />
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+        />
+        {/* Theme boot script — sets .dark before paint to avoid FOUC */}
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+      </head>
+      <body className={`${jakarta.variable} font-sans antialiased`}>
+        <ThemeProvider>
+          <QueryProvider>
+            <SessionProvider>{children}</SessionProvider>
+          </QueryProvider>
+          <BuildVersionBadge />
+        </ThemeProvider>
       </body>
     </html>
   );

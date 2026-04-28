@@ -1,4 +1,9 @@
 import { withSentryConfig } from "@sentry/nextjs";
+import bundleAnalyzer from "@next/bundle-analyzer";
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+});
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -63,7 +68,7 @@ const nextConfig = {
 };
 
 /** Init is gated in `sentry.*.config.ts`; wrap stays enabled so client/server instrumentation matches Sentry’s Next.js docs. */
-export default withSentryConfig(nextConfig, {
+export default withSentryConfig(withBundleAnalyzer(nextConfig), {
   silent: true,
   sourcemaps: {
     disable: true,

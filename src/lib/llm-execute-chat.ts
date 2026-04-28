@@ -153,6 +153,102 @@ export async function executeChatTurn(opts: {
 }
 
 /**
+ * Streaming version of executeChatTurn. Yields text chunks as they arrive.
+ * Returns the full concatenated text after the generator completes.
+ */
+export async function* executeChatTurnStream(opts: {
+  provider: LlmProvider;
+  model?: string;
+  system: string;
+  turns: ChatTurn[];
+  maxTokens: number;
+}): AsyncGenerator<string, string, unknown> {
+  const { provider, model, system, turns, maxTokens } = opts;
+  const lease = await acquireProviderLease(provider);
+  const startedAt = Date.now();
+  let accumulated = "";
+
+  try {
+    if (provider === "anthropic") {
+      const key = process.env.ANTHROPIC_API_KEY?.trim();
+      if (!key) throw new Error("ANTHROPIC_API_KEY is not configured");
+
+      const client = new Anthropic({ apiKey: key });
+      const stream = client.messages.stream({
+        model: model ?? anthropicDefaultModel(),
+        max_tokens: maxTokens,
+        system,
+        messages: turns.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+      });
+
+      for await (const event of stream) {
+        if (
+          event.type === "content_block_delta" &&
+          event.delta.type === "text_delta"
+        ) {
+          accumulated += event.delta.text;
+          yield event.delta.text;
+        }
+      }
+
+      recordProviderSuccess(provider, Date.now() - startedAt);
+      return accumulated;
+    }
+
+    // OpenAI-compatible providers (openrouter, gemini, groq, openai)
+    const client =
+      provider === "openrouter"
+        ? createOpenRouterClient()
+        : provider === "gemini"
+          ? createGeminiClient()
+          : provider === "groq"
+            ? createGroqClient()
+            : createDirectOpenAIClient();
+
+    const defaultModel =
+      provider === "openrouter"
+        ? openRouterDefaultModel()
+        : provider === "gemini"
+          ? geminiFallbackModel()
+          : provider === "groq"
+            ? groqFallbackModel()
+            : openAiFallbackModel();
+
+    const stream = await client.chat.completions.create({
+      model: model ?? defaultModel,
+      messages: [
+        { role: "system" as const, content: system },
+        ...turns.map((m) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        })),
+      ],
+      max_tokens: maxTokens,
+      stream: true,
+    });
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content;
+      if (delta) {
+        accumulated += delta;
+        yield delta;
+      }
+    }
+
+    recordProviderSuccess(provider, Date.now() - startedAt);
+    return accumulated;
+  } catch (error) {
+    recordProviderFailure(provider, classifyLlmErrorClass(error));
+    throw error;
+  } finally {
+    releaseProviderLease(lease);
+  }
+}
+
+/**
  * Retries with lower max_tokens when OpenRouter (etc.) returns 402, then tries other configured providers.
  */
 export async function executeChatTurnWithCreditFallback(opts: {
