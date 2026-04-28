@@ -67,8 +67,13 @@ export function Sidebar() {
         </div>
         {!collapsed ? (
           <div className="leading-tight">
-            <div className="text-base font-extrabold tracking-tight text-[var(--primary)]">
-              GradApply
+            <div className="flex items-center gap-2">
+              <div className="text-base font-extrabold tracking-tight text-[var(--primary)]">
+                GradApply
+              </div>
+              <span className="inline-flex items-center rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[var(--on-surface)]">
+                {status.planTier ?? "FREE"}
+              </span>
             </div>
             <div className="text-[9px] font-extrabold uppercase tracking-[0.15em] text-[var(--outline)]">
               Scholar Pursuit Hub
@@ -144,17 +149,14 @@ function SidebarLink({
       aria-current={active ? "page" : undefined}
       aria-label={item.label}
       className={cn(
-        "group relative flex items-center rounded-xl py-3 text-sm font-bold transition-all duration-200 ease-spring outline-none",
-        collapsed ? "justify-center px-2" : "gap-3 px-3.5",
+        "group relative flex items-center rounded-xl text-sm font-bold transition-all duration-200 ease-spring outline-none",
+        collapsed
+          ? "mx-auto h-11 w-11 justify-center"
+          : "h-11 gap-3 px-3.5",
         active
-          ? "bg-[color-mix(in_srgb,var(--primary-container)_18%,transparent)] text-[var(--primary)] -translate-y-0.5 [box-shadow:0_2px_0_0_var(--primary-container)]"
+          ? "bg-[color-mix(in_srgb,var(--primary-container)_20%,transparent)] text-[var(--primary)] ring-1 ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
           : "text-[var(--on-surface-variant)] hover:bg-[var(--surface-container)] hover:translate-x-0.5",
       )}
-      style={
-        active
-          ? { borderBottom: "4px solid var(--primary)", marginBottom: -4 }
-          : undefined
-      }
     >
       <Icon name={item.icon} fill={active} size={22} />
       {!collapsed ? <span>{item.label}</span> : null}

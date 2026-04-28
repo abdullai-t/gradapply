@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
+import { isTrustedMutationOrigin } from "@/lib/request-origin";
 
-import { unauthorized } from "./_responses";
+import { forbidden, unauthorized } from "./_responses";
 
 /**
  * A route handler that runs after `withAuth` has confirmed a session.
@@ -43,6 +44,10 @@ export function withAuth<TParams = Record<string, string>>(
   return async (req, routeCtx) => {
     const session = await auth();
     if (!session?.user?.id) return unauthorized();
+    const method = req.method.toUpperCase();
+    if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+      if (!isTrustedMutationOrigin(req)) return forbidden("Untrusted origin");
+    }
 
     const params = (routeCtx?.params ?? ({} as TParams)) as TParams;
     return handler(req, { userId: session.user.id, params });

@@ -1,11 +1,10 @@
+import { auth } from "@/auth";
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import { isFeatureEnabled } from "@/lib/feature-flags";
+import { canExportWithoutWatermark } from "@/lib/export-watermark";
 import {
-  paystackCreateCustomer,
-  paystackCreateSubscription,
   paystackInitializeTransaction,
 } from "@/lib/paystack-api";
-import { upsertPaystackSubscriptionUser } from "@/lib/paystack-fulfillment";
 import { prisma } from "@/lib/prisma";
 import { isTrustedMutationOrigin } from "@/lib/request-origin";
 import { getStripe } from "@/lib/stripe-server";
@@ -15,6 +14,20 @@ import { withAuth } from "../_with-auth";
 
 import { checkoutBodySchema, emailSchema } from "./schemas";
 
+function normalizeEmail(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const deMailto = trimmed.replace(/^mailto:/i, "").trim();
+  const lower = deMailto.toLowerCase();
+  const parsed = emailSchema.safeParse(lower);
+  return parsed.success ? parsed.data : null;
+}
+
+function ghsToMinor(value: number): number {
+  return Math.max(0, Math.round(value * 100));
+}
+
 export const status = withAuth(async (_req, { userId }) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -22,6 +35,11 @@ export const status = withAuth(async (_req, { userId }) => {
       planTier: true,
       aiUsageUsed: true,
       aiCreditsBalance: true,
+      aiUsageMonth: true,
+      freeEmailGenUsed: true,
+      freeSopPreviewUsed: true,
+      accessMode: true,
+      accessReadOnlySince: true,
       subscriptionStatus: true,
       currentPeriodEnd: true,
       stripeCustomerId: true,
@@ -31,21 +49,49 @@ export const status = withAuth(async (_req, { userId }) => {
   });
   if (!user) return notFound();
 
+  const now = new Date();
+  const isExpired =
+    user.planTier !== "FREE" &&
+    user.currentPeriodEnd != null &&
+    user.currentPeriodEnd.getTime() < now.getTime() &&
+    user.subscriptionStatus !== "active" &&
+    user.subscriptionStatus !== "trialing";
+  if (isExpired && user.accessMode !== "READ_ONLY") {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        accessMode: "READ_ONLY",
+        accessReadOnlySince: user.accessReadOnlySince ?? now,
+      },
+    });
+    user.accessMode = "READ_ONLY";
+  }
+
   const cfg = await getBillingAdminConfig();
   const stripeEnabled = Boolean(cfg.stripeSecretKey);
   const paystackEnabled = Boolean(cfg.paystackSecretKey);
   const billingEnabled = stripeEnabled || paystackEnabled;
   const canCheckoutPlus =
     (stripeEnabled && Boolean(cfg.stripePricePlus)) ||
-    (paystackEnabled && Boolean(cfg.paystackPlanCodePlus));
+    (paystackEnabled && cfg.displayPricePlusGhs > 0);
   const canCheckoutPro =
     (stripeEnabled && Boolean(cfg.stripePricePro)) ||
-    (paystackEnabled && Boolean(cfg.paystackPlanCodePro));
+    (paystackEnabled && cfg.displayPriceProGhs > 0);
   const canCheckoutCredits =
     (stripeEnabled && Boolean(cfg.stripePriceCreditsPack)) ||
-    (paystackEnabled && cfg.paystackAmountCreditsMinor > 0);
+    (paystackEnabled && cfg.creditUnitPriceGhs > 0);
+  const canCheckoutCvReview =
+    (stripeEnabled && Boolean(cfg.stripePriceCvDeepReview)) ||
+    (paystackEnabled && cfg.paystackAmountCvDeepReviewMinor > 0);
+  const canCheckoutSopCritique =
+    (stripeEnabled && Boolean(cfg.stripePriceSopDetailedCritique)) ||
+    (paystackEnabled && cfg.paystackAmountSopDetailedCritiqueMinor > 0);
   const checkoutConfigured =
-    canCheckoutPlus || canCheckoutPro || canCheckoutCredits;
+    canCheckoutPlus ||
+    canCheckoutPro ||
+    canCheckoutCredits ||
+    canCheckoutCvReview ||
+    canCheckoutSopCritique;
   const allowance = cfg.allowance[user.planTier];
   const settingsEnabled = await isFeatureEnabled("user_settings_page", false, {
     fresh: true,
@@ -62,10 +108,27 @@ export const status = withAuth(async (_req, { userId }) => {
     canCheckoutPlus,
     canCheckoutPro,
     canCheckoutCredits,
+    canCheckoutCvReview,
+    canCheckoutSopCritique,
     planTier: user.planTier,
+    monthlyCredits: allowance,
     monthlyAllowance: allowance,
     aiUsageUsed: user.aiUsageUsed,
+    aiUsageMonth: user.aiUsageMonth,
     aiCreditsBalance: user.aiCreditsBalance,
+    freeEmailGenerationsRemaining:
+      user.planTier === "FREE" ? Math.max(0, 1 - user.freeEmailGenUsed) : null,
+    freeSopPreviewRemaining:
+      user.planTier === "FREE" ? Math.max(0, 1 - user.freeSopPreviewUsed) : null,
+    accessMode: user.accessMode,
+    canExportWithoutWatermark: canExportWithoutWatermark(user.planTier),
+    displayPriceProGhs: cfg.displayPriceProGhs,
+    displayPricePlusGhs: cfg.displayPricePlusGhs,
+    displayPriceCreditsPackGhs: cfg.displayPriceCreditsPackGhs,
+    creditUnitPriceGhs: cfg.creditUnitPriceGhs,
+    displayPriceProRenewalGhs: cfg.displayPriceProRenewalGhs,
+    displayPricePlusRenewalGhs: cfg.displayPricePlusRenewalGhs,
+    creditsPackSize: cfg.creditsPackSize,
     subscriptionStatus: user.subscriptionStatus,
     currentPeriodEnd: user.currentPeriodEnd?.toISOString() ?? null,
     hasStripeCustomer: Boolean(user.stripeCustomerId),
@@ -90,6 +153,8 @@ export const checkout = withAuth(async (req, { userId }) => {
   if (!parsed.success) return bad(parsed.error.flatten());
 
   const tier = parsed.data.tier;
+  const renewal = parsed.data.renewal;
+  const creditsAmount = parsed.data.creditsAmount;
 
   const origin =
     process.env.AUTH_URL?.trim() ||
@@ -106,22 +171,33 @@ export const checkout = withAuth(async (req, { userId }) => {
     },
   });
   if (!user) return notFound();
-  const validEmail = emailSchema.safeParse(user.email ?? "").success
-    ? emailSchema.parse(user.email)
-    : null;
+  const session = await auth();
+  const validEmail =
+    normalizeEmail(user.email) ?? normalizeEmail(session?.user?.email);
 
   const priceId =
     tier === "plus"
-      ? cfg.stripePricePlus
+      ? renewal
+        ? (cfg.stripePricePlusRenewal ?? cfg.stripePricePlus)
+        : cfg.stripePricePlus
       : tier === "pro"
-        ? cfg.stripePricePro
-        : cfg.stripePriceCreditsPack;
+        ? renewal
+          ? (cfg.stripePriceProRenewal ?? cfg.stripePricePro)
+          : cfg.stripePricePro
+        : tier === "credits"
+          ? cfg.stripePriceCreditsPack
+          : tier === "cv_review"
+            ? cfg.stripePriceCvDeepReview
+            : cfg.stripePriceSopDetailedCritique;
 
   const stripeReady =
     stripeEnabled &&
     ((tier === "plus" && Boolean(cfg.stripePricePlus)) ||
       (tier === "pro" && Boolean(cfg.stripePricePro)) ||
-      (tier === "credits" && Boolean(cfg.stripePriceCreditsPack)));
+      (tier === "credits" && Boolean(cfg.stripePriceCreditsPack)) ||
+      (tier === "cv_review" && Boolean(cfg.stripePriceCvDeepReview)) ||
+      (tier === "sop_critique" &&
+        Boolean(cfg.stripePriceSopDetailedCritique)));
 
   if (stripeReady && priceId) {
     if (!user.stripeCustomerId && !validEmail) {
@@ -129,14 +205,25 @@ export const checkout = withAuth(async (req, { userId }) => {
     }
     const stripe = getStripe(cfg.stripeSecretKey);
 
-    if (tier === "credits") {
+    if (tier === "credits" || tier === "cv_review" || tier === "sop_critique") {
+      const creditQty = tier === "credits" ? (creditsAmount ?? cfg.creditsPackSize) : 1;
       const checkoutSession = await stripe.checkout.sessions.create({
         mode: "payment",
         ...(user.stripeCustomerId
           ? { customer: user.stripeCustomerId }
           : { customer_email: validEmail ?? undefined }),
-        line_items: [{ price: priceId, quantity: 1 }],
-        metadata: { userId, checkoutKind: "credits_pack" },
+        line_items: [{ price: priceId, quantity: creditQty }],
+        metadata: {
+          userId,
+          checkoutKind:
+            tier === "credits"
+              ? "credits_pack"
+              : tier === "cv_review"
+                ? "cv_deep_review"
+                : "sop_detailed_critique",
+          tier,
+          ...(tier === "credits" ? { creditsAmount: String(creditQty) } : {}),
+        },
         success_url: `${base}/settings?billing=success`,
         cancel_url: `${base}/settings?billing=cancel`,
       });
@@ -160,9 +247,12 @@ export const checkout = withAuth(async (req, { userId }) => {
 
   const paystackReady =
     paystackEnabled &&
-    ((tier === "plus" && Boolean(cfg.paystackPlanCodePlus)) ||
-      (tier === "pro" && Boolean(cfg.paystackPlanCodePro)) ||
-      (tier === "credits" && cfg.paystackAmountCreditsMinor > 0));
+    ((tier === "plus" && cfg.displayPricePlusGhs > 0) ||
+      (tier === "pro" && cfg.displayPriceProGhs > 0) ||
+      (tier === "credits" && cfg.creditUnitPriceGhs > 0) ||
+      (tier === "cv_review" && cfg.paystackAmountCvDeepReviewMinor > 0) ||
+      (tier === "sop_critique" &&
+        cfg.paystackAmountSopDetailedCritiqueMinor > 0));
 
   if (!paystackReady) {
     return bad(
@@ -171,7 +261,13 @@ export const checkout = withAuth(async (req, { userId }) => {
     );
   }
 
-  if (!validEmail && (tier === "credits" || !user.paystackCustomerId)) {
+  if (
+    !validEmail &&
+    (tier === "credits" ||
+      tier === "cv_review" ||
+      tier === "sop_critique" ||
+      !user.paystackCustomerId)
+  ) {
     return bad(
       "Add a valid email address to your account before paying with Paystack.",
     );
@@ -179,14 +275,31 @@ export const checkout = withAuth(async (req, { userId }) => {
 
   const callbackUrl = `${base}/api/billing/paystack/callback`;
 
-  if (tier === "credits") {
+  if (tier === "credits" || tier === "cv_review" || tier === "sop_critique") {
+    const creditQty = tier === "credits" ? (creditsAmount ?? cfg.creditsPackSize) : 1;
+    const amountMinor =
+      tier === "credits"
+        ? Math.round(creditQty * cfg.creditUnitPriceGhs * 100)
+        : tier === "cv_review"
+          ? cfg.paystackAmountCvDeepReviewMinor
+          : cfg.paystackAmountSopDetailedCritiqueMinor;
     let data;
     try {
       data = await paystackInitializeTransaction({
         email: validEmail!,
-        amountMinor: cfg.paystackAmountCreditsMinor,
+        amountMinor,
         currency: cfg.paystackCurrency,
-        metadata: { userId, checkoutKind: "credits_pack", tier: "credits" },
+        metadata: {
+          userId,
+          checkoutKind:
+            tier === "credits"
+              ? "credits_pack"
+              : tier === "cv_review"
+                ? "cv_deep_review"
+                : "sop_detailed_critique",
+          tier,
+          ...(tier === "credits" ? { creditsAmount: String(creditQty) } : {}),
+        },
         callbackUrl,
         secretKey: cfg.paystackSecretKey,
       });
@@ -195,131 +308,61 @@ export const checkout = withAuth(async (req, { userId }) => {
         error instanceof Error
           ? error.message
           : "Paystack checkout initialization failed";
+      if (message.toLowerCase().includes("invalid email address")) {
+        return bad(
+          "Paystack rejected your account email. Update your account email to a standard address (e.g. name@domain.com) and retry.",
+        );
+      }
       return bad(message);
     }
     return ok({ url: data.authorization_url });
   }
 
-  let customerIdNum: number | null = user.paystackCustomerId
-    ? Number(user.paystackCustomerId)
-    : null;
-
-  if (
-    customerIdNum == null ||
-    !Number.isFinite(customerIdNum) ||
-    customerIdNum <= 0
-  ) {
-    let cust;
-    try {
-      cust = await paystackCreateCustomer({
-        email: validEmail!,
-        metadata: { userId },
-        secretKey: cfg.paystackSecretKey,
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Paystack customer creation failed";
-      return bad(message);
-    }
-    customerIdNum = cust.id!;
-    await prisma.user.update({
-      where: { id: userId },
-      data: { paystackCustomerId: String(customerIdNum) },
-    });
-  }
-
-  const planCode =
-    tier === "plus" ? cfg.paystackPlanCodePlus! : cfg.paystackPlanCodePro!;
   const planTier = tier === "plus" ? ("PLUS" as const) : ("PRO" as const);
-  console.info("[billing][paystack] creating subscription", {
+  const amountMinor = ghsToMinor(
+    tier === "plus"
+      ? renewal
+        ? cfg.displayPricePlusRenewalGhs
+        : cfg.displayPricePlusGhs
+      : renewal
+        ? cfg.displayPriceProRenewalGhs
+        : cfg.displayPriceProGhs,
+  );
+  console.info("[billing][paystack] creating plan transaction", {
     userId,
     tier: planTier,
-    planCode,
+    amountMinor,
+    currency: cfg.paystackCurrency,
+    renewal,
   });
 
-  let sub;
   try {
-    sub = await paystackCreateSubscription({
-      customerId: customerIdNum,
-      planCode,
+    const init = await paystackInitializeTransaction({
+      email: validEmail!,
+      amountMinor,
+      currency: cfg.paystackCurrency,
+      metadata: {
+        userId,
+        checkoutKind: "plan_purchase",
+        tier: tier === "plus" ? "plus" : "pro",
+        renewal: renewal ? "1" : "0",
+      },
+      callbackUrl,
       secretKey: cfg.paystackSecretKey,
     });
+    return ok({ url: init.authorization_url });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Paystack subscription failed";
-    const customerMissing = message
-      .toLowerCase()
-      .includes("customer with the specified email or code was not found");
-    console.error("[billing][paystack] subscription failed", {
-      userId,
-      tier: planTier,
-      planCode,
-      customerIdNum,
-      message,
-    });
-    if (customerMissing) {
-      if (!validEmail) {
-        return bad(
-          "Stored Paystack customer is invalid and your account email is missing/invalid. Update your email, then retry checkout.",
-        );
-      }
-
-      try {
-        console.warn("[billing][paystack] recreating missing customer", {
-          userId,
-          tier: planTier,
-          planCode,
-          previousCustomerId: customerIdNum,
-        });
-        const refreshed = await paystackCreateCustomer({
-          email: validEmail,
-          metadata: { userId },
-          secretKey: cfg.paystackSecretKey,
-        });
-        customerIdNum = refreshed.id!;
-        await prisma.user.update({
-          where: { id: userId },
-          data: { paystackCustomerId: String(customerIdNum) },
-        });
-        sub = await paystackCreateSubscription({
-          customerId: customerIdNum,
-          planCode,
-          secretKey: cfg.paystackSecretKey,
-        });
-      } catch (retryError) {
-        const retryMessage =
-          retryError instanceof Error
-            ? retryError.message
-            : "Paystack subscription failed after customer refresh";
-        return bad(
-          retryMessage === "Plan code is invalid"
-            ? "Paystack plan code is invalid. Update the plan code in Admin > Pricing & billing."
-            : retryMessage,
-        );
-      }
-    } else {
+      error instanceof Error
+        ? error.message
+        : "Paystack plan checkout initialization failed";
+    if (message.toLowerCase().includes("invalid email address")) {
       return bad(
-        message === "Plan code is invalid"
-          ? "Paystack plan code is invalid. Update the plan code in Admin > Pricing & billing."
-          : message,
+        "Paystack rejected your account email. Update your account email to a standard address (e.g. name@domain.com) and retry.",
       );
     }
+    return bad(message);
   }
-
-  if (sub.authorization_url) {
-    return ok({ url: sub.authorization_url });
-  }
-
-  await upsertPaystackSubscriptionUser({
-    userId,
-    customerId: customerIdNum,
-    tier: planTier,
-    sub,
-  });
-
-  return ok({ url: `${base}/settings?billing=success` });
 });
 
 export const portal = withAuth(async (req, { userId }) => {

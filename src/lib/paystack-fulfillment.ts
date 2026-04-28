@@ -42,8 +42,29 @@ export async function processPaystackReference(reference: string): Promise<{
     tierRaw === "credit";
 
   if (isCredits && userIdMeta) {
+    const creditsFromMeta = Number.parseInt(
+      typeof meta.creditsAmount === "string"
+        ? meta.creditsAmount
+        : String(meta.creditsAmount ?? ""),
+      10,
+    );
     await prisma.paystackEventLog.create({ data: { reference } });
-    await grantCreditsPackToUser(userIdMeta);
+    await grantCreditsPackToUser(
+      userIdMeta,
+      Number.isFinite(creditsFromMeta) ? creditsFromMeta : undefined,
+    );
+    await prisma.billingPayment.create({
+      data: {
+        userId: userIdMeta,
+        provider: "PAYSTACK",
+        providerReference: reference,
+        kind: "CREDITS_PACK",
+        amountMinor:
+          typeof tx.amount === "number" ? Math.round(tx.amount) : null,
+        currency: tx.currency ?? null,
+        paidAt: tx.paidAt ? new Date(tx.paidAt) : new Date(),
+      },
+    });
     if (tx.customer?.id != null) {
       await prisma.user.update({
         where: { id: userIdMeta },
@@ -53,6 +74,75 @@ export async function processPaystackReference(reference: string): Promise<{
       });
     }
     return { duplicate: false, applied: true, kind: "credits" };
+  }
+
+  const isAddonService =
+    checkoutKind === "cv_deep_review" || checkoutKind === "sop_detailed_critique";
+  if (isAddonService && userIdMeta) {
+    await prisma.paystackEventLog.create({ data: { reference } });
+    await prisma.billingPayment.create({
+      data: {
+        userId: userIdMeta,
+        provider: "PAYSTACK",
+        providerReference: reference,
+        kind:
+          checkoutKind === "cv_deep_review"
+            ? "CV_DEEP_REVIEW"
+            : "SOP_DETAILED_CRITIQUE",
+        amountMinor:
+          typeof tx.amount === "number" ? Math.round(tx.amount) : null,
+        currency: tx.currency ?? null,
+        paidAt: tx.paidAt ? new Date(tx.paidAt) : new Date(),
+      },
+    });
+    if (tx.customer?.id != null) {
+      await prisma.user.update({
+        where: { id: userIdMeta },
+        data: {
+          paystackCustomerId: String(tx.customer.id),
+        },
+      });
+    }
+    return { duplicate: false, applied: true, kind: "credits" };
+  }
+
+  const isPlanPurchase = checkoutKind === "plan_purchase";
+  if (isPlanPurchase && userIdMeta) {
+    const tierFromMeta =
+      tierRaw === "plus" ? ("PLUS" as const) : tierRaw === "pro" ? ("PRO" as const) : null;
+    if (!tierFromMeta) return { duplicate: false, applied: false };
+    const now = tx.paidAt ? new Date(tx.paidAt) : new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setMonth(periodEnd.getMonth() + 6);
+
+    await prisma.paystackEventLog.create({ data: { reference } });
+    await prisma.user.update({
+      where: { id: userIdMeta },
+      data: {
+        planTier: tierFromMeta,
+        subscriptionStatus: "active",
+        currentPeriodEnd: periodEnd,
+        ...(tx.customer?.id != null
+          ? { paystackCustomerId: String(tx.customer.id) }
+          : {}),
+        accessMode: "FULL",
+        accessReadOnlySince: null,
+      },
+    });
+    await prisma.billingPayment.create({
+      data: {
+        userId: userIdMeta,
+        provider: "PAYSTACK",
+        providerReference: reference,
+        kind: "PLAN_PURCHASE",
+        tier: tierFromMeta,
+        amountMinor:
+          typeof tx.amount === "number" ? Math.round(tx.amount) : null,
+        currency: tx.currency ?? null,
+        paidAt: now,
+      },
+    });
+    return { duplicate: false, applied: true, kind: "subscription" };
   }
 
   const cid = tx.customer?.id;
@@ -79,6 +169,21 @@ export async function processPaystackReference(reference: string): Promise<{
           planTier: tier,
           subscriptionStatus: "active",
           paystackCustomerId: String(cid),
+          accessMode: "FULL",
+          accessReadOnlySince: null,
+        },
+      });
+      await prisma.billingPayment.create({
+        data: {
+          userId: user.id,
+          provider: "PAYSTACK",
+          providerReference: reference,
+          kind: "PLAN_PURCHASE",
+          tier,
+          amountMinor:
+            typeof tx.amount === "number" ? Math.round(tx.amount) : null,
+          currency: tx.currency ?? null,
+          paidAt: tx.paidAt ? new Date(tx.paidAt) : new Date(),
         },
       });
       return { duplicate: false, applied: true, kind: "subscription" };
@@ -108,6 +213,8 @@ export async function upsertPaystackSubscriptionUser(opts: {
       subscriptionStatus: opts.sub.status ?? "active",
       paystackSubscriptionCode: opts.sub.subscription_code ?? null,
       currentPeriodEnd: next,
+      accessMode: "FULL",
+      accessReadOnlySince: null,
     },
   });
 }

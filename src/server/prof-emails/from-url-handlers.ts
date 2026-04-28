@@ -4,7 +4,9 @@ import { NextResponse } from "next/server";
 import { runTask } from "@/lib/agents";
 import {
   billingPrecheckResponse,
-  finalizeAiConsumption,
+  canUseFreeLifetimeEmailGeneration,
+  finalizeAiConsumptionForAction,
+  markFreeLifetimeEmailGenerationUsed,
 } from "@/lib/billing-allowance";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
 import {
@@ -16,18 +18,24 @@ import {
 import { prisma } from "@/lib/prisma";
 import { sanitizeField } from "@/lib/agents/sanitize";
 import { fetchProfilePagePlainText } from "@/lib/profile-page-fetch";
+import { requireWritableAccount } from "@/lib/plan-gates";
 import { bad, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
 
 import { fromUrlBodySchema } from "./schemas";
 
 export const fromUrl = withAuth(async (req, { userId }) => {
+  const readOnly = await requireWritableAccount(userId);
+  if (readOnly) return readOnly;
   const json = await req.json().catch(() => null);
   const parsed = fromUrlBodySchema.safeParse(json);
   if (!parsed.success) return bad(parsed.error.flatten());
 
-  const quota = await billingPrecheckResponse(userId);
-  if (quota) return quota;
+  const canUseFree = await canUseFreeLifetimeEmailGeneration(userId);
+  if (!canUseFree) {
+    const quota = await billingPrecheckResponse(userId, "cold_email");
+    if (quota) return quota;
+  }
 
   try {
     await assertProfEmailLlmAllowed(userId);
@@ -95,7 +103,9 @@ export const fromUrl = withAuth(async (req, { userId }) => {
     });
 
     await Promise.all([
-      finalizeAiConsumption(userId),
+      canUseFree
+        ? markFreeLifetimeEmailGenerationUsed(userId)
+        : finalizeAiConsumptionForAction(userId, "cold_email"),
       markProfEmailLlmSuccess(userId),
     ]);
     return ok(row);

@@ -79,6 +79,9 @@ export async function paystackInitializeTransaction(opts: {
 export type PaystackVerifyData = {
   status?: string;
   reference?: string;
+  paidAt?: string;
+  amount?: number;
+  currency?: string;
   metadata?: Record<string, unknown>;
   customer?: { id?: number; email?: string };
   /** Present on subscription-related charges (maps from Paystack `data.plan`). */
@@ -95,6 +98,9 @@ export async function paystackVerifyTransaction(
     data?: {
       status?: string;
       reference?: string;
+        paid_at?: string;
+        amount?: number;
+        currency?: string;
       metadata?: Record<string, unknown>;
       customer?: { id?: number; email?: string };
       plan?: { plan_code?: string; id?: number; name?: string };
@@ -110,6 +116,9 @@ export async function paystackVerifyTransaction(
   return {
     status: json.data.status,
     reference: json.data.reference,
+    paidAt: json.data.paid_at,
+    amount: json.data.amount,
+    currency: json.data.currency,
     metadata: json.data.metadata,
     customer: json.data.customer,
     plan: json.data.plan,

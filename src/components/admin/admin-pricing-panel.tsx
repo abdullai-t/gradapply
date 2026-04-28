@@ -15,10 +15,14 @@ type ConfigResponse = {
     paystackPlanCodePlus: string;
     paystackPlanCodePro: string;
     paystackAmountCreditsMinor: number;
+    displayPriceProGhs: number;
+    displayPricePlusGhs: number;
+    creditUnitPriceGhs: number;
     allowanceFree: number;
     allowancePlus: number;
     allowancePro: number;
-    creditsPackSize: number;
+    freeSignupCredits: number;
+    freeMonthlyCreditsGrant: number;
   };
 };
 
@@ -84,10 +88,14 @@ export function AdminPricingPanel() {
   const [paystackPlanCodePlus, setPaystackPlanCodePlus] = useState("");
   const [paystackPlanCodePro, setPaystackPlanCodePro] = useState("");
   const [paystackAmountCreditsMinor, setPaystackAmountCreditsMinor] = useState("5000");
+  const [displayPriceProGhs, setDisplayPriceProGhs] = useState("18");
+  const [displayPricePlusGhs, setDisplayPricePlusGhs] = useState("35");
+  const [creditUnitPriceGhs, setCreditUnitPriceGhs] = useState("1");
   const [allowanceFree, setAllowanceFree] = useState("35");
   const [allowancePlus, setAllowancePlus] = useState("200");
   const [allowancePro, setAllowancePro] = useState("600");
-  const [creditsPackSize, setCreditsPackSize] = useState("50");
+  const [freeSignupCredits, setFreeSignupCredits] = useState("20");
+  const [freeMonthlyCreditsGrant, setFreeMonthlyCreditsGrant] = useState("10");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -111,10 +119,14 @@ export function AdminPricingPanel() {
     setPaystackPlanCodePlus(json.settings.paystackPlanCodePlus);
     setPaystackPlanCodePro(json.settings.paystackPlanCodePro);
     setPaystackAmountCreditsMinor(String(json.settings.paystackAmountCreditsMinor));
+    setDisplayPriceProGhs(String(json.settings.displayPriceProGhs));
+    setDisplayPricePlusGhs(String(json.settings.displayPricePlusGhs));
+    setCreditUnitPriceGhs(String(json.settings.creditUnitPriceGhs));
     setAllowanceFree(String(json.settings.allowanceFree));
     setAllowancePlus(String(json.settings.allowancePlus));
     setAllowancePro(String(json.settings.allowancePro));
-    setCreditsPackSize(String(json.settings.creditsPackSize));
+    setFreeSignupCredits(String(json.settings.freeSignupCredits));
+    setFreeMonthlyCreditsGrant(String(json.settings.freeMonthlyCreditsGrant));
     setLoading(false);
   }, []);
 
@@ -129,10 +141,14 @@ export function AdminPricingPanel() {
 
     const payload: Record<string, string | number> = {
       paystackAmountCreditsMinor: Number(paystackAmountCreditsMinor || "0"),
+      displayPriceProGhs: Number(displayPriceProGhs || "0"),
+      displayPricePlusGhs: Number(displayPricePlusGhs || "0"),
+      creditUnitPriceGhs: Number(creditUnitPriceGhs || "0"),
       allowanceFree: Number(allowanceFree || "0"),
       allowancePlus: Number(allowancePlus || "0"),
       allowancePro: Number(allowancePro || "0"),
-      creditsPackSize: Number(creditsPackSize || "0"),
+      freeSignupCredits: Number(freeSignupCredits || "0"),
+      freeMonthlyCreditsGrant: Number(freeMonthlyCreditsGrant || "0"),
     };
     if (stripePricePlus.trim()) payload.stripePricePlus = stripePricePlus.trim();
     if (stripePricePro.trim()) payload.stripePricePro = stripePricePro.trim();
@@ -210,25 +226,48 @@ export function AdminPricingPanel() {
         </div>
 
         <div className="glass-panel space-y-4 p-5">
-          <h2 className="font-display text-xl font-semibold">Paystack</h2>
+          <h2 className="font-display text-xl font-semibold">Paystack (legacy)</h2>
           <p className="text-sm text-muted-foreground">
-            Configure Paystack plan codes and one-time credits amount (minor units).
+            These legacy fields are no longer used by the current checkout flow.
           </p>
-          <div className="space-y-3">
+          <p className="rounded-lg border border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-3 py-2 text-xs text-[var(--on-surface-variant)]">
+            Plan and credit payments are now initialized directly using configured
+            display prices and credit unit price.
+          </p>
+        </div>
+      </div>
+
+      <div className="glass-panel space-y-4 p-5">
+        <h2 className="font-display text-xl font-semibold">Displayed prices (GHS)</h2>
+        <p className="text-sm text-muted-foreground">
+          These values are shown in user-facing pricing copy and billing screens.
+        </p>
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="display-price-pro">Pro price (GHS)</Label>
             <Input
-              value={paystackPlanCodePlus}
-              onChange={(e) => setPaystackPlanCodePlus(e.target.value)}
-              placeholder="Paystack Plus plan code"
+              id="display-price-pro"
+              value={displayPriceProGhs}
+              onChange={(e) => setDisplayPriceProGhs(e.target.value)}
+              placeholder="18"
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="display-price-plus">Plus price (GHS)</Label>
             <Input
-              value={paystackPlanCodePro}
-              onChange={(e) => setPaystackPlanCodePro(e.target.value)}
-              placeholder="Paystack Pro plan code"
+              id="display-price-plus"
+              value={displayPricePlusGhs}
+              onChange={(e) => setDisplayPricePlusGhs(e.target.value)}
+              placeholder="35"
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="credit-unit-price-ghs">1 credit price (GHS)</Label>
             <Input
-              value={paystackAmountCreditsMinor}
-              onChange={(e) => setPaystackAmountCreditsMinor(e.target.value)}
-              placeholder="Paystack credits amount (minor)"
+              id="credit-unit-price-ghs"
+              value={creditUnitPriceGhs}
+              onChange={(e) => setCreditUnitPriceGhs(e.target.value)}
+              placeholder="1"
             />
           </div>
         </div>
@@ -237,18 +276,9 @@ export function AdminPricingPanel() {
       <div className="glass-panel space-y-4 p-5">
         <h2 className="font-display text-xl font-semibold">Plan allowances</h2>
         <p className="text-sm text-muted-foreground">
-          Monthly AI allowances by plan and shared credits-pack size.
+          Monthly AI allowances for paid tiers, plus free-tier credit grants.
         </p>
         <div className="grid gap-3 md:grid-cols-4">
-          <div className="space-y-2">
-            <Label htmlFor="allowance-free">Free monthly AI</Label>
-            <Input
-              id="allowance-free"
-              value={allowanceFree}
-              onChange={(e) => setAllowanceFree(e.target.value)}
-              placeholder="e.g. 35"
-            />
-          </div>
           <div className="space-y-2">
             <Label htmlFor="allowance-plus">Plus monthly AI</Label>
             <Input
@@ -268,12 +298,21 @@ export function AdminPricingPanel() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="credits-pack-size">Credits pack size</Label>
+            <Label htmlFor="free-signup-credits">Free signup credits</Label>
             <Input
-              id="credits-pack-size"
-              value={creditsPackSize}
-              onChange={(e) => setCreditsPackSize(e.target.value)}
-              placeholder="e.g. 50"
+              id="free-signup-credits"
+              value={freeSignupCredits}
+              onChange={(e) => setFreeSignupCredits(e.target.value)}
+              placeholder="e.g. 20"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="free-monthly-grant">Free monthly credits grant</Label>
+            <Input
+              id="free-monthly-grant"
+              value={freeMonthlyCreditsGrant}
+              onChange={(e) => setFreeMonthlyCreditsGrant(e.target.value)}
+              placeholder="e.g. 10"
             />
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireWritableAccount } from "@/lib/plan-gates";
 
 import { bad, notFound, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
@@ -16,6 +17,9 @@ export const get = withAuth<{ id: string }>(async (_req, { userId, params }) => 
 
 export const update = withAuth<{ id: string }>(
   async (req, { userId, params }) => {
+    const readOnly = await requireWritableAccount(userId);
+    if (readOnly) return readOnly;
+
     const { id } = params;
     const json = await req.json().catch(() => null);
     const parsed = updateProfEmailSchema.safeParse(json);
@@ -47,6 +51,9 @@ export const update = withAuth<{ id: string }>(
 
 export const remove = withAuth<{ id: string }>(
   async (_req, { userId, params }) => {
+    const readOnly = await requireWritableAccount(userId);
+    if (readOnly) return readOnly;
+
     const { id } = params;
 
     const existing = await prisma.profEmail.findFirst({
