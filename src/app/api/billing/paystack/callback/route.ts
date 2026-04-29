@@ -18,7 +18,10 @@ export async function GET(req: Request) {
     return NextResponse.redirect(`${base}/settings?billing=error`);
   }
 
-  await processPaystackReference(ref);
+  const result = await processPaystackReference(ref);
+  if (!result.applied && !result.duplicate) {
+    return NextResponse.redirect(`${base}/settings?billing=error`);
+  }
 
   return NextResponse.redirect(`${base}/settings?billing=success`);
 }

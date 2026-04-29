@@ -440,13 +440,30 @@ export const getConfig = withAdmin(async (_req, { role: actorRole }) => {
         paystackCurrency: cfg.paystackCurrency,
         stripePricePlus: cfg.stripePricePlus ?? "",
         stripePricePro: cfg.stripePricePro ?? "",
+        stripePriceProRenewal: cfg.stripePriceProRenewal ?? "",
+        stripePricePlusRenewal: cfg.stripePricePlusRenewal ?? "",
         stripePriceCreditsPack: cfg.stripePriceCreditsPack ?? "",
+        stripePriceCvDeepReview: cfg.stripePriceCvDeepReview ?? "",
+        stripePriceSopDetailedCritique: cfg.stripePriceSopDetailedCritique ?? "",
         paystackPlanCodePlus: cfg.paystackPlanCodePlus ?? "",
         paystackPlanCodePro: cfg.paystackPlanCodePro ?? "",
+        paystackPlanCodeProRenewal: cfg.paystackPlanCodeProRenewal ?? "",
+        paystackPlanCodePlusRenewal: cfg.paystackPlanCodePlusRenewal ?? "",
         paystackAmountCreditsMinor: cfg.paystackAmountCreditsMinor,
+        displayPriceProGhs: cfg.displayPriceProGhs,
+        displayPricePlusGhs: cfg.displayPricePlusGhs,
+        displayPriceCreditsPackGhs: cfg.displayPriceCreditsPackGhs,
+        creditUnitPriceGhs: cfg.creditUnitPriceGhs,
+        displayPriceProRenewalGhs: cfg.displayPriceProRenewalGhs,
+        displayPricePlusRenewalGhs: cfg.displayPricePlusRenewalGhs,
+        paystackAmountCvDeepReviewMinor: cfg.paystackAmountCvDeepReviewMinor,
+        paystackAmountSopDetailedCritiqueMinor:
+          cfg.paystackAmountSopDetailedCritiqueMinor,
         allowanceFree: cfg.allowance.FREE,
         allowancePlus: cfg.allowance.PLUS,
         allowancePro: cfg.allowance.PRO,
+        freeSignupCredits: cfg.freeSignupCredits,
+        freeMonthlyCreditsGrant: cfg.freeMonthlyCreditsGrant,
         creditsPackSize: cfg.creditsPackSize,
       },
     },
@@ -492,10 +509,27 @@ export const patchConfig = withAdmin(async (req) => {
     put(BILLING_SETTING_KEYS.stripePricePlus, updates.stripePricePlus);
   if (updates.stripePricePro)
     put(BILLING_SETTING_KEYS.stripePricePro, updates.stripePricePro);
+  if (updates.stripePriceProRenewal)
+    put(BILLING_SETTING_KEYS.stripePriceProRenewal, updates.stripePriceProRenewal);
+  if (updates.stripePricePlusRenewal)
+    put(
+      BILLING_SETTING_KEYS.stripePricePlusRenewal,
+      updates.stripePricePlusRenewal,
+    );
   if (updates.stripePriceCreditsPack)
     put(
       BILLING_SETTING_KEYS.stripePriceCreditsPack,
       updates.stripePriceCreditsPack,
+    );
+  if (updates.stripePriceCvDeepReview)
+    put(
+      BILLING_SETTING_KEYS.stripePriceCvDeepReview,
+      updates.stripePriceCvDeepReview,
+    );
+  if (updates.stripePriceSopDetailedCritique)
+    put(
+      BILLING_SETTING_KEYS.stripePriceSopDetailedCritique,
+      updates.stripePriceSopDetailedCritique,
     );
   if (updates.paystackPlanCodePlus)
     put(
@@ -504,10 +538,54 @@ export const patchConfig = withAdmin(async (req) => {
     );
   if (updates.paystackPlanCodePro)
     put(BILLING_SETTING_KEYS.paystackPlanCodePro, updates.paystackPlanCodePro);
+  if (updates.paystackPlanCodeProRenewal)
+    put(
+      BILLING_SETTING_KEYS.paystackPlanCodeProRenewal,
+      updates.paystackPlanCodeProRenewal,
+    );
+  if (updates.paystackPlanCodePlusRenewal)
+    put(
+      BILLING_SETTING_KEYS.paystackPlanCodePlusRenewal,
+      updates.paystackPlanCodePlusRenewal,
+    );
   if (updates.paystackAmountCreditsMinor != null)
     put(
       BILLING_SETTING_KEYS.paystackAmountCreditsMinor,
       String(updates.paystackAmountCreditsMinor),
+    );
+  if (updates.displayPriceProGhs != null)
+    put(BILLING_SETTING_KEYS.displayPriceProGhs, String(updates.displayPriceProGhs));
+  if (updates.displayPricePlusGhs != null)
+    put(
+      BILLING_SETTING_KEYS.displayPricePlusGhs,
+      String(updates.displayPricePlusGhs),
+    );
+  if (updates.displayPriceCreditsPackGhs != null)
+    put(
+      BILLING_SETTING_KEYS.displayPriceCreditsPackGhs,
+      String(updates.displayPriceCreditsPackGhs),
+    );
+  if (updates.creditUnitPriceGhs != null)
+    put(BILLING_SETTING_KEYS.creditUnitPriceGhs, String(updates.creditUnitPriceGhs));
+  if (updates.displayPriceProRenewalGhs != null)
+    put(
+      BILLING_SETTING_KEYS.displayPriceProRenewalGhs,
+      String(updates.displayPriceProRenewalGhs),
+    );
+  if (updates.displayPricePlusRenewalGhs != null)
+    put(
+      BILLING_SETTING_KEYS.displayPricePlusRenewalGhs,
+      String(updates.displayPricePlusRenewalGhs),
+    );
+  if (updates.paystackAmountCvDeepReviewMinor != null)
+    put(
+      BILLING_SETTING_KEYS.paystackAmountCvDeepReviewMinor,
+      String(updates.paystackAmountCvDeepReviewMinor),
+    );
+  if (updates.paystackAmountSopDetailedCritiqueMinor != null)
+    put(
+      BILLING_SETTING_KEYS.paystackAmountSopDetailedCritiqueMinor,
+      String(updates.paystackAmountSopDetailedCritiqueMinor),
     );
   if (updates.allowanceFree != null)
     put(BILLING_SETTING_KEYS.allowanceFree, String(updates.allowanceFree));
@@ -515,6 +593,16 @@ export const patchConfig = withAdmin(async (req) => {
     put(BILLING_SETTING_KEYS.allowancePlus, String(updates.allowancePlus));
   if (updates.allowancePro != null)
     put(BILLING_SETTING_KEYS.allowancePro, String(updates.allowancePro));
+  if (updates.freeSignupCredits != null)
+    put(
+      BILLING_SETTING_KEYS.freeSignupCredits,
+      String(updates.freeSignupCredits),
+    );
+  if (updates.freeMonthlyCreditsGrant != null)
+    put(
+      BILLING_SETTING_KEYS.freeMonthlyCreditsGrant,
+      String(updates.freeMonthlyCreditsGrant),
+    );
   if (updates.creditsPackSize != null)
     put(BILLING_SETTING_KEYS.creditsPackSize, String(updates.creditsPackSize));
 

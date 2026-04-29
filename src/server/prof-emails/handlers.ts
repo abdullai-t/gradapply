@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireWritableAccount } from "@/lib/plan-gates";
 
 import { bad, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
@@ -30,6 +31,9 @@ export const list = withAuth(async (_req, { userId }) => {
 });
 
 export const create = withAuth(async (req, { userId }) => {
+  const readOnly = await requireWritableAccount(userId);
+  if (readOnly) return readOnly;
+
   const json = await req.json().catch(() => null);
   const parsed = createProfEmailSchema.safeParse(json);
   if (!parsed.success) return bad({ error: parsed.error.flatten() });

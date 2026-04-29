@@ -11,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Icon } from "@/components/icon";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 export function UserMenu({ compact = false }: { compact?: boolean }) {
@@ -46,8 +45,8 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
           </Avatar>
           <span
             className={cn(
-              "hidden min-w-0 flex-1 truncate text-sm font-bold md:inline",
-              compact && "hidden",
+              "min-w-0 flex-1 truncate text-sm font-bold",
+              compact ? "hidden" : "hidden md:inline",
             )}
           >
             {user?.name ?? user?.email}
@@ -59,11 +58,6 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
         sideOffset={8}
         className="w-64 border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-2 text-[var(--on-surface)] shadow-2xl"
       >
-        <div className="px-2 pb-3 pt-1">
-          <div className="t-label-lg mb-2">Theme</div>
-          <ThemeToggle />
-        </div>
-        <div className="my-1 h-px bg-[var(--outline-variant)]" />
         <DropdownMenuItem
           className="cursor-pointer rounded-lg px-2.5 py-2 text-sm font-bold focus:bg-[var(--error-container)] focus:text-[var(--on-error-container)]"
           onClick={() => signOut({ callbackUrl: "/" })}

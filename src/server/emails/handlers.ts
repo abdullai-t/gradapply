@@ -3,9 +3,12 @@ import { EmailStatus } from "@prisma/client";
 import { runTask } from "@/lib/agents";
 import {
   billingPrecheckResponse,
-  finalizeAiConsumption,
+  canUseFreeLifetimeEmailGeneration,
+  finalizeAiConsumptionForAction,
+  markFreeLifetimeEmailGenerationUsed,
 } from "@/lib/billing-allowance";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
+import { requireWritableAccount } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
 import { sanitizeField } from "@/lib/agents/sanitize";
 import { fetchProfilePagePlainText } from "@/lib/profile-page-fetch";
@@ -48,6 +51,9 @@ export const list = withAuth(async (req, { userId }) => {
 });
 
 export const create = withAuth(async (req, { userId }) => {
+  const readOnly = await requireWritableAccount(userId);
+  if (readOnly) return readOnly;
+
   const parsed = createEmailSchema.safeParse(await req.json());
   if (!parsed.success) return bad(parsed.error.flatten());
 
@@ -86,6 +92,9 @@ function parseDate(s: string | null | undefined) {
 
 export const update = withAuth<{ id: string }>(
   async (req, { userId, params }) => {
+    const readOnly = await requireWritableAccount(userId);
+    if (readOnly) return readOnly;
+
     const parsed = patchEmailSchema.safeParse(await req.json());
     if (!parsed.success) return bad(parsed.error.flatten());
 
@@ -144,6 +153,9 @@ export const update = withAuth<{ id: string }>(
 
 export const remove = withAuth<{ id: string }>(
   async (_req, { userId, params }) => {
+    const readOnly = await requireWritableAccount(userId);
+    if (readOnly) return readOnly;
+
     const owned = await prisma.profEmail.findFirst({
       where: { id: params.id, userId },
     });
@@ -161,8 +173,11 @@ export const draft = withAuth<{ id: string }>(
     });
     if (!row) return notFound();
 
-    const quota = await billingPrecheckResponse(userId);
-    if (quota) return quota;
+    const canUseFree = await canUseFreeLifetimeEmailGeneration(userId);
+    if (!canUseFree) {
+      const quota = await billingPrecheckResponse(userId, "cold_email");
+      if (quota) return quota;
+    }
 
     if (row.profileUrl?.trim()) {
       let fetched;
@@ -202,7 +217,11 @@ export const draft = withAuth<{ id: string }>(
             profileUrl: fetched.url,
           },
         });
-        await finalizeAiConsumption(userId);
+        if (!canUseFree) {
+          await finalizeAiConsumptionForAction(userId, "cold_email");
+        } else {
+          await markFreeLifetimeEmailGenerationUsed(userId);
+        }
         return ok(updated);
       } catch (e) {
         return bad(formatLlmFailureMessage(e), 500);
@@ -234,7 +253,11 @@ export const draft = withAuth<{ id: string }>(
         },
       });
 
-      await finalizeAiConsumption(userId);
+      if (!canUseFree) {
+        await finalizeAiConsumptionForAction(userId, "cold_email");
+      } else {
+        await markFreeLifetimeEmailGenerationUsed(userId);
+      }
       return ok(updated);
     } catch (e) {
       return bad(formatLlmFailureMessage(e), 500);

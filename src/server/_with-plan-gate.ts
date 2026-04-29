@@ -1,4 +1,8 @@
-import { type LockedFeature, requireNonFreeForFeature } from "@/lib/plan-gates";
+import {
+  type LockedFeature,
+  requireNonFreeForFeature,
+  requireWritableAccount,
+} from "@/lib/plan-gates";
 
 import { type AuthedHandler, withAuth } from "./_with-auth";
 
@@ -26,6 +30,10 @@ export function withPlanGate<TParams = Record<string, string>>(
   handler: AuthedHandler<TParams>,
 ): (req: Request, routeCtx: { params: TParams }) => Promise<Response> {
   return withAuth<TParams>(async (req, ctx) => {
+    if (req.method !== "GET") {
+      const readOnly = await requireWritableAccount(ctx.userId);
+      if (readOnly) return readOnly;
+    }
     const locked = await requireNonFreeForFeature(ctx.userId, feature);
     if (locked) return locked;
     return handler(req, ctx);

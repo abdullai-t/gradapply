@@ -2,10 +2,14 @@ import { SchoolStatus } from "@prisma/client";
 
 import {
   billingPrecheckResponse,
-  finalizeAiConsumption,
+  finalizeAiConsumptionForAction,
 } from "@/lib/billing-allowance";
 import { runTask } from "@/lib/agents";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
+import {
+  requireSchoolTrackingCapacity,
+  requireWritableAccount,
+} from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
 import { parseDeadlineBody } from "@/lib/school-deadline";
 import { progressFromStatus } from "@/lib/school-progress";
@@ -33,6 +37,11 @@ export const list = withAuth(async (req, { userId }) => {
 });
 
 export const create = withAuth(async (req, { userId }) => {
+  const readOnly = await requireWritableAccount(userId);
+  if (readOnly) return readOnly;
+  const cap = await requireSchoolTrackingCapacity(userId);
+  if (cap) return cap;
+
   const json = await req.json().catch(() => null);
   const parsed = createSchoolSchema.safeParse(json);
   if (!parsed.success) return bad({ error: parsed.error.flatten() });
@@ -66,6 +75,9 @@ export const create = withAuth(async (req, { userId }) => {
 
 export const update = withAuth<{ id: string }>(
   async (req, { userId, params }) => {
+    const readOnly = await requireWritableAccount(userId);
+    if (readOnly) return readOnly;
+
     const { id } = params;
     const json = await req.json().catch(() => null);
     const parsed = updateSchoolSchema.safeParse(json);
@@ -110,6 +122,9 @@ export const update = withAuth<{ id: string }>(
 
 export const remove = withAuth<{ id: string }>(
   async (_req, { userId, params }) => {
+    const readOnly = await requireWritableAccount(userId);
+    if (readOnly) return readOnly;
+
     const { id } = params;
 
     const existing = await prisma.school.findFirst({
@@ -124,7 +139,7 @@ export const remove = withAuth<{ id: string }>(
 );
 
 export const recommend = withAuth(async (_req, { userId }) => {
-  const quota = await billingPrecheckResponse(userId);
+  const quota = await billingPrecheckResponse(userId, "school_recommendation");
   if (quota) return quota;
 
   try {
@@ -150,7 +165,7 @@ export const recommend = withAuth(async (_req, { userId }) => {
       userId,
     );
 
-    await finalizeAiConsumption(userId);
+    await finalizeAiConsumptionForAction(userId, "school_recommendation");
 
     const raw = result.reply.trim();
     const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
@@ -182,7 +197,7 @@ export const infer = withAuth(async (req, { userId }) => {
   const parsed = inferSchoolSchema.safeParse(json);
   if (!parsed.success) return bad({ error: parsed.error.flatten() });
 
-  const quota = await billingPrecheckResponse(userId);
+  const quota = await billingPrecheckResponse(userId, "school_infer");
   if (quota) return quota;
 
   try {
@@ -197,7 +212,7 @@ export const infer = withAuth(async (req, { userId }) => {
       term: parsed.data.term ?? null,
     });
 
-    await finalizeAiConsumption(userId);
+    await finalizeAiConsumptionForAction(userId, "school_infer");
 
     const raw = result.reply.trim();
     const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
