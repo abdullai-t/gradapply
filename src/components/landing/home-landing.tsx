@@ -4,9 +4,6 @@ import Link from "next/link";
 import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";
-import {
-  creditsPackSize,
-} from "@/lib/billing-config";
 import { cn } from "@/lib/utils";
 
 import { RevealOnScroll } from "./reveal-on-scroll";
@@ -16,7 +13,6 @@ import { WorkspaceShowcase } from "./workspace-showcase";
  * totals at checkout. Real prices are admin-configured in `BillingAdminConfig`. */
 export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
   const billingCfg = await getBillingAdminConfig();
-  const creditsPack = creditsPackSize();
 
   return (
     <div className="bg-[var(--background)] text-[var(--on-background)]">
@@ -336,9 +332,8 @@ export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
                 />
               </div>
               <p className="mx-auto mt-10 max-w-2xl text-center text-xs leading-relaxed text-[var(--outline)]">
-                Add-ons: +{creditsPack} credits for GHS {billingCfg.displayPriceCreditsPackGhs}, CV deep review for GHS 3,
-                SOP detailed critique for GHS 5. On expiry, your account becomes
-                read-only while exports stay available.
+                Add-ons: buy 10, 20, 50, or 100 credits at GHS{" "}
+                {billingCfg.creditUnitPriceGhs} per credit. 
               </p>
             </div>
           </section>
@@ -558,6 +553,12 @@ function Footer({ showPricing }: { showPricing: boolean }) {
               Pricing
             </a>
           ) : null}
+          <Link href="/privacy" className="hover:text-[var(--primary)]">
+            Privacy
+          </Link>
+          <Link href="/terms" className="hover:text-[var(--primary)]">
+            Terms
+          </Link>
           <Link href="/login" className="hover:text-[var(--primary)]">
             Sign in
           </Link>
