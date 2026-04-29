@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
-import { getBillingAdminConfig } from "@/lib/billing-admin-config";
+import { BILLING_SETTING_KEYS, getAppSettingValue } from "@/lib/app-settings";
 import { cn } from "@/lib/utils";
 
 import { RevealOnScroll } from "./reveal-on-scroll";
@@ -12,7 +12,41 @@ import { WorkspaceShowcase } from "./workspace-showcase";
 /** Illustrative USD amounts when Stripe/Paystack checkout is enabled; exact
  * totals at checkout. Real prices are admin-configured in `BillingAdminConfig`. */
 export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
-  const billingCfg = await getBillingAdminConfig();
+  const [
+    displayPriceProGhsRaw,
+    displayPricePlusGhsRaw,
+    displayPriceProRenewalGhsRaw,
+    displayPricePlusRenewalGhsRaw,
+    creditUnitPriceGhsRaw,
+  ] = await Promise.all([
+    getAppSettingValue(
+      BILLING_SETTING_KEYS.displayPriceProGhs,
+      process.env.BILLING_DISPLAY_PRO_GHS?.trim() ?? "18",
+    ),
+    getAppSettingValue(
+      BILLING_SETTING_KEYS.displayPricePlusGhs,
+      process.env.BILLING_DISPLAY_PLUS_GHS?.trim() ?? "35",
+    ),
+    getAppSettingValue(
+      BILLING_SETTING_KEYS.displayPriceProRenewalGhs,
+      process.env.BILLING_DISPLAY_PRO_RENEWAL_GHS?.trim() ?? "15",
+    ),
+    getAppSettingValue(
+      BILLING_SETTING_KEYS.displayPricePlusRenewalGhs,
+      process.env.BILLING_DISPLAY_PLUS_RENEWAL_GHS?.trim() ?? "30",
+    ),
+    getAppSettingValue(
+      BILLING_SETTING_KEYS.creditUnitPriceGhs,
+      process.env.BILLING_CREDIT_UNIT_PRICE_GHS?.trim() ?? "1",
+    ),
+  ]);
+  const billingCfg = {
+    displayPriceProGhs: parseNum(displayPriceProGhsRaw, 18),
+    displayPricePlusGhs: parseNum(displayPricePlusGhsRaw, 35),
+    displayPriceProRenewalGhs: parseNum(displayPriceProRenewalGhsRaw, 15),
+    displayPricePlusRenewalGhs: parseNum(displayPricePlusRenewalGhsRaw, 30),
+    creditUnitPriceGhs: parseNum(creditUnitPriceGhsRaw, 1),
+  };
 
   return (
     <div className="bg-[var(--background)] text-[var(--on-background)]">
@@ -871,3 +905,9 @@ const TILE_STYLES: Record<
     fg: "#0b3d24",
   },
 };
+
+function parseNum(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
