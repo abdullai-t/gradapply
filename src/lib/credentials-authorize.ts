@@ -17,6 +17,7 @@ export async function credentialsAuthorize(
   });
 
   if (!user?.passwordHash) return null;
+  if (!user.emailVerified) return null;
 
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) return null;

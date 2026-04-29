@@ -41,6 +41,9 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
   const searchParams = useSearchParams();
   const rawError = searchParams.get("error");
   const registered = searchParams.get("registered") === "1";
+  const verified = searchParams.get("verified") === "1";
+  const verifyEmail = searchParams.get("verify_email") === "1";
+  const verifyError = searchParams.get("verify_error") === "1";
   const errorKey = rawError && errorMessages[rawError] ? rawError : null;
   const errorText = errorKey
     ? errorMessages[errorKey]
@@ -55,6 +58,8 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
   const [emailSent, setEmailSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [credError, setCredError] = useState<string | null>(null);
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
 
   const canUseAnyProvider = setup.providerCount > 0;
 
@@ -77,12 +82,33 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
     });
     setBusy(false);
     if (res?.error) {
-      setCredError(errorMessages.CredentialsSignin);
+      setCredError(
+        "Invalid email or password. If you just registered, verify your email first.",
+      );
       return;
     }
     if (res?.ok) {
       router.push(res.url ?? callbackUrl);
       router.refresh();
+    }
+  }
+
+  async function resendVerificationEmail() {
+    if (!email.trim()) {
+      setCredError("Enter your email to resend verification.");
+      return;
+    }
+    setResendingVerification(true);
+    setCredError(null);
+    try {
+      await fetch("/api/auth/verify-email/resend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      setVerificationSent(true);
+    } finally {
+      setResendingVerification(false);
     }
   }
 
@@ -129,6 +155,29 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
     banners.push(
       <div key="registered" className="glass-alert-success">
         Account created. Sign in with your email and password below.
+      </div>,
+    );
+  }
+  if (verifyEmail) {
+    banners.push(
+      <div key="verify-email" className="glass-alert-success">
+        Verify your email to activate password sign-in. We sent a verification
+        link if email delivery is configured.
+      </div>,
+    );
+  }
+  if (verified) {
+    banners.push(
+      <div key="verified" className="glass-alert-success">
+        Email verified successfully. You can sign in now.
+      </div>,
+    );
+  }
+  if (verifyError) {
+    banners.push(
+      <div key="verify-error" className="glass-alert-error">
+        Verification link is invalid or expired. Enter your email and resend
+        verification.
       </div>,
     );
   }
@@ -214,14 +263,22 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
           >
             Sign in
           </Button>
-          <p className="text-center text-sm text-[var(--on-surface-variant)]">
-            New here?{" "}
-            <Link
-              href="/register"
-              className="font-bold text-[var(--primary)] underline-offset-4 hover:underline"
+          <div className="flex items-center justify-center gap-2 text-xs text-[var(--on-surface-variant)]">
+            <button
+              type="button"
+              className="underline-offset-4 hover:underline"
+              disabled={resendingVerification}
+              onClick={() => void resendVerificationEmail()}
             >
-              Create an account
-            </Link>
+              {resendingVerification
+                ? "Resending verification…"
+                : "Resend verification email"}
+            </button>
+            {verificationSent ? <span>Check your inbox.</span> : null}
+          </div>
+          <p className="text-center text-sm text-[var(--on-surface-variant)]">
+            New user? Use Google sign-in, magic link, or ask support to create
+            your account access.
           </p>
         </form>
       ) : (

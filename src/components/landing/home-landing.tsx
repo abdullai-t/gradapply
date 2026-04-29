@@ -101,7 +101,7 @@ export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
               </p>
               <div className="mt-10 flex flex-wrap items-center gap-3">
                 <Button asChild size="lg" iconRight="arrow_forward">
-                  <Link href="/register">Start free</Link>
+                  <Link href="/login">Start free</Link>
                 </Button>
                 <Button asChild size="lg" variant="secondary">
                   <Link href="/login">I already have an account</Link>
@@ -327,7 +327,7 @@ export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
                   price="GHS 0"
                   period=""
                   description="Lifetime starter access with tight limits."
-                  cta={{ href: "/register", label: "Create account" }}
+                  cta={{ href: "/login", label: "Get started" }}
                   variant="default"
                   bullets={[
                     "Up to 3 tracked schools",
@@ -341,7 +341,7 @@ export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
                   price={`GHS ${billingCfg.displayPriceProGhs}`}
                   period={`/ 6 months (renewal GHS ${billingCfg.displayPriceProRenewalGhs})`}
                   description="Full core toolkit for active applicants."
-                  cta={{ href: "/register", label: "Start with Pro" }}
+                  cta={{ href: "/login", label: "Start with Pro" }}
                   variant="highlight"
                   bullets={[
                     "80 monthly AI credits",
@@ -355,7 +355,7 @@ export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
                   price={`GHS ${billingCfg.displayPricePlusGhs}`}
                   period={`/ 6 months (renewal GHS ${billingCfg.displayPricePlusRenewalGhs})`}
                   description="Higher throughput and advanced support."
-                  cta={{ href: "/register", label: "Start with Plus" }}
+                  cta={{ href: "/login", label: "Start with Plus" }}
                   variant="default"
                   bullets={[
                     "200 monthly AI credits",
@@ -466,7 +466,7 @@ a="Yes. Create a free account and start using the app right away. When you're re
                     className="border-2 border-white/80 bg-white text-[#034a74] shadow-[0_6px_0_0_rgba(2,49,78,0.35)] hover:bg-white"
                     iconRight="arrow_forward"
                   >
-                    <Link href="/register">Create your workspace</Link>
+                    <Link href="/login">Create your workspace</Link>
                   </Button>
                   <Button
                     asChild
@@ -541,7 +541,7 @@ function LandingHeader({ showPricing }: { showPricing: boolean }) {
             <Link href="/login">Sign in</Link>
           </Button>
           <Button asChild size="sm" iconRight="arrow_forward">
-            <Link href="/register">Get started</Link>
+            <Link href="/login">Get started</Link>
           </Button>
         </div>
       </div>
@@ -595,9 +595,6 @@ function Footer({ showPricing }: { showPricing: boolean }) {
           </Link>
           <Link href="/login" className="hover:text-[var(--primary)]">
             Sign in
-          </Link>
-          <Link href="/register" className="hover:text-[var(--primary)]">
-            Register
           </Link>
           <Link href="/support" className="hover:text-[var(--primary)]">
             Support
