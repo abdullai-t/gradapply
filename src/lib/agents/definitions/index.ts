@@ -95,9 +95,29 @@ const T3_PREMIUM_SOP: ModelConfig = {
 const T3_PREMIUM_EMAIL: ModelConfig = {
   tier: "t3-premium",
   chain: [
-    { provider: "openai", model: process.env.AGENT_EMAIL_DRAFTER_MODEL?.trim() || "gpt-4o" },
+    {
+      provider: "openrouter",
+      model:
+        process.env.AGENT_EMAIL_DRAFTER_MODEL?.trim() ||
+        "anthropic/claude-sonnet-4",
+    },
+    { provider: "openai", model: "gpt-4o" },
     { provider: "gemini", model: "gemini-2.5-flash" },
     { provider: "anthropic", model: "claude-sonnet-4-20250514" },
+  ],
+  maxTokens: 2048,
+};
+
+const T2_PROF_AUDIT: ModelConfig = {
+  tier: "t2-balanced",
+  chain: [
+    { provider: "groq", model: "llama-3.3-70b-versatile" },
+    {
+      provider: "openrouter",
+      model:
+        process.env.AGENT_PROF_AUDIT_MODEL?.trim() ||
+        "anthropic/claude-sonnet-4",
+    },
   ],
   maxTokens: 2048,
 };
@@ -233,6 +253,23 @@ Email structure:
 - Close: Clear ask (meeting, lab visit, or application advice)
 
 Use the cold email guide tool for detailed best practices. Load the applicant's profile to personalize the email with their real background.${SAFETY_PREAMBLE}`,
+};
+
+export const professorAuditAgent: AgentDefinition = {
+  id: "professor-audit",
+  label: "Professor Audit",
+  description:
+    "Extracts recent professor research evidence and outputs strict JSON.",
+  modelConfig: T2_PROF_AUDIT,
+  tools: ["fetchFacultyPage"],
+  buildSystemPrompt: () =>
+    `You extract recent professor research items from provided faculty page content and return strict JSON only.
+
+Rules:
+- Use only facts present in the provided page content; do not hallucinate.
+- Prefer latest items with explicit years/dates when available.
+- Keep summaries concise and factual.
+- Output JSON only when asked in the user instruction.${SAFETY_PREAMBLE}`,
 };
 
 export const facultyDiscoveryAgent: AgentDefinition = {
@@ -409,6 +446,7 @@ const ALL_AGENTS: AgentDefinition[] = [
   sopWriterAgent,
   sopScorerAgent,
   emailDrafterAgent,
+  professorAuditAgent,
   facultyDiscoveryAgent,
   replyAnalyzerAgent,
   schoolIntelAgent,

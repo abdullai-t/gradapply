@@ -110,7 +110,7 @@ export const audit = withAuth<{ id: string }>(async (_req, { userId, params }) =
       sanitizeField(fetched.text, 18_000),
     ].join("\n");
 
-    const result = await runTask("email-drafter", prompt, userId, {
+    const result = await runTask("professor-audit", prompt, userId, {
       profEmailId: id,
       url: fetched.url,
     });
