@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Icon } from "@/components/icon";
 import {
+  type CheckoutTier,
   useBillingStatus,
   useCheckout,
   useOpenPortal,
@@ -53,11 +54,11 @@ export function BillingSettings() {
       : null;
   const visibleError = error ?? queryError;
 
-  const startCheckout = async (tier: "plus" | "pro" | "credits") => {
+  const startCheckout = async (tier: CheckoutTier, renewal = false) => {
     setCheckoutLoading(tier);
     setError(null);
     try {
-      const data = await checkoutMutation.mutateAsync(tier);
+      const data = await checkoutMutation.mutateAsync({ tier, renewal });
       if (data?.url) {
         window.location.href = data.url;
         return;
@@ -120,8 +121,16 @@ export function BillingSettings() {
 
   const showPortal = status.hasStripeCustomer && status.stripeEnabled;
   const currentPlan = status.planTier.toUpperCase();
+  const isFreePlan = currentPlan === "FREE";
   const plusIsCurrent = currentPlan === "PLUS";
   const proIsCurrent = currentPlan === "PRO";
+  const isExpired =
+    status.accessMode === "READ_ONLY" ||
+    (status.currentPeriodEnd
+      ? new Date(status.currentPeriodEnd).getTime() < Date.now()
+      : false);
+  const showProRenewal = isExpired && currentPlan === "PRO";
+  const showPlusRenewal = isExpired && currentPlan === "PLUS";
 
   return (
     <div className="space-y-5">
@@ -130,72 +139,32 @@ export function BillingSettings() {
           {visibleError}
         </div>
       ) : null}
-
-      {/* Plan badge + period */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-5">
-        <div className="flex items-center gap-3">
-          <div
-            className={cn(
-              "grid h-12 w-12 place-items-center rounded-xl",
-              proIsCurrent
-                ? "bg-[var(--tertiary-fixed)] text-[var(--on-tertiary-container)]"
-                : plusIsCurrent
-                  ? "bg-[var(--primary-fixed)] text-[var(--primary)]"
-                  : "bg-[var(--surface-container)] text-[var(--on-surface-variant)]",
-            )}
-          >
-            <Icon
-              name={proIsCurrent ? "workspace_premium" : "verified"}
-              fill
-              size={24}
-            />
-          </div>
-          <div>
-            <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[var(--outline)]">
-              Current plan
-            </div>
-            <div className="text-xl font-extrabold tracking-tight text-[var(--on-surface)]">
-              {status.planTier}
-            </div>
-            {status.subscriptionStatus ? (
-              <div className="text-xs text-[var(--on-surface-variant)]">
-                {status.subscriptionStatus}
-              </div>
-            ) : null}
-          </div>
+      {status.accessMode === "READ_ONLY" ? (
+        <div className="glass-alert-warning" role="status">
+          Account is currently read-only because your subscription expired.
+          Exports remain available.
         </div>
-        {status.currentPeriodEnd ? (
-          <div className="text-right">
-            <div className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-[var(--outline)]">
-              Period ends
-            </div>
-            <div className="text-sm font-bold text-[var(--on-surface)]">
-              {new Date(status.currentPeriodEnd).toLocaleDateString(undefined, {
-                dateStyle: "medium",
-              })}
-            </div>
-          </div>
-        ) : null}
-      </div>
+      ) : null}
 
       {/* Usage bar */}
       <div className="rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-5">
         <div className="mb-3 flex items-baseline justify-between">
           <div>
             <div className="text-sm font-bold text-[var(--on-surface)]">
-              Monthly AI allowance
+              Monthly credits
             </div>
             <div className="text-xs text-[var(--on-surface-variant)]">
-              Drafts, chat turns, and discovery flows. Bonus credits spend
-              first.
+              {isFreePlan
+                ? "Free tier uses credit balance and monthly credit grants."
+                : "Monthly credits expire each month. Purchased bonus credits are consumed first."}
             </div>
           </div>
           <div className="t-numeric text-base text-[var(--on-surface)]">
-            {used} / {cap}
+            {isFreePlan ? `${status.aiCreditsBalance} available` : `${used} / ${cap}`}
           </div>
         </div>
         <Progress
-          value={pct}
+          value={isFreePlan ? 0 : pct}
           tone={pct >= 80 ? "warning" : "primary"}
           size="default"
         />
@@ -220,43 +189,33 @@ export function BillingSettings() {
             Refresh usage
           </button>
         </div>
+        {status.planTier === "FREE" ? (
+          <div className="mt-3 rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-3 text-xs text-[var(--on-surface-variant)]">
+            Lifetime free limits: {status.freeEmailGenerationsRemaining ?? 0} cold
+            email generation left, {status.freeSopPreviewRemaining ?? 0} SOP preview
+            left. Free exports are watermarked.
+          </div>
+        ) : (
+          <div className="mt-3 text-xs text-[var(--on-surface-variant)]">
+            Your exports are generated without watermark on this plan.
+          </div>
+        )}
       </div>
 
       {/* Upgrade options */}
       <div className="grid gap-4 md:grid-cols-2">
         <PlanCard
-          name="Plus"
-          tagline="Best for steady outreach and drafting."
-          icon="auto_awesome"
-          highlighted={plusIsCurrent}
-          ctaLabel={
-            plusIsCurrent
-              ? "Current plan"
-              : status.canCheckoutPlus
-                ? "Upgrade to Plus"
-                : "Plus unavailable"
-          }
-          ctaDisabled={
-            checkoutLoading !== null || plusIsCurrent || !status.canCheckoutPlus
-          }
-          ctaLoading={checkoutLoading === "plus"}
-          onClick={() => void startCheckout("plus")}
-          warning={
-            !plusIsCurrent && !status.canCheckoutPlus
-              ? "Plus checkout is temporarily unavailable."
-              : null
-          }
-        />
-        <PlanCard
           name="Pro"
-          tagline="Highest monthly AI allowance for heavy usage."
+          priceLabel={`GHS ${status.displayPriceProGhs}`}
+          creditLabel="80 credits/month"
+          summary="Full core toolkit"
           icon="workspace_premium"
           highlighted={proIsCurrent}
           ctaLabel={
             proIsCurrent
               ? "Current plan"
               : status.canCheckoutPro
-                ? "Upgrade to Pro"
+                ? "Choose Pro"
                 : "Pro unavailable"
           }
           ctaDisabled={
@@ -267,6 +226,31 @@ export function BillingSettings() {
           warning={
             !proIsCurrent && !status.canCheckoutPro
               ? "Pro checkout is temporarily unavailable."
+              : null
+          }
+        />
+        <PlanCard
+          name="Plus"
+          priceLabel={`GHS ${status.displayPricePlusGhs}`}
+          creditLabel="200 credits/month"
+          summary="Advanced guidance"
+          icon="auto_awesome"
+          highlighted={plusIsCurrent}
+          ctaLabel={
+            plusIsCurrent
+              ? "Current plan"
+              : status.canCheckoutPlus
+                ? "Choose Plus"
+                : "Plus unavailable"
+          }
+          ctaDisabled={
+            checkoutLoading !== null || plusIsCurrent || !status.canCheckoutPlus
+          }
+          ctaLoading={checkoutLoading === "plus"}
+          onClick={() => void startCheckout("plus")}
+          warning={
+            !plusIsCurrent && !status.canCheckoutPlus
+              ? "Plus checkout is temporarily unavailable."
               : null
           }
         />
@@ -282,22 +266,70 @@ export function BillingSettings() {
       {/* Credits + portal */}
       <div className="flex flex-wrap gap-2">
         {status.checkoutConfigured ? (
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={checkoutLoading !== null || !status.canCheckoutCredits}
-            loading={checkoutLoading === "credits"}
-            icon="local_activity"
-            onClick={() => void startCheckout("credits")}
-          >
-            Buy credits
-          </Button>
+          <>
+            {[10, 20, 50, 100].map((credits) => (
+              <Button
+                key={credits}
+                type="button"
+                variant="secondary"
+                disabled={checkoutLoading !== null || !status.canCheckoutCredits}
+                loading={checkoutLoading === `credits-${credits}`}
+                icon="local_activity"
+                onClick={async () => {
+                  setCheckoutLoading(`credits-${credits}`);
+                  setError(null);
+                  try {
+                    const data = await checkoutMutation.mutateAsync({
+                      tier: "credits",
+                      creditsAmount: credits as 10 | 20 | 50 | 100,
+                    });
+                    if (data?.url) {
+                      window.location.href = data.url;
+                      return;
+                    }
+                    setError("No checkout URL returned.");
+                  } catch (e) {
+                    setError(
+                      toErrorMessage(
+                        e instanceof Error ? e.message : e,
+                        "Checkout failed.",
+                      ),
+                    );
+                  } finally {
+                    setCheckoutLoading(null);
+                  }
+                }}
+              >
+                Buy {credits} credits (GHS {credits * status.creditUnitPriceGhs})
+              </Button>
+            ))}
+          </>
         ) : (
           <p className="text-xs text-[var(--on-surface-variant)]">
             Checkout setup is incomplete — you can still refresh usage while
             this is being fixed.
           </p>
         )}
+        {showProRenewal ? (
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={checkoutLoading !== null || !status.canCheckoutPro}
+            onClick={() => void startCheckout("pro", true)}
+          >
+            Renew Pro (GHS {status.displayPriceProRenewalGhs})
+          </Button>
+        ) : null}
+        {showPlusRenewal ? (
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={checkoutLoading !== null || !status.canCheckoutPlus}
+            onClick={() => void startCheckout("plus", true)}
+          >
+            Renew Plus (GHS {status.displayPricePlusRenewalGhs})
+          </Button>
+        ) : null}
         {showPortal ? (
           <Button
             type="button"
@@ -318,7 +350,9 @@ export function BillingSettings() {
 
 function PlanCard({
   name,
-  tagline,
+  priceLabel,
+  creditLabel,
+  summary,
   icon,
   highlighted,
   ctaLabel,
@@ -328,7 +362,9 @@ function PlanCard({
   warning,
 }: {
   name: string;
-  tagline: string;
+  priceLabel: string;
+  creditLabel: string;
+  summary: string;
   icon: string;
   highlighted: boolean;
   ctaLabel: string;
@@ -340,9 +376,9 @@ function PlanCard({
   return (
     <div
       className={cn(
-        "rounded-2xl border-2 p-5",
+        "rounded-2xl border p-5",
         highlighted
-          ? "border-[var(--primary)] bg-[var(--primary-fixed)]/30"
+          ? "border-[color-mix(in_srgb,var(--primary)_55%,transparent)] bg-[color-mix(in_srgb,var(--primary-fixed)_24%,transparent)] shadow-[inset_0_1px_0_0_color-mix(in_srgb,var(--primary)_35%,transparent)]"
           : "border-[var(--outline-variant)] bg-[var(--surface-container-lowest)]",
       )}
     >
@@ -359,8 +395,13 @@ function PlanCard({
           >
             <Icon name={icon} fill={highlighted} size={20} />
           </div>
-          <div className="text-lg font-extrabold tracking-tight text-[var(--on-surface)]">
-            {name}
+          <div>
+            <div className="text-lg font-extrabold tracking-tight text-[var(--on-surface)]">
+              {name}
+            </div>
+            <div className="mt-0.5 text-[11px] font-semibold text-[var(--on-surface-variant)]">
+              {priceLabel}
+            </div>
           </div>
         </div>
         {highlighted ? (
@@ -370,12 +411,19 @@ function PlanCard({
           </span>
         ) : null}
       </div>
-      <p className="mt-2 text-xs text-[var(--on-surface-variant)]">{tagline}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <span className="rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-2.5 py-1 text-[11px] font-semibold text-[var(--on-surface)]">
+          {creditLabel}
+        </span>
+        <span className="rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-2.5 py-1 text-[11px] text-[var(--on-surface-variant)]">
+          {summary}
+        </span>
+      </div>
       <Button
         type="button"
         size="sm"
         className="mt-4 w-full"
-        variant={highlighted ? "ghost" : "primary"}
+        variant={highlighted ? "secondary" : "primary"}
         disabled={ctaDisabled}
         loading={ctaLoading}
         onClick={onClick}

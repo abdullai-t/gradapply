@@ -333,6 +333,8 @@ export default function EmailsPage() {
       /** Keep URL in the field if you want to paste another page after this run. */
       await load();
       setSelectedId(created.id);
+      setCreateDraftOpen(false);
+      router.replace(`/emails?thread=${encodeURIComponent(created.id)}`);
     } finally {
       setWorking(false);
     }
@@ -453,6 +455,11 @@ export default function EmailsPage() {
         return;
       }
       await load();
+      const created = payload as { id?: string };
+      if (created.id) {
+        setSelectedId(created.id);
+      }
+      setCreateDraftOpen(false);
     } finally {
       setDraftingDiscoverId(null);
     }
@@ -723,7 +730,6 @@ export default function EmailsPage() {
                           if (!selected.profEmail?.trim() && !profEmailDraft.trim()) {
                             missing.push("Professor email");
                           }
-                          if (!gmailConnected) missing.push("Gmail connection");
                           if (!draftSubject.trim()) missing.push("Subject line");
                           if (!draftBody.trim()) missing.push("Email body");
                           if (missing.length > 0) {
@@ -733,7 +739,7 @@ export default function EmailsPage() {
                           void sendViaGmail(selected.id);
                         }}
                       >
-                        {sendingViaGmail ? "Sending…" : "Complete Required Fields"}
+                        {sendingViaGmail ? "Sending…" : "Send via Gmail"}
                       </Button>
                     ) : null}
                     <Button

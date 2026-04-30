@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -16,6 +17,7 @@ export function RegisterForm() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
@@ -36,12 +38,19 @@ export function RegisterForm() {
           name: name.trim() || undefined,
         }),
       });
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        verificationSent?: boolean;
+      };
       if (!res.ok) {
         setError(data.error ?? "Could not create account.");
         return;
       }
-      router.push("/login?registered=1");
+      router.push(
+        data.verificationSent
+          ? "/login?registered=1&verify_email=1"
+          : "/login?registered=1",
+      );
       router.refresh();
     } catch {
       setError("Something went wrong. Try again.");
@@ -53,7 +62,7 @@ export function RegisterForm() {
   return (
     <AuthShell
       title="Create your account"
-      description="Use email and password. Google sign-in is available later from /login when your admin enables it."
+      description="Use email/password or continue with Google. Email/password accounts must verify email before sign-in."
       footer={
         <>
           Already have an account?{" "}
@@ -149,6 +158,22 @@ export function RegisterForm() {
           iconRight="arrow_forward"
         >
           {busy ? "Creating…" : "Create account"}
+        </Button>
+        <Button
+          type="button"
+          size="lg"
+          variant="secondary"
+          className="w-full"
+          loading={googleBusy}
+          disabled={busy || googleBusy}
+          onClick={async () => {
+            setError(null);
+            setGoogleBusy(true);
+            await signIn("google", { callbackUrl: "/dashboard" });
+            setGoogleBusy(false);
+          }}
+        >
+          Continue with Google
         </Button>
       </form>
     </AuthShell>

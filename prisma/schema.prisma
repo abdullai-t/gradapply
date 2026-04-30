@@ -19,6 +19,23 @@ enum UserRole {
   SUPERADMIN
 }
 
+enum AccountAccessMode {
+  FULL
+  READ_ONLY
+}
+
+enum BillingProvider {
+  STRIPE
+  PAYSTACK
+}
+
+enum BillingPaymentKind {
+  PLAN_PURCHASE
+  CREDITS_PACK
+  CV_DEEP_REVIEW
+  SOP_DETAILED_CRITIQUE
+}
+
 /// Dedupe Stripe webhook deliveries (same event id must not apply twice).
 model StripeEventLog {
   eventId   String   @id
@@ -73,6 +90,16 @@ model User {
   aiUsageUsed          Int      @default(0)
   /// Bonus credits from one-time packs; consumed before monthly allowance.
   aiCreditsBalance     Int      @default(0)
+  /// ISO month token (`YYYY-MM`) for monthly credit usage reset.
+  aiUsageMonth         String?
+  /// Free-plan lifetime cold email generations consumed.
+  freeEmailGenUsed     Int      @default(0)
+  /// Free-plan lifetime SOP previews consumed.
+  freeSopPreviewUsed   Int      @default(0)
+  /// Account access mode; expired subscriptions become READ_ONLY.
+  accessMode           AccountAccessMode @default(FULL)
+  /// Optional date the subscription most recently expired.
+  accessReadOnlySince  DateTime?
 
   accounts      Account[]
   sessions      Session[]
@@ -85,6 +112,24 @@ model User {
   connectors      Connector[]
   contentVersions ContentVersion[]
   sopVariants     SopVariant[]
+  billingPayments BillingPayment[]
+}
+
+model BillingPayment {
+  id                String             @id @default(cuid())
+  userId             String
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider           BillingProvider
+  providerReference  String
+  kind               BillingPaymentKind
+  tier               PlanTier?
+  amountMinor        Int?
+  currency           String?
+  paidAt             DateTime
+  createdAt          DateTime           @default(now())
+
+  @@unique([provider, providerReference])
+  @@index([userId, paidAt])
 }
 
 enum ContentEntityType {

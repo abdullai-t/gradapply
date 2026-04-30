@@ -24,12 +24,12 @@ function envNum(key: string, fallback: number): number {
 export function monthlyAiAllowanceForTier(tier: PlanTier): number {
   switch (tier) {
     case "PLUS":
-      return envNum("BILLING_PLUS_MONTHLY_AI", 200);
+      return 200;
     case "PRO":
-      return envNum("BILLING_PRO_MONTHLY_AI", 600);
+      return 80;
     case "FREE":
     default:
-      return envNum("BILLING_FREE_MONTHLY_AI", 35);
+      return 0;
   }
 }
 

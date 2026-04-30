@@ -16,6 +16,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
+    "db:backfill:pricing-rollout": "tsx scripts/backfill-pricing-rollout.ts",
     "db:studio": "prisma studio",
     "ops:release-check": "pnpm exec prisma generate && pnpm run lint && pnpm run typecheck",
     "prepare": "husky"

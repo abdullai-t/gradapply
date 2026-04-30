@@ -74,7 +74,14 @@ export async function POST(req: Request) {
             session.metadata?.checkoutKind === "credits_pack" &&
             session.payment_status === "paid"
           ) {
-            await grantCreditsPackToUser(userId);
+            const purchasedCredits = Number.parseInt(
+              session.metadata?.creditsAmount ?? "",
+              10,
+            );
+            await grantCreditsPackToUser(
+              userId,
+              Number.isFinite(purchasedCredits) ? purchasedCredits : undefined,
+            );
           }
         }
 
@@ -116,6 +123,8 @@ export async function POST(req: Request) {
             stripePriceId: null,
             subscriptionStatus: "canceled",
             planTier: "FREE",
+            accessMode: "READ_ONLY",
+            accessReadOnlySince: new Date(),
           },
         });
         break;

@@ -30,13 +30,27 @@ export async function syncUserSubscriptionFromStripe(
       subscriptionStatus: subscription.status,
       currentPeriodEnd: new Date(subscription.current_period_end * 1000),
       planTier,
+      accessMode:
+        subscription.status === "active" || subscription.status === "trialing"
+          ? "FULL"
+          : "READ_ONLY",
+      accessReadOnlySince:
+        subscription.status === "active" || subscription.status === "trialing"
+          ? null
+          : new Date(),
     },
   });
 }
 
-export async function grantCreditsPackToUser(userId: string): Promise<void> {
+export async function grantCreditsPackToUser(
+  userId: string,
+  amount?: number,
+): Promise<void> {
   const cfg = await getBillingAdminConfig();
-  const n = cfg.creditsPackSize;
+  const n =
+    typeof amount === "number" && Number.isFinite(amount) && amount > 0
+      ? Math.floor(amount)
+      : cfg.creditsPackSize;
   await prisma.user.update({
     where: { id: userId },
     data: { aiCreditsBalance: { increment: n } },

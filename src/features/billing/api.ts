@@ -19,10 +19,25 @@ export type BillingStatus = {
   canCheckoutPlus: boolean;
   canCheckoutPro: boolean;
   canCheckoutCredits: boolean;
+  canCheckoutCvReview: boolean;
+  canCheckoutSopCritique: boolean;
   planTier: string;
+  monthlyCredits: number;
   monthlyAllowance: number;
   aiUsageUsed: number;
+  aiUsageMonth: string | null;
   aiCreditsBalance: number;
+  freeEmailGenerationsRemaining: number | null;
+  freeSopPreviewRemaining: number | null;
+  accessMode: "FULL" | "READ_ONLY";
+  canExportWithoutWatermark: boolean;
+  displayPriceProGhs: number;
+  displayPricePlusGhs: number;
+  displayPriceCreditsPackGhs: number;
+  creditUnitPriceGhs: number;
+  creditsPackSize: number;
+  displayPriceProRenewalGhs: number;
+  displayPricePlusRenewalGhs: number;
   subscriptionStatus: string | null;
   currentPeriodEnd: string | null;
   hasStripeCustomer: boolean;
@@ -53,15 +68,34 @@ export function useBillingStatus() {
   });
 }
 
+export type CheckoutTier =
+  | "plus"
+  | "pro"
+  | "credits"
+  | "cv_review"
+  | "sop_critique";
+
 export function useCheckout() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (tier: "plus" | "pro" | "credits") =>
+    mutationFn: async ({
+      tier,
+      renewal,
+      creditsAmount,
+    }: {
+      tier: CheckoutTier;
+      renewal?: boolean;
+      creditsAmount?: 10 | 20 | 50 | 100;
+    }) =>
       jsonOrThrow<{ url: string }>(
         await fetch("/api/billing/checkout", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ tier }),
+          body: JSON.stringify({
+            tier,
+            renewal: Boolean(renewal),
+            ...(typeof creditsAmount === "number" ? { creditsAmount } : {}),
+          }),
         }),
       ),
     onSuccess: () => {

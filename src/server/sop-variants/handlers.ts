@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 import { runTask } from "@/lib/agents";
 import {
   billingPrecheckResponse,
-  finalizeAiConsumption,
+  canUseFreeLifetimeSopPreview,
+  finalizeAiConsumptionForAction,
+  markFreeLifetimeSopPreviewUsed,
 } from "@/lib/billing-allowance";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
 import { extractPlainTextFromStoredDocument } from "@/lib/llm-user-context";
@@ -14,6 +16,7 @@ import {
   markSopGenerateSuccess,
 } from "@/lib/sop-generate-rate-limit";
 import { sanitizeField, wrapUserContent } from "@/lib/agents/sanitize";
+import { requireWritableAccount } from "@/lib/plan-gates";
 import { bad, notFound, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
 
@@ -36,6 +39,8 @@ export const GET = withAuth(async (req, { userId }) => {
 });
 
 export const POST = withAuth(async (req, { userId }) => {
+  const readOnly = await requireWritableAccount(userId);
+  if (readOnly) return readOnly;
   const json = await req.json().catch(() => null);
   const parsed = createSopVariantSchema.safeParse(json);
   if (!parsed.success) return bad({ error: parsed.error.flatten() });
@@ -45,8 +50,11 @@ export const POST = withAuth(async (req, { userId }) => {
   });
   if (!school) return notFound("School not found");
 
-  const quota = await billingPrecheckResponse(userId);
-  if (quota) return quota;
+  const canUseFree = await canUseFreeLifetimeSopPreview(userId);
+  if (!canUseFree) {
+    const quota = await billingPrecheckResponse(userId, "sop_session");
+    if (quota) return quota;
+  }
 
   try {
     await assertSopGenerateAllowed(userId);
@@ -140,7 +148,11 @@ export const POST = withAuth(async (req, { userId }) => {
     },
   });
 
-  await finalizeAiConsumption(userId);
+  if (!canUseFree) {
+    await finalizeAiConsumptionForAction(userId, "sop_session");
+  } else {
+    await markFreeLifetimeSopPreviewUsed(userId);
+  }
   await markSopGenerateSuccess(userId);
 
   return ok({ variant });
@@ -148,6 +160,9 @@ export const POST = withAuth(async (req, { userId }) => {
 
 export const PATCH = withAuth<{ id: string }>(
   async (req, { userId, params }) => {
+    const readOnly = await requireWritableAccount(userId);
+    if (readOnly) return readOnly;
+
     const { id } = params;
     const json = await req.json().catch(() => null);
     const parsed = updateSopVariantSchema.safeParse(json);

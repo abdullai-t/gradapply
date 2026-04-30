@@ -3,10 +3,7 @@ import Link from "next/link";
 
 import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
-import {
-  creditsPackSize,
-  monthlyAiAllowanceForTier,
-} from "@/lib/billing-config";
+import { BILLING_SETTING_KEYS, getAppSettingValue } from "@/lib/app-settings";
 import { cn } from "@/lib/utils";
 
 import { RevealOnScroll } from "./reveal-on-scroll";
@@ -14,14 +11,42 @@ import { WorkspaceShowcase } from "./workspace-showcase";
 
 /** Illustrative USD amounts when Stripe/Paystack checkout is enabled; exact
  * totals at checkout. Real prices are admin-configured in `BillingAdminConfig`. */
-const ILLUSTR_PLUS_USD = "14";
-const ILLUSTR_PRO_USD = "39";
-
-export function HomeLanding({ showPricing }: { showPricing: boolean }) {
-  const aiFree = monthlyAiAllowanceForTier("FREE");
-  const aiPlus = monthlyAiAllowanceForTier("PLUS");
-  const aiPro = monthlyAiAllowanceForTier("PRO");
-  const creditsPack = creditsPackSize();
+export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
+  const [
+    displayPriceProGhsRaw,
+    displayPricePlusGhsRaw,
+    displayPriceProRenewalGhsRaw,
+    displayPricePlusRenewalGhsRaw,
+    creditUnitPriceGhsRaw,
+  ] = await Promise.all([
+    getAppSettingValue(
+      BILLING_SETTING_KEYS.displayPriceProGhs,
+      process.env.BILLING_DISPLAY_PRO_GHS?.trim() ?? "18",
+    ),
+    getAppSettingValue(
+      BILLING_SETTING_KEYS.displayPricePlusGhs,
+      process.env.BILLING_DISPLAY_PLUS_GHS?.trim() ?? "35",
+    ),
+    getAppSettingValue(
+      BILLING_SETTING_KEYS.displayPriceProRenewalGhs,
+      process.env.BILLING_DISPLAY_PRO_RENEWAL_GHS?.trim() ?? "15",
+    ),
+    getAppSettingValue(
+      BILLING_SETTING_KEYS.displayPricePlusRenewalGhs,
+      process.env.BILLING_DISPLAY_PLUS_RENEWAL_GHS?.trim() ?? "30",
+    ),
+    getAppSettingValue(
+      BILLING_SETTING_KEYS.creditUnitPriceGhs,
+      process.env.BILLING_CREDIT_UNIT_PRICE_GHS?.trim() ?? "1",
+    ),
+  ]);
+  const billingCfg = {
+    displayPriceProGhs: parseNum(displayPriceProGhsRaw, 18),
+    displayPricePlusGhs: parseNum(displayPricePlusGhsRaw, 35),
+    displayPriceProRenewalGhs: parseNum(displayPriceProRenewalGhsRaw, 15),
+    displayPricePlusRenewalGhs: parseNum(displayPricePlusRenewalGhsRaw, 30),
+    creditUnitPriceGhs: parseNum(creditUnitPriceGhsRaw, 1),
+  };
 
   return (
     <div className="bg-[var(--background)] text-[var(--on-background)]">
@@ -76,7 +101,7 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
               </p>
               <div className="mt-10 flex flex-wrap items-center gap-3">
                 <Button asChild size="lg" iconRight="arrow_forward">
-                  <Link href="/register">Start free</Link>
+                  <Link href="/login">Start free</Link>
                 </Button>
                 <Button asChild size="lg" variant="secondary">
                   <Link href="/login">I already have an account</Link>
@@ -293,61 +318,56 @@ export function HomeLanding({ showPricing }: { showPricing: boolean }) {
             <div className="mx-auto max-w-7xl px-6">
               <SectionHeading
                 eyebrow="Pricing"
-                title="Start free, upgrade when it pays for itself"
-                body="Higher monthly AI allowances and more room for drafts, discovery, and polish. Exact charges depend on how your deployment configures Stripe or Paystack."
+                title="Credits-first pricing, simple to understand"
+                body="Free is lifetime-limited. Pro and Plus run on 6-month billing with monthly credit grants, optional add-ons, and lower renewal pricing."
               />
               <div className="mt-14 grid gap-6 lg:grid-cols-3 lg:items-stretch">
                 <PricingCard
                   name="Free"
-                  price="$0"
+                  price="GHS 0"
                   period=""
-                  description="Explore the workspace and stay organized."
-                  cta={{ href: "/register", label: "Create account" }}
+                  description="Lifetime starter access with tight limits."
+                  cta={{ href: "/login", label: "Get started" }}
                   variant="default"
                   bullets={[
-                    `${aiFree} AI actions / month`,
-                    "School pipeline & timeline",
-                    "Professor email drafting",
-                    "Documents & basic assistant",
-                  ]}
-                />
-                <PricingCard
-                  name="Plus"
-                  price={`$${ILLUSTR_PLUS_USD}`}
-                  period="/ mo · illustrative"
-                  description="For applicants running several serious apps."
-                  cta={{ href: "/register", label: "Start with Plus" }}
-                  variant="highlight"
-                  bullets={[
-                    `${aiPlus} AI actions / month`,
-                    "Everything in Free",
-                    "Higher throughput for drafts & iterations",
-                    `Credit packs (+${creditsPack} per pack)`,
+                    "Up to 3 tracked schools",
+                    "1 lifetime cold-email generation",
+                    "1 lifetime SOP preview",
+                    "Watermarked exports",
                   ]}
                 />
                 <PricingCard
                   name="Pro"
-                  price={`$${ILLUSTR_PRO_USD}`}
-                  period="/ mo · illustrative"
-                  description="Heavy usage: many schools, many drafts, tight timelines."
-                  cta={{ href: "/register", label: "Start with Pro" }}
+                  price={`GHS ${billingCfg.displayPriceProGhs}`}
+                  period={`/ 6 months (renewal GHS ${billingCfg.displayPriceProRenewalGhs})`}
+                  description="Full core toolkit for active applicants."
+                  cta={{ href: "/login", label: "Start with Pro" }}
+                  variant="highlight"
+                  bullets={[
+                    "80 monthly AI credits",
+                    "Full SOP builder + grammar coach",
+                    "Document parsing + email version history",
+                    "No watermark exports",
+                  ]}
+                />
+                <PricingCard
+                  name="Plus"
+                  price={`GHS ${billingCfg.displayPricePlusGhs}`}
+                  period={`/ 6 months (renewal GHS ${billingCfg.displayPricePlusRenewalGhs})`}
+                  description="Higher throughput and advanced support."
+                  cta={{ href: "/login", label: "Start with Plus" }}
                   variant="default"
                   bullets={[
-                    `${aiPro} AI actions / month`,
-                    "Everything in Plus",
-                    "Best for parallel programs and frequent AI passes",
-                    "Same credit packs where checkout is enabled",
+                    "200 monthly AI credits",
+                    "Everything in Pro",
+                    "Priority generation + advanced SOP feedback",
+                    "School-specific suggestion boosts",
                   ]}
                 />
               </div>
               <p className="mx-auto mt-10 max-w-2xl text-center text-xs leading-relaxed text-[var(--outline)]">
-                AI &ldquo;actions&rdquo; cover assistant work like drafts, chat
-                turns, and discovery flows; bonus credits spend first. Dollar
-                amounts are{" "}
-                <strong className="font-bold text-[var(--on-surface-variant)]">
-                  examples
-                </strong>{" "}
-                only — your administrator sets real prices and providers.
+                Add-ons: buy 10, 20, 50, or 100 credits at GHS{" "}
+                {billingCfg.creditUnitPriceGhs} per credit. 
               </p>
             </div>
           </section>
@@ -446,7 +466,7 @@ a="Yes. Create a free account and start using the app right away. When you're re
                     className="border-2 border-white/80 bg-white text-[#034a74] shadow-[0_6px_0_0_rgba(2,49,78,0.35)] hover:bg-white"
                     iconRight="arrow_forward"
                   >
-                    <Link href="/register">Create your workspace</Link>
+                    <Link href="/login">Create your workspace</Link>
                   </Button>
                   <Button
                     asChild
@@ -521,7 +541,7 @@ function LandingHeader({ showPricing }: { showPricing: boolean }) {
             <Link href="/login">Sign in</Link>
           </Button>
           <Button asChild size="sm" iconRight="arrow_forward">
-            <Link href="/register">Get started</Link>
+            <Link href="/login">Get started</Link>
           </Button>
         </div>
       </div>
@@ -567,11 +587,14 @@ function Footer({ showPricing }: { showPricing: boolean }) {
               Pricing
             </a>
           ) : null}
+          <Link href="/privacy" className="hover:text-[var(--primary)]">
+            Privacy
+          </Link>
+          <Link href="/terms" className="hover:text-[var(--primary)]">
+            Terms
+          </Link>
           <Link href="/login" className="hover:text-[var(--primary)]">
             Sign in
-          </Link>
-          <Link href="/register" className="hover:text-[var(--primary)]">
-            Register
           </Link>
           <Link href="/support" className="hover:text-[var(--primary)]">
             Support
@@ -879,3 +902,9 @@ const TILE_STYLES: Record<
     fg: "#0b3d24",
   },
 };
+
+function parseNum(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}

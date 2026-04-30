@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { hashPassword } from "@/lib/password";
+import { getBillingAdminConfig } from "@/lib/billing-admin-config";
+import { currentBillingMonthToken } from "@/lib/billing-allowance";
+import { sendEmailVerification } from "@/lib/email-verification";
 import { prisma } from "@/lib/prisma";
 import {
   assertRegisterAllowedByIp,
@@ -51,23 +54,18 @@ export async function POST(req: Request) {
   const email = rawEmail.toLowerCase().trim();
 
   const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing?.passwordHash) {
-    return NextResponse.json(
-      { error: "An account with this email already exists. Sign in instead." },
-      { status: 409 },
-    );
-  }
-  if (existing && !existing.passwordHash) {
+  if (existing) {
     return NextResponse.json(
       {
         error:
-          "This email is registered with Google or magic link. Sign in that way, then contact support to add a password.",
+          "An account with this email already exists. Sign in or reset your password.",
       },
       { status: 409 },
     );
   }
 
   const passwordHash = await hashPassword(password);
+  const billingCfg = await getBillingAdminConfig();
 
   await prisma.user.create({
     data: {
@@ -75,8 +73,12 @@ export async function POST(req: Request) {
       passwordHash,
       name: name ?? null,
       emailVerified: null,
+      aiCreditsBalance: billingCfg.freeSignupCredits,
+      aiUsageMonth: currentBillingMonthToken(),
     },
   });
 
-  return NextResponse.json({ ok: true });
+  const verificationSent = await sendEmailVerification(email);
+
+  return NextResponse.json({ ok: true, verificationSent });
 }
