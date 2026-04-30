@@ -1,20 +1,13 @@
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { BillingSettings } from "@/components/billing-settings";
 import { ConnectorsSettings } from "@/components/connectors-settings";
-import { isFeatureEnabled } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 import { Icon } from "@/components/icon";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default async function SettingsPage() {
-  const settingsEnabled = await isFeatureEnabled("user_settings_page", false, {
-    fresh: true,
-  });
-  if (!settingsEnabled) redirect("/dashboard");
-
   const session = await auth();
   const user = session?.user?.id
     ? await prisma.user.findUnique({

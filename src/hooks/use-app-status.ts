@@ -8,8 +8,6 @@ export interface AppStatus {
   monthlyAllowance: number | null;
   aiUsageUsed: number | null;
   aiCreditsBalance: number | null;
-  settingsEnabled: boolean;
-  supportTabEnabled: boolean;
   /** Days streak — derived server-side from UserActivityDay (not yet shipped → 0). */
   streakDays: number;
 }
@@ -31,8 +29,6 @@ export function useAppStatus(): AppStatus {
     monthlyAllowance: data?.monthlyAllowance ?? null,
     aiUsageUsed: data?.aiUsageUsed ?? null,
     aiCreditsBalance: data?.aiCreditsBalance ?? null,
-    settingsEnabled: data?.settingsEnabled === true,
-    supportTabEnabled: data?.supportTabEnabled === true,
     // The billing status payload may carry `streakDays` once the
     // UserActivityDay table ships. Until then, default to 0.
     streakDays:

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Flag,
   LayoutDashboard,
   Settings,
   Tags,
@@ -18,7 +17,6 @@ import { cn } from "@/lib/utils";
 const nav = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/users", label: "User management", icon: Users },
-  { href: "/admin/feature-flags", label: "Feature flags", icon: Flag },
   { href: "/admin/settings", label: "Platform settings", icon: Settings },
   { href: "/admin/pricing", label: "Pricing & billing", icon: Tags },
 ];

@@ -18,13 +18,12 @@ export function Sidebar() {
   const role = data?.user?.role;
   const isAdmin = role === "ADMIN" || role === "SUPERADMIN";
   const status = useAppStatus();
-  const isFreePlan = status.planTier === "FREE";
+  // Treat unknown/loading plan as FREE so premium tabs never leak in UI.
+  const isFreePlan =
+    status.planTier !== "PLUS" && status.planTier !== "PRO";
 
   const visible = NAV_ITEMS.filter((item) => {
     if (item.adminOnly && !isAdmin) return false;
-    if (item.flag === "settingsEnabled" && !status.settingsEnabled) return false;
-    if (item.flag === "supportTabEnabled" && !status.supportTabEnabled)
-      return false;
     if (item.freeHidden && isFreePlan) return false;
     return true;
   });

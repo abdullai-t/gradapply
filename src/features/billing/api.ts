@@ -43,8 +43,6 @@ export type BillingStatus = {
   hasStripeCustomer: boolean;
   hasSubscription: boolean;
   hasPaystackCustomer: boolean;
-  settingsEnabled: boolean;
-  supportTabEnabled: boolean;
 };
 
 async function jsonOrThrow<T>(res: Response): Promise<T> {

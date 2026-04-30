@@ -4,6 +4,7 @@ import {
   finalizeAiConsumption,
 } from "@/lib/billing-allowance";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
+import { requirePlusForFeature } from "@/lib/plan-gates";
 
 import { bad, ok } from "../_responses";
 import { withPlanGate } from "../_with-plan-gate";
@@ -28,6 +29,9 @@ const FALLBACK_SCORE: SopScoreResponse = {
 };
 
 export const POST = withPlanGate("assistant", async (req, { userId }) => {
+  const plusOnly = await requirePlusForFeature(userId, "advanced_sop_feedback");
+  if (plusOnly) return plusOnly;
+
   const json = await req.json().catch(() => null);
   const parsed = scoreSopSchema.safeParse(json);
   if (!parsed.success) return bad({ error: parsed.error.flatten() });

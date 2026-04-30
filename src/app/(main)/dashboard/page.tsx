@@ -2,7 +2,6 @@ import Link from "next/link";
 import { format } from "date-fns";
 
 import { auth } from "@/auth";
-import { isFeatureEnabled } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 import { SchoolStatus } from "@prisma/client";
 
@@ -26,7 +25,6 @@ import {
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) return null;
-  const settingsEnabled = await isFeatureEnabled("user_settings_page", false);
 
   const [
     schools,
@@ -88,7 +86,7 @@ export default async function DashboardPage() {
   const submitted = (byStatus.APPLIED ?? 0) + (byStatus.ACCEPTED ?? 0);
   const accepted = byStatus.ACCEPTED ?? 0;
   const isFreePlan = currentUser?.planTier === "FREE";
-  const showUpgradePrompts = isFreePlan && settingsEnabled;
+  const showUpgradePrompts = isFreePlan;
 
   const nextDeadline = upcomingSchools.find((s) => s.deadline);
   const daysUntilNext = nextDeadline?.deadline

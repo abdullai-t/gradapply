@@ -1,6 +1,5 @@
 import { auth } from "@/auth";
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";
-import { isFeatureEnabled } from "@/lib/feature-flags";
 import { canExportWithoutWatermark } from "@/lib/export-watermark";
 import {
   paystackInitializeTransaction,
@@ -93,12 +92,6 @@ export const status = withAuth(async (_req, { userId }) => {
     canCheckoutCvReview ||
     canCheckoutSopCritique;
   const allowance = cfg.allowance[user.planTier];
-  const settingsEnabled = await isFeatureEnabled("user_settings_page", false, {
-    fresh: true,
-  });
-  const supportTabEnabled = await isFeatureEnabled("support_tab", false, {
-    fresh: true,
-  });
 
   return ok({
     billingEnabled,
@@ -134,8 +127,8 @@ export const status = withAuth(async (_req, { userId }) => {
     hasStripeCustomer: Boolean(user.stripeCustomerId),
     hasSubscription: Boolean(user.stripeSubscriptionId),
     hasPaystackCustomer: Boolean(user.paystackCustomerId),
-    settingsEnabled,
-    supportTabEnabled,
+    settingsEnabled: true,
+    supportTabEnabled: true,
   });
 });
 

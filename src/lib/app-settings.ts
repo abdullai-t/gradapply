@@ -116,7 +116,16 @@ export async function getAppSettingValue(
   const row = await prisma.appSetting.findUnique({ where: { key } });
   if (!row) return fallback;
 
-  const plain = row.isSecret ? decryptValue(row.value) : row.value;
+  let plain: string;
+  try {
+    plain = row.isSecret ? decryptValue(row.value) : row.value;
+  } catch (error) {
+    console.warn("[app-settings] failed to decrypt setting", {
+      key,
+      reason: error instanceof Error ? error.message : "unknown_error",
+    });
+    return fallback;
+  }
   settingsCache.set(key, { value: plain, expiresAt: now + CACHE_TTL_MS });
   return plain || fallback;
 }
@@ -158,7 +167,18 @@ export async function listAppSettings(prefix: string): Promise<
   });
   return rows.map((row) => ({
     key: row.key,
-    value: row.isSecret ? decryptValue(row.value) : row.value,
+    value: (() => {
+      if (!row.isSecret) return row.value;
+      try {
+        return decryptValue(row.value);
+      } catch (error) {
+        console.warn("[app-settings] failed to decrypt setting in list", {
+          key: row.key,
+          reason: error instanceof Error ? error.message : "unknown_error",
+        });
+        return "";
+      }
+    })(),
     isSecret: row.isSecret,
     updatedAt: row.updatedAt,
   }));

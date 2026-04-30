@@ -5,12 +5,22 @@ import { prisma } from "@/lib/prisma";
 import { isPricingModelRolloutEnabled } from "@/lib/pricing-model-rollout";
 
 export type LockedFeature = "assistant" | "connectors" | "documents";
+export type PlusFeature =
+  | "priority_generation"
+  | "advanced_sop_feedback"
+  | "school_specific_suggestions";
 export type AccountAccessMode = "FULL" | "READ_ONLY";
 
 const featureLabel: Record<LockedFeature, string> = {
   assistant: "AI assistant",
   connectors: "Connectors",
   documents: "Documents",
+};
+
+const plusFeatureLabel: Record<PlusFeature, string> = {
+  priority_generation: "Priority generation",
+  advanced_sop_feedback: "Advanced SOP feedback",
+  school_specific_suggestions: "School-specific suggestions",
 };
 
 export async function getUserPlanTier(userId: string): Promise<PlanTier | null> {
@@ -91,6 +101,23 @@ export async function requireNonFreeForFeature(
       code: "PLAN_UPGRADE_REQUIRED",
       feature,
       error: `${featureLabel[feature]} is available on PLUS and PRO plans.`,
+    },
+    { status: 402 },
+  );
+}
+
+export async function requirePlusForFeature(
+  userId: string,
+  feature: PlusFeature,
+): Promise<NextResponse | null> {
+  const planTier = await getUserPlanTier(userId);
+  if (planTier === "PLUS") return null;
+
+  return NextResponse.json(
+    {
+      code: "PLUS_PLAN_REQUIRED",
+      feature,
+      error: `${plusFeatureLabel[feature]} is available on the PLUS plan.`,
     },
     { status: 402 },
   );

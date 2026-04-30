@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Flag, Loader2, RefreshCw, Search, Shield, Users } from "lucide-react";
+import { Loader2, RefreshCw, Search, Shield, Users } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FeatureFlagsPanel } from "@/components/admin/feature-flags-panel";
 
 type UserRole = "USER" | "ADMIN" | "SUPERADMIN";
 type PlanTier = "FREE" | "PLUS" | "PRO";
@@ -38,6 +37,10 @@ type AdminOverview = {
     newUsers7d: number;
     aiUsageUsedTotal: number;
     aiCreditsBalanceTotal: number;
+    paymentsCountTotal: number;
+    paymentsCount30d: number;
+    revenueGhsTotal: number;
+    revenueGhs30d: number;
     byPlan: Record<PlanTier, number>;
   };
   recentUsers: Array<{
@@ -248,7 +251,7 @@ export function AdminPortal({ canManageRoles }: Props) {
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList className="grid h-auto w-full max-w-xl grid-cols-3">
+        <TabsList className="grid h-auto w-full max-w-xl grid-cols-2">
           <TabsTrigger value="overview">
             <Shield className="mr-2 h-4 w-4" />
             Dashboard
@@ -256,10 +259,6 @@ export function AdminPortal({ canManageRoles }: Props) {
           <TabsTrigger value="users">
             <Users className="mr-2 h-4 w-4" />
             User management
-          </TabsTrigger>
-          <TabsTrigger value="flags">
-            <Flag className="mr-2 h-4 w-4" />
-            Feature flags
           </TabsTrigger>
         </TabsList>
 
@@ -291,6 +290,22 @@ export function AdminPortal({ canManageRoles }: Props) {
                 <Metric
                   label="Credits balance total"
                   value={overview.metrics.aiCreditsBalanceTotal}
+                />
+                <Metric
+                  label="Revenue (GHS, total)"
+                  value={`GHS ${overview.metrics.revenueGhsTotal.toLocaleString()}`}
+                />
+                <Metric
+                  label="Revenue (GHS, 30d)"
+                  value={`GHS ${overview.metrics.revenueGhs30d.toLocaleString()}`}
+                />
+                <Metric
+                  label="Payments (total)"
+                  value={overview.metrics.paymentsCountTotal}
+                />
+                <Metric
+                  label="Payments (30d)"
+                  value={overview.metrics.paymentsCount30d}
                 />
               </div>
 
@@ -480,9 +495,6 @@ export function AdminPortal({ canManageRoles }: Props) {
           </div>
         </TabsContent>
 
-        <TabsContent value="flags">
-          <FeatureFlagsPanel />
-        </TabsContent>
       </Tabs>
 
       <Dialog open={Boolean(editing)} onOpenChange={(v) => !v && setEditing(null)}>
@@ -586,7 +598,7 @@ export function AdminPortal({ canManageRoles }: Props) {
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+function Metric({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="glass-panel p-4">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>

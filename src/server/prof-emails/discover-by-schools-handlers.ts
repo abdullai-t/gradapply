@@ -6,6 +6,7 @@ import {
   finalizeAiConsumption,
 } from "@/lib/billing-allowance";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
+import { requirePlusForFeature } from "@/lib/plan-gates";
 import {
   assertProfEmailLlmAllowed,
   markProfEmailLlmAttempt,
@@ -21,6 +22,12 @@ import { sanitizeField } from "@/lib/agents/sanitize";
 import { discoverBySchoolsBodySchema } from "./schemas";
 
 export const discoverBySchools = withAuth(async (req, { userId }) => {
+  const plusOnly = await requirePlusForFeature(
+    userId,
+    "school_specific_suggestions",
+  );
+  if (plusOnly) return plusOnly;
+
   const json = await req.json().catch(() => null);
   const parsed = discoverBySchoolsBodySchema.safeParse(json);
   if (!parsed.success) return bad(parsed.error.flatten());

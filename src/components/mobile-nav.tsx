@@ -23,8 +23,6 @@ export function MobileNav() {
   const { data } = useSession();
   const role = data?.user?.role;
   const [isFreePlan, setIsFreePlan] = useState<boolean>(false);
-  const [settingsEnabled, setSettingsEnabled] = useState<boolean>(false);
-  const [supportTabEnabled, setSupportTabEnabled] = useState<boolean>(false);
 
   useEffect(() => {
     let active = true;
@@ -33,21 +31,15 @@ export function MobileNav() {
         if (!res.ok) return null;
         return (await res.json()) as {
           planTier?: string;
-          settingsEnabled?: boolean;
-          supportTabEnabled?: boolean;
         };
       })
       .then((json) => {
         if (!active) return;
         setIsFreePlan(json?.planTier === "FREE");
-        setSettingsEnabled(json?.settingsEnabled === true);
-        setSupportTabEnabled(json?.supportTabEnabled === true);
       })
       .catch(() => {
         if (!active) return;
         setIsFreePlan(false);
-        setSettingsEnabled(false);
-        setSupportTabEnabled(false);
       });
     return () => {
       active = false;
@@ -58,8 +50,6 @@ export function MobileNav() {
     if (isFreePlan && (item.href === "/assistant" || item.href === "/documents")) {
       return false;
     }
-    if (!settingsEnabled && item.href === "/settings") return false;
-    if (!supportTabEnabled && item.href === "/support") return false;
     return true;
   });
   const items =
