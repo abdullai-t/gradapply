@@ -158,9 +158,14 @@ export const recommend = withAuth(async (_req, { userId }) => {
     const result = await runTask(
       "school-intel",
       [
-        "Recommend 8 graduate schools for my tracking list based on my profile.",
+        "Recommend exactly 15 graduate schools for my tracking list based on my profile.",
+        "Split the list into: 5 top-tier schools, 5 mid-tier schools, and 5 safety schools.",
+        "Include a field `tierBucket` for each school with one of: `top_tier`, `mid_tier`, `safety`.",
+        "Funding is a top-priority constraint: strongly prioritize programs/schools with full funding first, then high partial funding.",
+        "For every school, include funding strength in `whyFit` and add a concise funding availability note in `notes` (e.g., full funding likely, high partial, limited/uncertain).",
+        "If funding is weak/uncertain, only include when overall fit is still compelling and say so clearly.",
         countryHint,
-        "Return ONLY valid JSON with shape: { \"schools\": [{ \"name\", \"program\", \"degree\", \"country\", \"whyFit\", \"notes\", \"portalUrl\" }] }",
+        "Return ONLY valid JSON with shape: { \"schools\": [{ \"name\", \"program\", \"degree\", \"country\", \"tierBucket\", \"whyFit\", \"notes\", \"portalUrl\" }] }",
       ].join("\n"),
       userId,
     );
