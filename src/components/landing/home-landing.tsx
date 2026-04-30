@@ -309,7 +309,7 @@ export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
           </div>
         </section>
 
-        {/* ============== Pricing trio (gated by feature flag) ============== */}
+        {/* ============== Pricing trio ============== */}
         {showPricing ? (
           <section
             id="pricing"

@@ -29,8 +29,6 @@ export interface NavItem {
   fabIcon?: string;
   /** Hide nav item entirely when plan === FREE. */
   freeHidden?: boolean;
-  /** Hide nav item unless feature flag is enabled. */
-  flag?: "settingsEnabled" | "supportTabEnabled";
   /** Hide nav item unless user is ADMIN/SUPERADMIN. */
   adminOnly?: boolean;
 }
@@ -102,16 +100,15 @@ export const NAV_ITEMS: NavItem[] = [
     searchPlaceholder: "Search resources...",
     showFab: false,
   },
-  {
-    key: "support",
-    href: "/support",
-    label: "Support",
-    icon: "support_agent",
-    title: "Support",
-    searchPlaceholder: "Search help articles...",
-    showFab: false,
-    flag: "supportTabEnabled",
-  },
+  // {
+  //   key: "support",
+  //   href: "/support",
+  //   label: "Support",
+  //   icon: "support_agent",
+  //   title: "Support",
+  //   searchPlaceholder: "Search help articles...",
+  //   showFab: false,
+  // },
   {
     key: "settings",
     href: "/settings",
@@ -120,7 +117,6 @@ export const NAV_ITEMS: NavItem[] = [
     title: "Settings",
     searchPlaceholder: "Search settings...",
     showFab: false,
-    flag: "settingsEnabled",
   },
   {
     key: "admin",

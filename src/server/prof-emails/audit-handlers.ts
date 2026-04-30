@@ -7,6 +7,7 @@ import {
   finalizeAiConsumption,
 } from "@/lib/billing-allowance";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
+import { requirePlusForFeature } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
 import { zPrismaRecordId } from "@/lib/prisma-record-id-zod";
 import {
@@ -52,6 +53,9 @@ function parseAuditResearch(reply: string): AuditResearch[] {
 }
 
 export const audit = withAuth<{ id: string }>(async (_req, { userId, params }) => {
+  const plusOnly = await requirePlusForFeature(userId, "priority_generation");
+  if (plusOnly) return plusOnly;
+
   const idParsed = zPrismaRecordId.safeParse(params.id);
   if (!idParsed.success) return bad("Invalid id.");
   const id = idParsed.data;

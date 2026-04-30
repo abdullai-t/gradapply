@@ -1,4 +1,4 @@
-import { PlanTier, Prisma, UserRole } from "@prisma/client";
+import { PlanTier, UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 import {
@@ -12,7 +12,6 @@ import {
   setAppSettingValue,
 } from "@/lib/app-settings";
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";
-import { clearFeatureFlagCache } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 import { isTrustedMutationOrigin } from "@/lib/request-origin";
 
@@ -20,8 +19,6 @@ import { bad, forbidden, notFound, ok } from "../_responses";
 import { withAdmin } from "../_with-admin";
 
 import {
-  createFlagSchema,
-  patchFlagSchema,
   updateConfigSchema,
   updateUserSchema,
 } from "./schemas";
@@ -33,6 +30,7 @@ const NO_STORE_HEADERS = { headers: { "Cache-Control": "no-store" } };
 
 export const overview = withAdmin(async (_req, { role: actorRole }) => {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   const [
     usersTotal,
@@ -42,6 +40,8 @@ export const overview = withAdmin(async (_req, { role: actorRole }) => {
     activeSubscriptionsTotal,
     newUsers7d,
     usageTotals,
+    paymentsGhsTotal,
+    paymentsGhs30d,
     byPlan,
     recentUsers,
   ] = await Promise.all([
@@ -68,6 +68,16 @@ export const overview = withAdmin(async (_req, { role: actorRole }) => {
     prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
     prisma.user.aggregate({
       _sum: { aiUsageUsed: true, aiCreditsBalance: true },
+    }),
+    prisma.billingPayment.aggregate({
+      where: { currency: "GHS" },
+      _sum: { amountMinor: true },
+      _count: { _all: true },
+    }),
+    prisma.billingPayment.aggregate({
+      where: { currency: "GHS", paidAt: { gte: thirtyDaysAgo } },
+      _sum: { amountMinor: true },
+      _count: { _all: true },
     }),
     prisma.user.groupBy({
       by: ["planTier"],
@@ -102,6 +112,10 @@ export const overview = withAdmin(async (_req, { role: actorRole }) => {
         newUsers7d,
         aiUsageUsedTotal: usageTotals._sum.aiUsageUsed ?? 0,
         aiCreditsBalanceTotal: usageTotals._sum.aiCreditsBalance ?? 0,
+        paymentsCountTotal: paymentsGhsTotal._count._all,
+        paymentsCount30d: paymentsGhs30d._count._all,
+        revenueGhsTotal: (paymentsGhsTotal._sum.amountMinor ?? 0) / 100,
+        revenueGhs30d: (paymentsGhs30d._sum.amountMinor ?? 0) / 100,
         byPlan: byPlanMap,
       },
       recentUsers: recentUsers.map((u) => ({
@@ -290,127 +304,6 @@ export const deleteUser = withAdmin<{ id: string }>(
     }
 
     await prisma.user.delete({ where: { id: params.id } });
-    return ok({ ok: true });
-  },
-);
-
-// -- /api/admin/feature-flags -------------------------------------------
-
-export const listFlags = withAdmin(async (_req, { role: actorRole }) => {
-  const flags = await prisma.featureFlag.findMany({
-    orderBy: [{ updatedAt: "desc" }, { key: "asc" }],
-  });
-
-  return NextResponse.json(
-    {
-      actorRole,
-      flags: flags.map((f) => ({
-        ...f,
-        createdAt: f.createdAt.toISOString(),
-        updatedAt: f.updatedAt.toISOString(),
-      })),
-    },
-    NO_STORE_HEADERS,
-  );
-});
-
-export const createFlag = withAdmin(async (req) => {
-  if (!isTrustedMutationOrigin(req)) return forbidden("Untrusted origin");
-
-  const parsed = createFlagSchema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return bad(parsed.error.flatten());
-
-  try {
-    const flag = await prisma.featureFlag.create({
-      data: {
-        key: parsed.data.key.toLowerCase(),
-        name: parsed.data.name,
-        description: parsed.data.description?.trim() || null,
-        enabled: parsed.data.enabled ?? false,
-      },
-    });
-    clearFeatureFlagCache(flag.key);
-    return ok({
-      ok: true,
-      flag: {
-        ...flag,
-        createdAt: flag.createdAt.toISOString(),
-        updatedAt: flag.updatedAt.toISOString(),
-      },
-    });
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === "P2002")
-        return bad("Feature flag key already exists.", 409);
-    }
-    return bad("Could not create feature flag.", 500);
-  }
-});
-
-export const patchFlag = withAdmin<{ id: string }>(
-  async (req, { params }) => {
-    if (!isTrustedMutationOrigin(req)) return forbidden("Untrusted origin");
-
-    const { id } = params;
-    const parsed = patchFlagSchema.safeParse(
-      await req.json().catch(() => null),
-    );
-    if (!parsed.success) return bad(parsed.error.flatten());
-
-    const existing = await prisma.featureFlag.findUnique({ where: { id } });
-    if (!existing) return notFound("Feature flag not found.");
-
-    if (Object.keys(parsed.data).length === 0)
-      return ok({ ok: true, changed: false });
-
-    try {
-      const flag = await prisma.featureFlag.update({
-        where: { id },
-        data: {
-          ...(parsed.data.key ? { key: parsed.data.key.toLowerCase() } : {}),
-          ...(parsed.data.name ? { name: parsed.data.name } : {}),
-          ...(Object.hasOwn(parsed.data, "description")
-            ? { description: parsed.data.description?.trim() || null }
-            : {}),
-          ...(Object.hasOwn(parsed.data, "enabled")
-            ? { enabled: parsed.data.enabled }
-            : {}),
-        },
-      });
-      clearFeatureFlagCache(existing.key);
-      clearFeatureFlagCache(flag.key);
-      return ok({
-        ok: true,
-        flag: {
-          ...flag,
-          createdAt: flag.createdAt.toISOString(),
-          updatedAt: flag.updatedAt.toISOString(),
-        },
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === "P2002")
-          return bad(
-            "Could not update feature flag. Key may already exist.",
-            409,
-          );
-      }
-      return bad("Could not update feature flag.", 500);
-    }
-  },
-);
-
-export const deleteFlag = withAdmin<{ id: string }>(
-  async (req, { params }) => {
-    if (!isTrustedMutationOrigin(req)) return forbidden("Untrusted origin");
-
-    const existing = await prisma.featureFlag.findUnique({
-      where: { id: params.id },
-    });
-    if (!existing) return notFound("Feature flag not found.");
-
-    await prisma.featureFlag.delete({ where: { id: params.id } });
-    clearFeatureFlagCache(existing.key);
     return ok({ ok: true });
   },
 );

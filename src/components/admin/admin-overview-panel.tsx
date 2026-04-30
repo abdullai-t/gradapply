@@ -20,6 +20,10 @@ type AdminOverview = {
     newUsers7d: number;
     aiUsageUsedTotal: number;
     aiCreditsBalanceTotal: number;
+    paymentsCountTotal: number;
+    paymentsCount30d: number;
+    revenueGhsTotal: number;
+    revenueGhs30d: number;
     byPlan: Record<PlanTier, number>;
   };
   recentUsers: Array<{
@@ -98,6 +102,16 @@ export function AdminOverviewPanel() {
         <Metric label="Superadmins" value={data.metrics.superAdminsTotal} />
         <Metric label="AI usage total" value={data.metrics.aiUsageUsedTotal} />
         <Metric label="Credits balance total" value={data.metrics.aiCreditsBalanceTotal} />
+        <Metric
+          label="Revenue (GHS, total)"
+          value={`GHS ${data.metrics.revenueGhsTotal.toLocaleString()}`}
+        />
+        <Metric
+          label="Revenue (GHS, 30d)"
+          value={`GHS ${data.metrics.revenueGhs30d.toLocaleString()}`}
+        />
+        <Metric label="Payments (total)" value={data.metrics.paymentsCountTotal} />
+        <Metric label="Payments (30d)" value={data.metrics.paymentsCount30d} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -139,7 +153,7 @@ function isErrorPayload(value: AdminOverview | { error?: string }): value is { e
   return "error" in value;
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+function Metric({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="glass-panel p-4">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
