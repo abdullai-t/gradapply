@@ -11,6 +11,10 @@ import {
   requireWritableAccount,
 } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
+import {
+  normalizeRecommendSchoolsPayload,
+  parseJsonFromLlmText,
+} from "@/lib/parse-llm-json";
 import { parseDeadlineBody } from "@/lib/school-deadline";
 import { progressFromStatus } from "@/lib/school-progress";
 
@@ -170,13 +174,21 @@ export const recommend = withAuth(async (_req, { userId }) => {
       userId,
     );
 
-    await finalizeAiConsumptionForAction(userId, "school_recommendation");
-
     const raw = result.reply.trim();
-    const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
-    const candidate = fenced ? fenced[1] : raw;
-    const parsed = JSON.parse(candidate) as { schools?: unknown[] };
-    const schools = Array.isArray(parsed?.schools) ? parsed.schools : [];
+    let schools: unknown[];
+    try {
+      const parsed = parseJsonFromLlmText(raw);
+      schools = normalizeRecommendSchoolsPayload(parsed);
+    } catch (e) {
+      console.warn("[schools/recommend] invalid JSON from model", {
+        userId,
+        preview: raw.slice(0, 400),
+        reason: e instanceof Error ? e.message : "unknown",
+      });
+      throw e;
+    }
+
+    await finalizeAiConsumptionForAction(userId, "school_recommendation");
 
     if (countriesOfInterest.length === 0) {
       return ok({ schools });
@@ -217,13 +229,21 @@ export const infer = withAuth(async (req, { userId }) => {
       term: parsed.data.term ?? null,
     });
 
-    await finalizeAiConsumptionForAction(userId, "school_infer");
-
     const raw = result.reply.trim();
-    const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
-    const candidate = fenced ? fenced[1] : raw;
-    const fields = JSON.parse(candidate);
-    return ok(fields);
+    let fields: unknown;
+    try {
+      fields = parseJsonFromLlmText(raw);
+    } catch (e) {
+      console.warn("[schools/infer] invalid JSON from model", {
+        userId,
+        preview: raw.slice(0, 400),
+        reason: e instanceof Error ? e.message : "unknown",
+      });
+      throw e;
+    }
+
+    await finalizeAiConsumptionForAction(userId, "school_infer");
+    return ok(fields as Record<string, unknown>);
   } catch (e) {
     return bad(formatLlmFailureMessage(e), 500);
   }
