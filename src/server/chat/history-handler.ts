@@ -12,7 +12,7 @@ export const history = withAuth(async (req, { userId }) => {
   const url = new URL(req.url);
   const mode = url.searchParams.get("mode");
   const schoolId = url.searchParams.get("schoolId");
-  const supportsSchoolScope = chatSupportsSchoolScope();
+  const supportsSchoolScope = await chatSupportsSchoolScope();
 
   // Run plan check + history query in parallel (was sequential, ~150ms savings)
   const [planTier, messages] = await Promise.all([

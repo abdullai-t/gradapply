@@ -1,18 +1,22 @@
 import { prisma } from "@/lib/prisma";
 
-export function chatSupportsSchoolScope(): boolean {
+let cachedSchoolScopeSupport: boolean | null = null;
+
+export async function chatSupportsSchoolScope(): Promise<boolean> {
+  if (cachedSchoolScopeSupport != null) return cachedSchoolScopeSupport;
+
   try {
-    const modelFields = (
-      prisma as unknown as {
-        _runtimeDataModel?: {
-          models?: { ChatMessage?: { fields?: Array<{ name?: string }> } };
-        };
-      }
-    )?._runtimeDataModel?.models?.ChatMessage?.fields;
-    return Array.isArray(modelFields)
-      ? modelFields.some((f: { name?: string }) => f.name === "schoolId")
-      : false;
+    const rows = await prisma.$queryRaw<Array<{ present: number }>>`
+      SELECT COUNT(*)::int AS present
+      FROM information_schema.columns
+      WHERE table_name = 'ChatMessage'
+        AND column_name = 'schoolId'
+    `;
+    const present = rows[0]?.present ?? 0;
+    cachedSchoolScopeSupport = present > 0;
+    return cachedSchoolScopeSupport;
   } catch {
+    cachedSchoolScopeSupport = false;
     return false;
   }
 }
