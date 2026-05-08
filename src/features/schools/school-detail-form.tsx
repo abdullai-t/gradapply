@@ -193,7 +193,7 @@ export function SchoolDetailForm({
           variant="ghost"
           size="sm"
           className="mt-3 border border-dashed border-[var(--outline-variant)]"
-          icon="bell_off"
+          icon="notifications_off"
           disabled={!school.reminderAt && !school.reminderNote?.trim()}
           onClick={() =>
             onPatch({ reminderAt: null, reminderNote: null })
