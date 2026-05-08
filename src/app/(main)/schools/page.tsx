@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -33,7 +32,6 @@ import {
 import type { SchoolRow } from "@/features/schools/types";
 
 export default function SchoolsPage() {
-  const searchParams = useSearchParams();
   const qc = useQueryClient();
   const { data, isLoading } = useSchools();
   const updateSchool = useUpdateSchool();
@@ -48,7 +46,7 @@ export default function SchoolsPage() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const linkedSchoolId = searchParams.get("schoolId");
+  const [linkedSchoolId, setLinkedSchoolId] = useState<string | null>(null);
 
   const sorted = useMemo(
     () =>
@@ -58,6 +56,11 @@ export default function SchoolsPage() {
       ),
     [schools],
   );
+
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("schoolId");
+    setLinkedSchoolId(id);
+  }, []);
 
   useEffect(() => {
     if (!linkedSchoolId) return;
