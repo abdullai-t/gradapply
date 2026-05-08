@@ -1,6 +1,6 @@
 import type { Profile, User } from "@prisma/client";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -32,13 +32,50 @@ function execFileAsync(
   });
 }
 
+let cachedPdftotextBin: string | null | undefined;
+
+async function resolvePdftotextBinary(): Promise<string | null> {
+  if (cachedPdftotextBin !== undefined) return cachedPdftotextBin;
+
+  const configured = process.env.PDFTOTEXT_PATH?.trim();
+  const candidates = [
+    configured,
+    "pdftotext",
+    "/opt/homebrew/bin/pdftotext",
+    "/usr/local/bin/pdftotext",
+    "/usr/bin/pdftotext",
+  ].filter((v): v is string => Boolean(v));
+
+  for (const bin of candidates) {
+    if (bin.includes("/")) {
+      try {
+        await access(bin);
+        cachedPdftotextBin = bin;
+        return bin;
+      } catch {
+        continue;
+      }
+    } else {
+      // Command name (PATH lookup). We'll attempt execution in the caller.
+      cachedPdftotextBin = bin;
+      return bin;
+    }
+  }
+
+  cachedPdftotextBin = null;
+  return null;
+}
+
 async function extractPdfTextViaPdftotext(buf: Buffer): Promise<string | null> {
+  const pdftotextBin = await resolvePdftotextBinary();
+  if (!pdftotextBin) return null;
+
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "gradapply-pdf-"));
   const inPath = path.join(tmpDir, "input.pdf");
   const outPath = path.join(tmpDir, "output.txt");
   try {
     await writeFile(inPath, buf);
-    await execFileAsync("/opt/homebrew/bin/pdftotext", [inPath, outPath]);
+    await execFileAsync(pdftotextBin, [inPath, outPath]);
     const textRaw = await readFile(outPath, "utf8").catch(() => "");
     const text = textRaw.replace(/\s+/g, " ").trim();
     return text.length >= 20 ? text.slice(0, MAX_PER_DOC_CHARS) : null;
