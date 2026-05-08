@@ -115,7 +115,7 @@ export function ActiveReminderHero({
               onClick={() => onClearReminder(target.school.id)}
               className="inline-flex items-center gap-2 rounded-2xl border-2 border-white/35 bg-transparent px-5 py-3.5 text-sm font-extrabold text-white transition-colors hover:bg-white/10"
             >
-              <Icon name="bell_off" size={18} />
+              <Icon name="notifications_off" size={18} />
               Snooze reminder
             </button>
           ) : null}

@@ -106,7 +106,7 @@ export function RemindersList({
                   variant="ghost"
                   size="sm"
                   className="shrink-0 border border-dashed border-[var(--outline-variant)]"
-                  icon="bell_off"
+                  icon="notifications_off"
                   onClick={() => onClear(school.id)}
                 >
                   Clear reminder

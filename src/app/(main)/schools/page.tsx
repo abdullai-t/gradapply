@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import {
 import type { SchoolRow } from "@/features/schools/types";
 
 export default function SchoolsPage() {
+  const searchParams = useSearchParams();
   const qc = useQueryClient();
   const { data, isLoading } = useSchools();
   const updateSchool = useUpdateSchool();
@@ -46,6 +48,7 @@ export default function SchoolsPage() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const linkedSchoolId = searchParams.get("schoolId");
 
   const sorted = useMemo(
     () =>
@@ -55,6 +58,12 @@ export default function SchoolsPage() {
       ),
     [schools],
   );
+
+  useEffect(() => {
+    if (!linkedSchoolId) return;
+    const exists = schools.some((s) => s.id === linkedSchoolId);
+    if (exists) setExpandedId(linkedSchoolId);
+  }, [linkedSchoolId, schools]);
 
   const patchSchool = (
     id: string,
