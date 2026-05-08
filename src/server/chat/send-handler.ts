@@ -42,7 +42,7 @@ export const send = withPlanGate("assistant", async (req, { userId }) => {
   const mode = parsed.data.mode;
   const message = parsed.data.message;
   const schoolId = parsed.data.schoolId ?? null;
-  const supportsSchoolScope = chatSupportsSchoolScope();
+  const supportsSchoolScope = await chatSupportsSchoolScope();
   const wantStream = parsed.data.stream;
 
   // --- Streaming path ---
