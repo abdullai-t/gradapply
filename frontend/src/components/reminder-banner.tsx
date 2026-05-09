@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
@@ -22,7 +23,7 @@ export function ReminderBanner() {
   useEffect(() => {
     let active = true;
     const load = async () => {
-      const res = await fetch("/api/reminders");
+      const res = await apiFetch("/api/reminders");
       if (!res.ok || !active) return;
       const data = (await res.json()) as ReminderSchool[];
       if (!active) return;

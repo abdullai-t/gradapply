@@ -46,6 +46,37 @@ const nextConfig = {
       },
     ];
   },
+  /**
+   * When `BACKEND_PROXY_URL` is set (e.g. `http://localhost:8080`), proxy these
+   * `/api/*` paths to the Express server so LLM calls run there with keys in
+   * `backend/.env` only. Same-origin for the browser → session cookies still work.
+   * Add more entries if you add LLM routes under other prefixes.
+   */
+  async rewrites() {
+    const backend = process.env.BACKEND_PROXY_URL?.trim().replace(/\/$/, "");
+    if (!backend) return [];
+    return [
+      { source: "/api/chat", destination: `${backend}/api/chat` },
+      { source: "/api/chat/:path*", destination: `${backend}/api/chat/:path*` },
+      { source: "/api/sop/:path*", destination: `${backend}/api/sop/:path*` },
+      {
+        source: "/api/prof-emails/:path*",
+        destination: `${backend}/api/prof-emails/:path*`,
+      },
+      {
+        source: "/api/content-versions/:path*",
+        destination: `${backend}/api/content-versions/:path*`,
+      },
+      {
+        source: "/api/schools/:path*",
+        destination: `${backend}/api/schools/:path*`,
+      },
+      {
+        source: "/api/documents/:path*",
+        destination: `${backend}/api/documents/:path*`,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {

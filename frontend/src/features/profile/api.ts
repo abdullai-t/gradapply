@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import {
   useMutation,
   useQuery,
@@ -25,7 +26,7 @@ export function useProfile() {
   return useQuery({
     queryKey: profileKeys.detail(),
     queryFn: async () =>
-      jsonOrThrow<Record<string, unknown>>(await fetch("/api/profile")),
+      jsonOrThrow<Record<string, unknown>>(await apiFetch("/api/profile")),
   });
 }
 
@@ -34,7 +35,7 @@ export function useUpdateProfile() {
   return useMutation({
     mutationFn: async (data: Record<string, unknown>) =>
       jsonOrThrow<Record<string, unknown>>(
-        await fetch("/api/profile", {
+        await apiFetch("/api/profile", {
           method: "PATCH",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(data),

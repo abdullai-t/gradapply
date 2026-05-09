@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -26,7 +27,7 @@ export function MobileNav() {
 
   useEffect(() => {
     let active = true;
-    void fetch("/api/billing/status", { cache: "no-store" })
+    void apiFetch("/api/billing/status", { cache: "no-store" })
       .then(async (res) => {
         if (!res.ok) return null;
         return (await res.json()) as {

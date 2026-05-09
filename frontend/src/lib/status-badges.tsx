@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import type { EmailStatus, SchoolStatus } from "@prisma/client";
+import type { EmailStatus, SchoolStatus } from "@/types/enums";
 
 import { Badge } from "@/components/ui/badge";
 

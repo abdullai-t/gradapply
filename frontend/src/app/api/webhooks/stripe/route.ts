@@ -110,7 +110,8 @@ export async function POST(req: Request) {
           where: { stripeSubscriptionId: sub.id },
           select: { id: true },
         });
-        if (local) await syncUserSubscriptionFromStripe(local.id, sub);
+        if (local)
+          await syncUserSubscriptionFromStripe(String(local.id), sub);
         break;
       }
 

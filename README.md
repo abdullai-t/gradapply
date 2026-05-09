@@ -2,6 +2,13 @@
 
 Graduate school application companion: track schools, draft outreach and statements with AI, manage documents, and connect optional Google services (Gmail / Drive). Built with [Next.js](https://nextjs.org/) (App Router), [Prisma](https://www.prisma.io/), and [NextAuth](https://next-auth.js.org/).
 
+## Repository layout (monorepo)
+
+- **`frontend/`** — Next.js app: UI, `src/app/api/*` routes, and **PostgreSQL + Prisma** (unchanged from the pre-split app).
+- **`backend/`** — **Node.js (Express) + MongoDB** service — health check and a place to grow migrated APIs. It does not replace the Next API yet, so there is no loss of features.
+
+**Vercel:** set the project **Root Directory** to `frontend` (or deploy only that package). Optional: run `backend/` as a separate service with `MONGODB_URI`.
+
 ## Prerequisites
 
 - **Node.js** 18+ (20 LTS recommended)
@@ -23,7 +30,9 @@ Equivalent without Make:
 
 ```bash
 pnpm install
-cp .env.example .env   # then edit .env
+cp .env.example .env              # repo-wide secrets / tooling
+cp frontend/.env.example frontend/.env   # Next.js reads env from frontend/ during dev
+# Edit both — at minimum DATABASE_URL + AUTH_SECRET in frontend/.env
 pnpm db:push
 pnpm db:seed
 pnpm dev

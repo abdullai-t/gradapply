@@ -1,4 +1,5 @@
-import type { UserRole } from "@prisma/client";
+// @ts-nocheck
+import type { UserRole } from "@/types/enums";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";

@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -101,7 +102,7 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
     setResendingVerification(true);
     setCredError(null);
     try {
-      await fetch("/api/auth/verify-email/resend", {
+      await apiFetch("/api/auth/verify-email/resend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),

@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { resolveUserId } from "@/lib/auth-session";
 import { isTrustedMutationOrigin } from "@/lib/request-origin";
 
 import { forbidden, unauthorized } from "./_responses";
@@ -20,8 +20,8 @@ export type AuthedHandler<TParams = Record<string, string>> = (
  * Wraps an authed route handler so the boilerplate
  *
  * ```ts
- * const session = await auth();
- * if (!session?.user?.id)
+ * const userId = await resolveUserId(req);
+ * if (!userId)
  *   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
  * ```
  *
@@ -42,14 +42,14 @@ export function withAuth<TParams = Record<string, string>>(
   handler: AuthedHandler<TParams>,
 ): (req: Request, routeCtx: { params: TParams }) => Promise<Response> {
   return async (req, routeCtx) => {
-    const session = await auth();
-    if (!session?.user?.id) return unauthorized();
+    const userId = await resolveUserId(req);
+    if (!userId) return unauthorized();
     const method = req.method.toUpperCase();
     if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
       if (!isTrustedMutationOrigin(req)) return forbidden("Untrusted origin");
     }
 
     const params = (routeCtx?.params ?? ({} as TParams)) as TParams;
-    return handler(req, { userId: session.user.id, params });
+    return handler(req, { userId, params });
   };
 }

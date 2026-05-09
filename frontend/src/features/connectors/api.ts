@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import {
   useMutation,
   useQuery,
@@ -37,7 +38,7 @@ export function useConnectors() {
   return useQuery({
     queryKey: connectorsKeys.list(),
     queryFn: async () =>
-      jsonOrThrow<ConnectorsResponse>(await fetch("/api/connectors")),
+      jsonOrThrow<ConnectorsResponse>(await apiFetch("/api/connectors")),
   });
 }
 
@@ -46,7 +47,7 @@ export function useDisconnect() {
   return useMutation({
     mutationFn: async (provider: "gmail" | "google-drive") =>
       jsonOrThrow<{ ok: true }>(
-        await fetch(`/api/connectors/${provider}`, { method: "DELETE" }),
+        await apiFetch(`/api/connectors/${provider}`, { method: "DELETE" }),
       ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: connectorsKeys.all });

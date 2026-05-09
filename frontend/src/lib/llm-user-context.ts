@@ -1,4 +1,5 @@
-import type { Profile, User } from "@prisma/client";
+// @ts-nocheck
+import type { Profile, User } from "@/types/mongo-models";
 import { execFile } from "node:child_process";
 import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";

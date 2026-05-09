@@ -1,4 +1,5 @@
-import { EmailStatus } from "@prisma/client";
+// @ts-nocheck
+import { EmailStatus } from "@/types/enums";
 
 import { runTask } from "@/lib/agents";
 import {

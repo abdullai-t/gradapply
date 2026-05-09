@@ -3,7 +3,8 @@ import { format } from "date-fns";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { SchoolStatus } from "@prisma/client";
+import { SchoolStatus } from "@/types/enums";
+import type { Profile, School } from "@/types/mongo-models";
 
 import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
@@ -27,11 +28,11 @@ export default async function DashboardPage() {
   if (!session?.user?.id) return null;
 
   const [
-    schools,
+    schoolsRaw,
     documents,
-    profile,
-    upcomingSchools,
-    currentUser,
+    profileRaw,
+    upcomingSchoolsRaw,
+    currentUserRaw,
   ] = await Promise.all([
     prisma.school.findMany({
       where: { userId: session.user.id },
@@ -64,6 +65,11 @@ export default async function DashboardPage() {
     }),
   ]);
 
+  const schools = schoolsRaw as unknown as School[];
+  const upcomingSchools = upcomingSchoolsRaw as unknown as School[];
+  const profile = profileRaw as Profile | null;
+  const currentUser = currentUserRaw as { planTier: string } | null;
+
   const byStatus = schools.reduce(
     (acc, s) => {
       acc[s.status] = (acc[s.status] ?? 0) + 1;
@@ -74,7 +80,14 @@ export default async function DashboardPage() {
 
   const greet = firstName(session.user.name);
   const complete = dossierCompleteness({
-    profile,
+    profile: profile
+      ? {
+          targetDegree: profile.targetDegree ?? null,
+          focusArea: profile.focusArea ?? null,
+          researchInterests: profile.researchInterests ?? null,
+          bio: profile.bio ?? null,
+        }
+      : null,
     schoolCount: schools.length,
     documentCount: documents.length,
   });
@@ -93,7 +106,8 @@ export default async function DashboardPage() {
     ? Math.max(
         0,
         Math.ceil(
-          (nextDeadline.deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+          (new Date(nextDeadline.deadline).getTime() - Date.now()) /
+            (1000 * 60 * 60 * 24),
         ),
       )
     : null;
@@ -102,12 +116,12 @@ export default async function DashboardPage() {
     upcoming: upcomingSchools.map((s) => ({
       id: s.id,
       name: s.name,
-      deadline: s.deadline,
+      deadline: s.deadline ? new Date(s.deadline) : null,
     })),
     profile: profile
       ? {
-          researchInterests: profile.researchInterests,
-          bio: profile.bio,
+          researchInterests: profile.researchInterests ?? null,
+          bio: profile.bio ?? null,
         }
       : null,
     schoolCount: schools.length,
@@ -123,7 +137,7 @@ export default async function DashboardPage() {
     upcoming: upcomingSchools.map((s) => ({
       id: s.id,
       name: s.name,
-      deadline: s.deadline,
+      deadline: s.deadline ? new Date(s.deadline) : null,
     })),
   });
 
@@ -132,14 +146,16 @@ export default async function DashboardPage() {
       id: s.id,
       name: s.name,
       program: s.program,
-      deadline: s.deadline,
+      deadline: s.deadline != null ? new Date(s.deadline) : null,
       status: s.status,
     })),
   );
 
   // Derive streak from school activity timestamps until UserActivityDay ships.
   const recentActivityDates = schools.flatMap((s) =>
-    [s.updatedAt, s.reminderAt].filter((d): d is Date => d != null),
+    [s.updatedAt, s.reminderAt]
+      .filter((d): d is NonNullable<typeof d> => d != null)
+      .map((d) => (d instanceof Date ? d : new Date(d))),
   );
   const streak = computeDerivedStreak({ recentActivityDates });
 
@@ -211,7 +227,7 @@ export default async function DashboardPage() {
                 tone="destructive"
                 value={
                   nextDeadline?.deadline
-                    ? format(nextDeadline.deadline, "MMM d")
+                    ? format(new Date(nextDeadline.deadline), "MMM d")
                     : "—"
                 }
                 label="Next deadline"

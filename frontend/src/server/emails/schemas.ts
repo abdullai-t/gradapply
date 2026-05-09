@@ -1,4 +1,4 @@
-import { EmailStatus } from "@prisma/client";
+import { EmailStatus } from "@/types/enums";
 import { z } from "zod";
 
 const optionalHttpUrl = z

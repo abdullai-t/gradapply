@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Save } from "lucide-react";
 
@@ -99,7 +100,7 @@ export function AdminPricingPanel() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/config", { cache: "no-store" });
+    const res = await apiFetch("/api/admin/config", { cache: "no-store" });
     const json = (await res.json().catch(() => null)) as
       | ConfigResponse
       | ErrorPayload
@@ -162,7 +163,7 @@ export function AdminPricingPanel() {
       payload.paystackPlanCodePro = paystackPlanCodePro.trim();
     }
 
-    const res = await fetch("/api/admin/config", {
+    const res = await apiFetch("/api/admin/config", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

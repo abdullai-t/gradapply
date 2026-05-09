@@ -1,4 +1,4 @@
-import type { ContentEntityType } from "@prisma/client";
+import type { ContentEntityType } from "@/types/enums";
 
 export {
   parseProfEmailSnapshot,

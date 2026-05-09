@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 
@@ -77,7 +78,7 @@ export function AdminUsersPanel() {
     if (search.trim()) params.set("q", search.trim());
     if (roleFilter !== "ALL") params.set("role", roleFilter);
     params.set("page", String(page));
-    const res = await fetch(`/api/admin/users?${params.toString()}`, {
+    const res = await apiFetch(`/api/admin/users?${params.toString()}`, {
       cache: "no-store",
     });
     const data = (await res.json().catch(() => null)) as
@@ -132,7 +133,7 @@ export function AdminUsersPanel() {
       payload.aiCreditsDelta = Math.trunc(creditsDeltaNum);
     }
 
-    const res = await fetch(`/api/admin/users/${editing.id}`, {
+    const res = await apiFetch(`/api/admin/users/${editing.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -155,7 +156,7 @@ export function AdminUsersPanel() {
     if (!editing) return;
     setDeleting(true);
     setError(null);
-    const res = await fetch(`/api/admin/users/${editing.id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/admin/users/${editing.id}`, { method: "DELETE" });
     const json = (await res.json().catch(() => null)) as
       | { error?: string }
       | null;

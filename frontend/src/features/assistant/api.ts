@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import { useCallback, useRef } from "react";
 import {
   useMutation,
@@ -65,7 +66,7 @@ export function useChatHistory(mode: ChatMode, schoolId?: string | null) {
     queryFn: async () => {
       const qs = new URLSearchParams({ mode });
       if (schoolId) qs.set("schoolId", schoolId);
-      return jsonOrThrow<ChatMessage[]>(await fetch(`/api/chat?${qs.toString()}`));
+      return jsonOrThrow<ChatMessage[]>(await apiFetch(`/api/chat?${qs.toString()}`));
     },
     staleTime: 30000, // Consider data fresh for 30s - shows cached instantly
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
@@ -81,7 +82,7 @@ export function useSendMessage() {
       schoolId?: string | null;
     }) =>
       jsonOrThrow<{ agent?: AgentMeta }>(
-        await fetch("/api/chat", {
+        await apiFetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(input),
@@ -190,7 +191,7 @@ export function useSendMessageStreaming() {
       let error: string | null = null;
 
       try {
-        const res = await fetch("/api/chat", {
+        const res = await apiFetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...input, stream: true }),
@@ -290,7 +291,7 @@ export function useSendMessageStreaming() {
           // Bypass the 10s browser cache from the API's Cache-Control header,
           // otherwise the first poll often returns the pre-turn snapshot.
           const fresh = await jsonOrThrow<ChatMessage[]>(
-            await fetch(`/api/chat?${qs.toString()}`, { cache: "no-store" }),
+            await apiFetch(`/api/chat?${qs.toString()}`, { cache: "no-store" }),
           );
           let persisted = false;
           qc.setQueryData<ChatMessage[]>(key, (oldData) => {
@@ -360,7 +361,7 @@ export function useChatStats() {
     queryKey: chatKeys.stats(),
     queryFn: async () =>
       jsonOrThrow<ChatStats>(
-        await fetch("/api/chat/stats", { cache: "no-store" }),
+        await apiFetch("/api/chat/stats", { cache: "no-store" }),
       ),
   });
 }

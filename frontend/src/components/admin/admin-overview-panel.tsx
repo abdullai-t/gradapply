@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 
@@ -44,7 +45,7 @@ export function AdminOverviewPanel() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const res = await fetch("/api/admin/overview", { cache: "no-store" });
+    const res = await apiFetch("/api/admin/overview", { cache: "no-store" });
     const json = (await res.json().catch(() => null)) as
       | AdminOverview
       | { error?: string }

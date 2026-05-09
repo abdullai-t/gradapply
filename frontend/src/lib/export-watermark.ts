@@ -1,4 +1,4 @@
-import type { PlanTier } from "@prisma/client";
+import type { PlanTier } from "@/types/enums";
 
 export function canExportWithoutWatermark(planTier: PlanTier): boolean {
   return planTier === "PRO" || planTier === "PLUS";

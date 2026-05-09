@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import { useCallback, useEffect, useState } from "react";
 
 type HealthJson = { ok: true; version: string } | { ok: false; error: string };
@@ -22,7 +23,7 @@ export function StatusPageClient({
   const poll = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/health", { cache: "no-store" });
+      const res = await apiFetch("/api/health", { cache: "no-store" });
       const data = (await res.json()) as HealthJson;
       setOk(data.ok);
       setCheckedAt(new Date());

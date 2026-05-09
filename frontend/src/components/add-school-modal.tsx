@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -24,7 +25,7 @@ import {
 } from "@/lib/grad-options";
 import { COUNTRY_OPTIONS } from "@/lib/country-options";
 import { ADMISSION_TERM_OPTIONS } from "@/lib/admission-term";
-import type { AdmissionTerm } from "@prisma/client";
+import type { AdmissionTerm } from "@/types/enums";
 
 const COUNTRY_SELECT_NONE = "__country_none__";
 const TERM_SELECT_NONE = "__term_none__";
@@ -140,7 +141,7 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     setAiLoading(true);
     setAiError(null);
     try {
-      const res = await fetch("/api/schools/infer", {
+      const res = await apiFetch("/api/schools/infer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -185,7 +186,7 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/schools", {
+      const res = await apiFetch("/api/schools", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -224,7 +225,7 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     setRecLoading(true);
     setRecError(null);
     try {
-      const res = await fetch("/api/schools/recommend", { method: "POST" });
+      const res = await apiFetch("/api/schools/recommend", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(
@@ -261,7 +262,7 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     setSaving(true);
     setRecError(null);
     try {
-      const res = await fetch("/api/schools", {
+      const res = await apiFetch("/api/schools", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,5 +1,7 @@
+import mongoose from "mongoose";
+
 import { getAppVersion } from "@/lib/build-version";
-import { prisma } from "@/lib/prisma";
+import { ensureMongoConnected } from "@/lib/prisma";
 
 const DB_CHECK_TIMEOUT_MS = 3000;
 
@@ -11,7 +13,11 @@ async function checkDatabase(): Promise<void> {
     }, DB_CHECK_TIMEOUT_MS);
   });
 
-  await Promise.race([prisma.$queryRaw`SELECT 1`, timeout]);
+  await ensureMongoConnected();
+  const db = mongoose.connection.db;
+  if (!db) throw new Error("no_db");
+
+  await Promise.race([db.admin().command({ ping: 1 }), timeout]);
 }
 
 export type HealthCheckResult =

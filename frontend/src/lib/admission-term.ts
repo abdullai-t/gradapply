@@ -1,4 +1,4 @@
-import type { AdmissionTerm } from "@prisma/client";
+import type { AdmissionTerm } from "@/types/enums";
 
 export const ADMISSION_TERM_OPTIONS: {
   value: AdmissionTerm;

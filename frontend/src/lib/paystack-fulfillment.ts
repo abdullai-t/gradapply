@@ -1,4 +1,4 @@
-import type { PlanTier } from "@prisma/client";
+import type { PlanTier } from "@/types/enums";
 
 import { grantCreditsPackToUser } from "@/lib/billing-stripe-sync";
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";

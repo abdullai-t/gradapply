@@ -1,4 +1,4 @@
-import { PlanTier, UserRole } from "@prisma/client";
+import { PlanTier, UserRole } from "@/types/enums";
 import { z } from "zod";
 
 export const updateUserSchema = z.object({

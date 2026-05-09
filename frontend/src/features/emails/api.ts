@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import {
   useMutation,
   useQuery,
@@ -33,7 +34,7 @@ export function useProfEmails() {
   return useQuery({
     queryKey: profEmailsKeys.list(),
     queryFn: async () =>
-      jsonOrThrow<unknown[]>(await fetch("/api/prof-emails?take=50")),
+      jsonOrThrow<unknown[]>(await apiFetch("/api/prof-emails?take=50")),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
@@ -42,7 +43,7 @@ export function useProfEmails() {
 export function useProfEmail(id: string | null) {
   return useQuery({
     queryKey: [...profEmailsKeys.all, "detail", id] as const,
-    queryFn: async () => jsonOrThrow<unknown>(await fetch(`/api/prof-emails/${id}`)),
+    queryFn: async () => jsonOrThrow<unknown>(await apiFetch(`/api/prof-emails/${id}`)),
     enabled: Boolean(id),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
@@ -54,7 +55,7 @@ export function useUpdateProfEmail() {
   return useMutation({
     mutationFn: async (input: { id: string; data: Record<string, unknown> }) =>
       jsonOrThrow<unknown>(
-        await fetch(`/api/prof-emails/${input.id}`, {
+        await apiFetch(`/api/prof-emails/${input.id}`, {
           method: "PATCH",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(input.data),
@@ -71,7 +72,7 @@ export function useDeleteProfEmail() {
   return useMutation({
     mutationFn: async (id: string) =>
       jsonOrThrow<{ ok: true }>(
-        await fetch(`/api/prof-emails/${id}`, { method: "DELETE" }),
+        await apiFetch(`/api/prof-emails/${id}`, { method: "DELETE" }),
       ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: profEmailsKeys.all });
@@ -86,7 +87,7 @@ export function useDraftProfEmail() {
   return useMutation({
     mutationFn: async (id: string) =>
       jsonOrThrow<unknown>(
-        await fetch(`/api/prof-emails/${id}/draft`, { method: "POST" }),
+        await apiFetch(`/api/prof-emails/${id}/draft`, { method: "POST" }),
       ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: profEmailsKeys.all });
@@ -99,7 +100,7 @@ export function useFromUrl() {
   return useMutation({
     mutationFn: async (profileUrl: string) =>
       jsonOrThrow<unknown>(
-        await fetch("/api/prof-emails/from-url", {
+        await apiFetch("/api/prof-emails/from-url", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ profileUrl }),
@@ -115,7 +116,7 @@ export function useDiscoverBySchools() {
   return useMutation({
     mutationFn: async (schoolIds: string[]) =>
       jsonOrThrow<{ candidates: unknown[] }>(
-        await fetch("/api/prof-emails/discover-by-schools", {
+        await apiFetch("/api/prof-emails/discover-by-schools", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ schoolIds }),
@@ -128,7 +129,7 @@ export function useDiscover() {
   return useMutation({
     mutationFn: async (input: { profileUrl: string; schoolIds: string[] }) =>
       jsonOrThrow<unknown>(
-        await fetch("/api/prof-emails/discover", {
+        await apiFetch("/api/prof-emails/discover", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(input),
@@ -142,7 +143,7 @@ export function useAnalyzeReply() {
   return useMutation({
     mutationFn: async (input: { id: string; replyText: string }) =>
       jsonOrThrow<unknown>(
-        await fetch(`/api/prof-emails/${input.id}/analyze-reply`, {
+        await apiFetch(`/api/prof-emails/${input.id}/analyze-reply`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ replyText: input.replyText }),
@@ -162,7 +163,7 @@ export function useSendViaGmail() {
       attachmentDocumentIds?: string[];
     }) =>
       jsonOrThrow<unknown>(
-        await fetch(`/api/prof-emails/${input.id}/send-via-gmail`, {
+        await apiFetch(`/api/prof-emails/${input.id}/send-via-gmail`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -183,7 +184,7 @@ export function useVersions(input: { entityType: string; entityId: string }) {
     queryKey: contentVersionsKeys.list(input.entityType, input.entityId),
     queryFn: async () =>
       jsonOrThrow<unknown[]>(
-        await fetch(
+        await apiFetch(
           `/api/content-versions?entityType=${encodeURIComponent(
             input.entityType,
           )}&entityId=${encodeURIComponent(input.entityId)}`,
@@ -205,7 +206,7 @@ export function useSaveVersion() {
       body: string;
     }) =>
       jsonOrThrow<unknown>(
-        await fetch("/api/content-versions", {
+        await apiFetch("/api/content-versions", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(data),
@@ -224,7 +225,7 @@ export function useRestoreVersion() {
   return useMutation({
     mutationFn: async (versionId: string) =>
       jsonOrThrow<unknown>(
-        await fetch(`/api/content-versions/${versionId}/restore`, {
+        await apiFetch(`/api/content-versions/${versionId}/restore`, {
           method: "POST",
         }),
       ),

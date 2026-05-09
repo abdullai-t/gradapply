@@ -1,6 +1,7 @@
 "use client";
 
-import type { School, SchoolStatus } from "@prisma/client";
+import type { School } from "@/types/mongo-models";
+import type { SchoolStatus } from "@/types/enums";
 import { format } from "date-fns";
 import { Pencil, Trash2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
@@ -100,7 +101,7 @@ export function SchoolCard({ school, onEdit, onDelete }: SchoolCardProps) {
               {school.deadline
                 ? format(new Date(school.deadline), "MMM d, yyyy")
                 : "No deadline"}{" "}
-              · {fundingLabel(school.funding)}
+              · {fundingLabel(school.funding ?? null)}
             </p>
           </div>
         </div>

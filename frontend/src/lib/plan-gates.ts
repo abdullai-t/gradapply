@@ -1,4 +1,4 @@
-import { PlanTier } from "@prisma/client";
+import { PlanTier } from "@/types/enums";
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
@@ -28,7 +28,7 @@ export async function getUserPlanTier(userId: string): Promise<PlanTier | null> 
     where: { id: userId },
     select: { planTier: true },
   });
-  return user?.planTier ?? null;
+  return (user?.planTier as PlanTier | undefined) ?? null;
 }
 
 export async function getUserAccessMode(

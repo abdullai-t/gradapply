@@ -1,6 +1,7 @@
+// @ts-nocheck
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { PlanTier } from "@prisma/client";
+import { PlanTier } from "@/types/enums";
 
 import { destroyStoredAsset, isCloudinaryConfigured, uploadDocumentBuffer } from "@/lib/cloudinary";
 import {

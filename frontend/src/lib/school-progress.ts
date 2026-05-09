@@ -1,4 +1,4 @@
-import type { SchoolStatus } from "@prisma/client";
+import type { SchoolStatus } from "@/types/enums";
 
 /** Pipeline-style completion for the progress bar (0–100). */
 export function progressFromStatus(status: SchoolStatus): number {

@@ -1,4 +1,4 @@
-import { AdmissionTerm, SchoolStatus } from "@prisma/client";
+import { AdmissionTerm, SchoolStatus } from "@/types/enums";
 import { z } from "zod";
 
 export const createSchoolSchema = z.object({

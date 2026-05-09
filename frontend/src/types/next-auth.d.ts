@@ -1,5 +1,5 @@
 import type { DefaultSession } from "next-auth";
-import type { UserRole } from "@prisma/client";
+import type { UserRole } from "@/types/enums";
 import type { JWT as DefaultJWT } from "next-auth/jwt";
 
 declare module "next-auth" {

@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw, Search, Shield, Users } from "lucide-react";
 
@@ -108,7 +109,7 @@ export function AdminPortal({ canManageRoles }: Props) {
 
   const loadOverview = useCallback(async () => {
     setLoadingOverview(true);
-    const res = await fetch("/api/admin/overview", { cache: "no-store" });
+    const res = await apiFetch("/api/admin/overview", { cache: "no-store" });
     const data = (await res.json().catch(() => null)) as
       | AdminOverview
       | { error?: string }
@@ -128,7 +129,7 @@ export function AdminPortal({ canManageRoles }: Props) {
     if (search.trim()) params.set("q", search.trim());
     if (roleFilter !== "ALL") params.set("role", roleFilter);
     params.set("page", String(page));
-    const res = await fetch(`/api/admin/users?${params.toString()}`, {
+    const res = await apiFetch(`/api/admin/users?${params.toString()}`, {
       cache: "no-store",
     });
     const data = (await res.json().catch(() => null)) as
@@ -184,7 +185,7 @@ export function AdminPortal({ canManageRoles }: Props) {
       payload.aiCreditsDelta = Math.trunc(creditsDeltaNum);
     }
 
-    const res = await fetch(`/api/admin/users/${editing.id}`, {
+    const res = await apiFetch(`/api/admin/users/${editing.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -207,7 +208,7 @@ export function AdminPortal({ canManageRoles }: Props) {
     if (!editing) return;
     setDeleting(true);
     setError(null);
-    const res = await fetch(`/api/admin/users/${editing.id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/admin/users/${editing.id}`, { method: "DELETE" });
     const json = (await res.json().catch(() => null)) as
       | { error?: string }
       | null;

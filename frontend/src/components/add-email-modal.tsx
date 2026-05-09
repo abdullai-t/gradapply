@@ -1,6 +1,8 @@
 "use client";
 
-import type { EmailStatus, ProfEmail } from "@prisma/client";
+import { apiFetch } from "@/lib/api-fetch";
+import type { EmailStatus } from "@/types/enums";
+import type { ProfEmail } from "@/types/prof-email";
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
@@ -68,7 +70,7 @@ export function AddEmailModal({ open, onClose, editing, onSaved }: Props) {
     setError(null);
     try {
       const prompt = `Write a cold email to Prof ${professorName.trim()} at ${university.trim()} who works on ${researchArea.trim()}. Use my profile context from the assistant; align their recent or representative work with my research interests and reference it briefly if that context supports it—do not invent papers. Produce only the email body text (plain text, no subject line).`;
-      const res = await fetch("/api/chat", {
+      const res = await apiFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -113,7 +115,7 @@ export function AddEmailModal({ open, onClose, editing, onSaved }: Props) {
         status,
         notes: notes || null,
       };
-      const res = await fetch(
+      const res = await apiFetch(
         editing ? `/api/emails/${editing.id}` : "/api/emails",
         {
           method: editing ? "PATCH" : "POST",

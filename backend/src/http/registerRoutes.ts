@@ -1,0 +1,177 @@
+// @ts-nocheck
+import express, { type Express } from "express";
+
+import * as admin from "@/server/admin/handlers";
+import * as billing from "@/server/billing/handlers";
+import * as chat from "@/server/chat/handlers";
+import * as connectors from "@/server/connectors/handlers";
+import * as contentVersions from "@/server/content-versions/handlers";
+import * as documents from "@/server/documents/handlers";
+import * as emails from "@/server/emails/handlers";
+import * as folders from "@/server/folders/handlers";
+import * as profById from "@/server/prof-emails/[id]-handlers";
+import * as profAnalyze from "@/server/prof-emails/analyze-reply-handlers";
+import * as profAudit from "@/server/prof-emails/audit-handlers";
+import * as profDiscover from "@/server/prof-emails/discover-handlers";
+import * as profDiscoverSchools from "@/server/prof-emails/discover-by-schools-handlers";
+import * as profDraft from "@/server/prof-emails/draft-handlers";
+import * as profFromUrl from "@/server/prof-emails/from-url-handlers";
+import * as profEmails from "@/server/prof-emails/handlers";
+import * as profSendGmail from "@/server/prof-emails/send-via-gmail-handlers";
+import * as profile from "@/server/profile/handlers";
+import * as reminders from "@/server/reminders/handlers";
+import * as schools from "@/server/schools/handlers";
+import * as sopRewrite from "@/server/sop-rewrite/handlers";
+import * as sopScore from "@/server/sop-score/handlers";
+import * as sopVariants from "@/server/sop-variants/handlers";
+import * as upload from "@/server/upload/handlers";
+
+import {
+  authRegisterPost,
+  authVerifyEmailGet,
+  authVerifyEmailResendPost,
+} from "./auth-public-handlers";
+import { paystackBrowserCallback } from "./paystack-browser-callback";
+import {
+  paystackWebhookPost,
+  stripeWebhookPost,
+} from "./webhook-handlers";
+import { adapt, adaptPlain } from "./web-request";
+
+async function nextAuthNotMounted(req: Request): Promise<Response> {
+  const path = new URL(req.url).pathname;
+  return Response.json(
+    {
+      error:
+        "NextAuth App Router handlers are not mounted on this Express server yet.",
+      path,
+      hint:
+        "Use Auth.js Express adapter + MongoDB adapter, or point NEXTAUTH_URL / AUTH_URL to an auth-capable origin.",
+    },
+    { status: 501 },
+  );
+}
+
+/** Wire migrated App Router handlers under `/api`. */
+export function registerApiRoutes(app: Express): void {
+  const api = express.Router();
+
+  const rawBody = express.raw({ limit: "2mb", type: "*/*" });
+  const uploadRaw = express.raw({ limit: "10mb", type: "*/*" });
+
+  api.post("/webhooks/stripe", rawBody, adaptPlain(stripeWebhookPost));
+  api.post("/webhooks/paystack", rawBody, adaptPlain(paystackWebhookPost));
+
+  api.get(
+    "/billing/paystack/callback",
+    adaptPlain(paystackBrowserCallback),
+  );
+
+  api.post("/documents/upload", uploadRaw, adapt(documents.upload));
+
+  api.use(express.json({ limit: "10mb" }));
+
+  api.get("/health", adaptPlain(() => Response.json({ ok: true })));
+
+  api.get("/chat", adapt(chat.history));
+  api.post("/chat", adapt(chat.send));
+  api.get("/chat/stats", adapt(chat.stats));
+
+  api.get("/documents", adapt(documents.list));
+  api.post("/documents", adapt(documents.create));
+  api.patch("/documents/:id", adapt(documents.patch));
+  api.delete("/documents/:id", adapt(documents.remove));
+  api.get("/documents/summary", adapt(documents.summary));
+  api.get("/documents/extraction-status", adapt(documents.extractionStatus));
+  api.get("/documents/:id/parsed-text", adapt(documents.parsedText));
+
+  api.get("/billing/status", adapt(billing.status));
+  api.post("/billing/checkout", adapt(billing.checkout));
+  api.post("/billing/portal", adapt(billing.portal));
+
+  api.post("/upload/presign", adapt(upload.presign));
+
+  api.get("/content-versions", adapt(contentVersions.list));
+  api.post("/content-versions", adapt(contentVersions.create));
+  api.get("/content-versions/:id", adapt(contentVersions.get));
+  api.post("/content-versions/:id/restore", adapt(contentVersions.restore));
+
+  api.get("/schools", adapt(schools.list));
+  api.post("/schools", adapt(schools.create));
+  api.post("/schools/recommend", adapt(schools.recommend));
+  api.post("/schools/infer", adapt(schools.infer));
+  api.patch("/schools/:id", adapt(schools.update));
+  api.delete("/schools/:id", adapt(schools.remove));
+
+  api.get("/prof-emails", adapt(profEmails.list));
+  api.post("/prof-emails", adapt(profEmails.create));
+  api.post("/prof-emails/from-url", adapt(profFromUrl.fromUrl));
+  api.post("/prof-emails/discover", adapt(profDiscover.discover));
+  api.post(
+    "/prof-emails/discover-by-schools",
+    adapt(profDiscoverSchools.discoverBySchools),
+  );
+
+  api.get("/prof-emails/:id", adapt(profById.get));
+  api.patch("/prof-emails/:id", adapt(profById.update));
+  api.delete("/prof-emails/:id", adapt(profById.remove));
+
+  api.post("/prof-emails/:id/draft", adapt(profDraft.draft));
+  api.post("/prof-emails/:id/send-via-gmail", adapt(profSendGmail.sendViaGmail));
+  api.post("/prof-emails/:id/analyze-reply", adapt(profAnalyze.analyzeReply));
+  api.post("/prof-emails/:id/audit", adapt(profAudit.audit));
+
+  api.get("/profile", adapt(profile.GET));
+  api.patch("/profile", adapt(profile.PATCH));
+
+  api.get("/reminders", adapt(reminders.GET));
+
+  api.get("/sop/variants", adapt(sopVariants.GET));
+  api.post("/sop/variants", adapt(sopVariants.POST));
+  api.patch("/sop/variants/:id", adapt(sopVariants.PATCH));
+
+  api.post("/sop/rewrite", adapt(sopRewrite.POST));
+  api.post("/sop/score", adapt(sopScore.POST));
+
+  api.get("/connectors", adapt(connectors.list));
+  api.delete("/connectors/gmail", adapt(connectors.deleteGmail));
+  api.delete("/connectors/google-drive", adapt(connectors.deleteGoogleDrive));
+  api.get("/connectors/gmail/start", adaptPlain(connectors.startGmail));
+  api.get("/connectors/gmail/callback", adaptPlain(connectors.gmailCallback));
+  api.get(
+    "/connectors/google-drive/start",
+    adaptPlain(connectors.startGoogleDrive),
+  );
+  api.get(
+    "/connectors/google-drive/callback",
+    adaptPlain(connectors.googleDriveCallback),
+  );
+
+  api.get("/admin/overview", adapt(admin.overview));
+  api.get("/admin/users", adapt(admin.listUsers));
+  api.patch("/admin/users/:id", adapt(admin.updateUser));
+  api.delete("/admin/users/:id", adapt(admin.deleteUser));
+  api.get("/admin/config", adapt(admin.getConfig));
+  api.patch("/admin/config", adapt(admin.patchConfig));
+
+  api.get("/emails", adapt(emails.list));
+  api.post("/emails", adapt(emails.create));
+  api.patch("/emails/:id", adapt(emails.update));
+  api.delete("/emails/:id", adapt(emails.remove));
+  api.post("/emails/:id/draft", adapt(emails.draft));
+
+  api.get("/folders", adapt(folders.list));
+  api.post("/folders", adapt(folders.create));
+  api.patch("/folders/:id", adapt(folders.patch));
+  api.delete("/folders/:id", adapt(folders.remove));
+
+  const auth = express.Router();
+  auth.post("/register", adaptPlain(authRegisterPost));
+  auth.get("/verify-email", adaptPlain(authVerifyEmailGet));
+  auth.post("/verify-email/resend", adaptPlain(authVerifyEmailResendPost));
+  auth.use(adaptPlain(nextAuthNotMounted));
+
+  api.use("/auth", auth);
+
+  app.use("/api", api);
+}

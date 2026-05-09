@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -281,7 +282,7 @@ export default function EmailsPage() {
     if (!selected || !saveVersionLabel.trim()) return;
     setSavingVersion(true);
     try {
-      const res = await fetch("/api/content-versions", {
+      const res = await apiFetch("/api/content-versions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -315,7 +316,7 @@ export default function EmailsPage() {
     if (!url) return;
     setWorking(true);
     try {
-      const res = await fetch("/api/prof-emails/from-url", {
+      const res = await apiFetch("/api/prof-emails/from-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profileUrl: url }),
@@ -341,7 +342,7 @@ export default function EmailsPage() {
   };
 
   const patch = async (id: string, body: Record<string, unknown>) => {
-    const res = await fetch(`/api/prof-emails/${id}`, {
+    const res = await apiFetch(`/api/prof-emails/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -351,7 +352,7 @@ export default function EmailsPage() {
 
   const remove = async (id: string) => {
     if (!confirm("Delete this outreach record?")) return;
-    const res = await fetch(`/api/prof-emails/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/prof-emails/${id}`, { method: "DELETE" });
     if (res.ok) await load();
   };
 
@@ -368,7 +369,7 @@ export default function EmailsPage() {
   const sendViaGmail = async (id: string) => {
     setSendingViaGmail(true);
     try {
-      const res = await fetch(`/api/prof-emails/${id}/send-via-gmail`, {
+      const res = await apiFetch(`/api/prof-emails/${id}/send-via-gmail`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ attachmentDocumentIds: [] }),
@@ -396,7 +397,7 @@ export default function EmailsPage() {
     setDiscoveryCandidates([]);
     setDiscoverySchoolRun(false);
     try {
-      const res = await fetch("/api/prof-emails/discover-by-schools", {
+      const res = await apiFetch("/api/prof-emails/discover-by-schools", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -438,7 +439,7 @@ export default function EmailsPage() {
         schools.find((s) => s.id === c.schoolId)?.name ??
         c.targetSchoolLabel ??
         "University";
-      const create = await fetch("/api/prof-emails", {
+      const create = await apiFetch("/api/prof-emails", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -467,7 +468,7 @@ export default function EmailsPage() {
 
   const aiDraft = async (id: string) => {
     setDrafting(id);
-    const res = await fetch(`/api/prof-emails/${id}/draft`, {
+    const res = await apiFetch(`/api/prof-emails/${id}/draft`, {
       method: "POST",
     });
     setDrafting(null);
@@ -485,7 +486,7 @@ export default function EmailsPage() {
     setAuditingResearch(true);
     setAuditError(null);
     try {
-      const res = await fetch(`/api/prof-emails/${id}/audit`, {
+      const res = await apiFetch(`/api/prof-emails/${id}/audit`, {
         method: "POST",
       });
       const j = (await res.json().catch(() => ({}))) as {

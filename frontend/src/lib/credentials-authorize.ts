@@ -1,4 +1,3 @@
-import type { PrismaClient } from "@prisma/client";
 import { verifyPassword } from "@/lib/password";
 
 type AuthorizeInput = {
@@ -6,8 +5,22 @@ type AuthorizeInput = {
   password: string;
 };
 
+/** Matches the Prisma-shaped `user` delegate from `@gradapply/db`. */
+type UserDelegate = {
+  findUnique: (args: {
+    where: { email: string };
+  }) => Promise<{
+    id: string;
+    passwordHash?: string | null;
+    emailVerified?: Date | null;
+    email?: string | null;
+    name?: string | null;
+    image?: string | null;
+  } | null>;
+};
+
 export async function credentialsAuthorize(
-  prisma: PrismaClient,
+  prisma: { user: UserDelegate },
   { email, password }: AuthorizeInput,
 ) {
   if (!email || !password) return null;

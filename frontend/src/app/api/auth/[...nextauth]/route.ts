@@ -60,14 +60,17 @@ function credentialsProvider() {
       const email = typeof credentials?.email === "string" ? credentials.email : "";
       const password =
         typeof credentials?.password === "string" ? credentials.password : "";
-      return credentialsAuthorize(prisma, { email, password });
+      return credentialsAuthorize(
+        prisma as Parameters<typeof credentialsAuthorize>[0],
+        { email, password },
+      );
     },
   });
 }
 
 const { handlers } = NextAuth({
   ...authConfig,
-  adapter: PrismaAdapter(prisma),
+  adapter: PrismaAdapter(prisma as never),
   providers: [
     credentialsProvider(),
     ...authConfig.providers,

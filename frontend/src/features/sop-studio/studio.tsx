@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -258,7 +259,7 @@ async function uploadMasterAsLibraryDoc(file: File): Promise<string> {
   const form = new FormData();
   form.set("file", file);
   form.set("kind", "sop_draft");
-  const res = await fetch("/api/documents/upload", {
+  const res = await apiFetch("/api/documents/upload", {
     method: "POST",
     body: form,
   });

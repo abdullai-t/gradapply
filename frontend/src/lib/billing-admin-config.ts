@@ -1,4 +1,4 @@
-import { PlanTier } from "@prisma/client";
+import { PlanTier } from "@/types/enums";
 
 import { BILLING_SETTING_KEYS, getAppSettingValue } from "@/lib/app-settings";
 

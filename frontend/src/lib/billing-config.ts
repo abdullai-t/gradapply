@@ -1,4 +1,4 @@
-import type { PlanTier } from "@prisma/client";
+import type { PlanTier } from "@/types/enums";
 
 export function stripeEnabled(): boolean {
   return Boolean(process.env.STRIPE_SECRET_KEY?.trim());

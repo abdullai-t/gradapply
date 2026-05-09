@@ -1,4 +1,4 @@
-import { EmailStatus } from "@prisma/client";
+import { EmailStatus } from "@/types/enums";
 import { NextResponse } from "next/server";
 
 import { runTask } from "@/lib/agents";

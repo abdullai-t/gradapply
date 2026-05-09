@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Icon } from "@/components/icon";
@@ -26,7 +27,7 @@ export function AIEnhanceTextarea({
 
     setEnhancing(true);
     try {
-      const response = await fetch("/api/chat", {
+      const response = await apiFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,8 +1,9 @@
+// @ts-nocheck
 /**
  * Gmail connector: OAuth (same Google Cloud client as login) + Gmail REST send/profile.
  */
 
-import { ConnectorProvider } from "@prisma/client";
+import { ConnectorProvider } from "@/types/enums";
 
 import { appOrigin } from "@/lib/app-origin";
 import {

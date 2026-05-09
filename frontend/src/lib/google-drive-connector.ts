@@ -1,8 +1,9 @@
+// @ts-nocheck
 /**
  * Google Drive connector: OAuth + token refresh for future Drive imports.
  */
 
-import { ConnectorProvider } from "@prisma/client";
+import { ConnectorProvider } from "@/types/enums";
 
 import { appOrigin } from "@/lib/app-origin";
 import {

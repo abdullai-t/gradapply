@@ -11,8 +11,9 @@ help: ## Show available targets
 install: ## Install dependencies (pnpm)
 	$(PNPM) install
 
-env: ## Create .env from .env.example if missing
+env: ## Create .env files from .env.example if missing (root + frontend for Next.js cwd)
 	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from .env.example — edit DATABASE_URL and AUTH_SECRET next."; else echo ".env already exists (skipped copy)."; fi
+	@if [ ! -f frontend/.env ]; then cp frontend/.env.example frontend/.env && echo "Created frontend/.env — Next.js reads env from frontend/ when using pnpm dev."; else echo "frontend/.env already exists (skipped copy)."; fi
 
 dev: ## Run Next.js dev server (http://localhost:3000)
 	$(PNPM) dev
@@ -33,7 +34,7 @@ start: ## Start production server (run make build first)
 	$(PNPM) start
 
 clean: ## Remove Next.js build output (.next)
-	rm -rf .next
+	rm -rf frontend/.next .next
 
 db-push: ## Sync database schema (Prisma db push — handy for local dev)
 	$(PNPM) db:push
@@ -45,7 +46,7 @@ db-studio: ## Open Prisma Studio (browse DB in browser)
 	$(PNPM) db:studio
 
 migrate: ## Apply SQL migrations (production / staging DATABASE_URL)
-	$(PNPM) exec prisma migrate deploy
+	$(PNPM) --filter @gradapply/frontend exec prisma migrate deploy
 
 setup: ## Install deps + copy .env if missing (then edit .env; db-push + db-seed + dev)
 	@$(MAKE) env

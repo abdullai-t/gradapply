@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import {
   useMutation,
   useQuery,
@@ -44,7 +45,7 @@ export function useSopVariant(schoolId: string) {
     enabled: Boolean(schoolId),
     queryFn: async () => {
       const data = await jsonOrThrow<{ variant: SopVariantRow | null }>(
-        await fetch(
+        await apiFetch(
           `/api/sop/variants?schoolId=${encodeURIComponent(schoolId)}`,
         ),
       );
@@ -68,7 +69,7 @@ export function useGenerateVariant(schoolId: string) {
       title?: string;
     }) =>
       jsonOrThrow<{ variant: SopVariantRow }>(
-        await fetch("/api/sop/variants", {
+        await apiFetch("/api/sop/variants", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ schoolId, ...input }),
@@ -94,7 +95,7 @@ export function useUpdateVariant(schoolId: string) {
     }) => {
       const { id, ...patch } = input;
       return jsonOrThrow<SopVariantRow>(
-        await fetch(`/api/sop/variants/${encodeURIComponent(id)}`, {
+        await apiFetch(`/api/sop/variants/${encodeURIComponent(id)}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(patch),
@@ -117,7 +118,7 @@ export function useRewriteSelection() {
   return useMutation({
     mutationFn: async (input: RewriteSelectionRequest) =>
       jsonOrThrow<RewriteSelectionResponse>(
-        await fetch("/api/sop/rewrite", {
+        await apiFetch("/api/sop/rewrite", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(input),
@@ -140,7 +141,7 @@ export function useRewriteDocument() {
       schoolId?: string;
     }) =>
       jsonOrThrow<RewriteSelectionResponse>(
-        await fetch("/api/sop/rewrite", {
+        await apiFetch("/api/sop/rewrite", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...input, scope: "document" } satisfies RewriteSelectionRequest),
@@ -189,7 +190,7 @@ export function useScoreSop(schoolId: string | null) {
     mutationKey: sopStudioKeys.score(schoolId),
     mutationFn: async (body: string) =>
       jsonOrThrow<SopScoreResponse>(
-        await fetch("/api/sop/score", {
+        await apiFetch("/api/sop/score", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ body, schoolId: schoolId ?? undefined }),

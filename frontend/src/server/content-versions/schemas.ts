@@ -1,4 +1,4 @@
-import { ContentEntityType } from "@prisma/client";
+import { ContentEntityType } from "@/types/enums";
 import { z } from "zod";
 
 export const entityTypeSchema = z.nativeEnum(ContentEntityType);

@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import {
   useMutation,
   useQuery,
@@ -29,7 +30,7 @@ export function useSchools(opts?: { sort?: string }) {
     queryKey: schoolsKeys.list(sort),
     queryFn: async () =>
       jsonOrThrow<SchoolRow[]>(
-        await fetch(sort ? `/api/schools?sort=${sort}` : "/api/schools"),
+        await apiFetch(sort ? `/api/schools?sort=${sort}` : "/api/schools"),
       ),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
@@ -41,7 +42,7 @@ export function useCreateSchool() {
   return useMutation({
     mutationFn: async (data: Partial<SchoolRow>) =>
       jsonOrThrow<SchoolRow>(
-        await fetch("/api/schools", {
+        await apiFetch("/api/schools", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(data),
@@ -58,7 +59,7 @@ export function useUpdateSchool() {
   return useMutation({
     mutationFn: async (input: { id: string; data: Partial<SchoolRow> }) =>
       jsonOrThrow<SchoolRow>(
-        await fetch(`/api/schools/${input.id}`, {
+        await apiFetch(`/api/schools/${input.id}`, {
           method: "PATCH",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(input.data),
@@ -75,7 +76,7 @@ export function useDeleteSchool() {
   return useMutation({
     mutationFn: async (id: string) =>
       jsonOrThrow<{ ok: true }>(
-        await fetch(`/api/schools/${id}`, { method: "DELETE" }),
+        await apiFetch(`/api/schools/${id}`, { method: "DELETE" }),
       ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: schoolsKeys.all });
@@ -88,7 +89,7 @@ export function useClearReminder() {
   return useMutation({
     mutationFn: async (id: string) =>
       jsonOrThrow<SchoolRow>(
-        await fetch(`/api/schools/${id}`, {
+        await apiFetch(`/api/schools/${id}`, {
           method: "PATCH",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ reminderAt: null, reminderNote: null }),

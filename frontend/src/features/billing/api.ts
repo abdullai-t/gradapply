@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 import {
   useMutation,
   useQuery,
@@ -59,7 +60,7 @@ export function useBillingStatus() {
   return useQuery({
     queryKey: billingKeys.status(),
     queryFn: async () =>
-      jsonOrThrow<BillingStatus>(await fetch("/api/billing/status")),
+      jsonOrThrow<BillingStatus>(await apiFetch("/api/billing/status")),
     // Billing state changes after redirects from Stripe — keep it fresh.
     staleTime: 60_000,
     refetchOnWindowFocus: false,
@@ -86,7 +87,7 @@ export function useCheckout() {
       creditsAmount?: 10 | 20 | 50 | 100;
     }) =>
       jsonOrThrow<{ url: string }>(
-        await fetch("/api/billing/checkout", {
+        await apiFetch("/api/billing/checkout", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -106,7 +107,7 @@ export function useOpenPortal() {
   return useMutation({
     mutationFn: async () =>
       jsonOrThrow<{ url: string }>(
-        await fetch("/api/billing/portal", { method: "POST" }),
+        await apiFetch("/api/billing/portal", { method: "POST" }),
       ),
   });
 }

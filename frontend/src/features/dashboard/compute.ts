@@ -1,5 +1,5 @@
 import { differenceInCalendarDays, format, formatDistanceStrict } from "date-fns";
-import { SchoolStatus } from "@prisma/client";
+import { SchoolStatus } from "@/types/enums";
 
 import type { DocStatus } from "./doc-status-grid";
 import type { RecSchool } from "./rec-school-grid";

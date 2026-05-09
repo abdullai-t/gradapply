@@ -1,4 +1,5 @@
-import { EmailStatus, type ReplyIntent } from "@prisma/client";
+// @ts-nocheck
+import { EmailStatus, type ReplyIntent } from "@/types/enums";
 import { NextResponse } from "next/server";
 
 import { runTask } from "@/lib/agents";

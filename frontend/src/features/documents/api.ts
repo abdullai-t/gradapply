@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api-fetch";
 /**
  * Client API surface for the documents + folders feature.
  *
@@ -110,7 +111,7 @@ export function useDocuments(opts: {
     initialPageParam: null as string | null,
     queryFn: async ({ pageParam }) =>
       jsonOrThrow<DocumentsPage>(
-        await fetch(
+        await apiFetch(
           buildDocsUrl({ folderId, take: pageSize, cursor: pageParam }),
         ),
       ),
@@ -124,7 +125,7 @@ export function useDocumentsSummary() {
   return useQuery({
     queryKey: documentsKeys.summary(),
     queryFn: async () =>
-      jsonOrThrow<DocumentsSummary>(await fetch("/api/documents/summary")),
+      jsonOrThrow<DocumentsSummary>(await apiFetch("/api/documents/summary")),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
@@ -135,7 +136,7 @@ export function useDocumentExtractionStatuses(opts?: { enabled?: boolean }) {
     queryKey: [...documentsKeys.all, "extraction-status"] as const,
     queryFn: async () =>
       jsonOrThrow<{ statuses: ExtractionStatusRow[] }>(
-        await fetch("/api/documents/extraction-status?take=10", {
+        await apiFetch("/api/documents/extraction-status?take=10", {
           cache: "no-store",
         }),
       ),
@@ -149,7 +150,7 @@ export async function fetchParsedDocumentText(
   id: string,
 ): Promise<ParsedTextPayload> {
   return jsonOrThrow<ParsedTextPayload>(
-    await fetch(`/api/documents/${id}/parsed-text`, { cache: "no-store" }),
+    await apiFetch(`/api/documents/${id}/parsed-text`, { cache: "no-store" }),
   );
 }
 
@@ -158,7 +159,7 @@ export function useDeleteDocument() {
   return useMutation({
     mutationFn: async (id: string) =>
       jsonOrThrow<{ ok: true }>(
-        await fetch(`/api/documents/${id}`, { method: "DELETE" }),
+        await apiFetch(`/api/documents/${id}`, { method: "DELETE" }),
       ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: documentsKeys.all });
@@ -172,7 +173,7 @@ export function useMoveDocument() {
   return useMutation({
     mutationFn: async (input: { docId: string; folderId: string | null }) =>
       jsonOrThrow<DocRow>(
-        await fetch(`/api/documents/${input.docId}`, {
+        await apiFetch(`/api/documents/${input.docId}`, {
           method: "PATCH",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ folderId: input.folderId }),
@@ -191,7 +192,7 @@ export function useFolders() {
   return useQuery({
     queryKey: foldersKeys.list(),
     queryFn: async () =>
-      jsonOrThrow<FolderSummary[]>(await fetch("/api/folders")),
+      jsonOrThrow<FolderSummary[]>(await apiFetch("/api/folders")),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
@@ -202,7 +203,7 @@ export function useCreateFolder() {
   return useMutation({
     mutationFn: async (name: string) =>
       jsonOrThrow<FolderSummary>(
-        await fetch("/api/folders", {
+        await apiFetch("/api/folders", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ name }),
@@ -219,7 +220,7 @@ export function useRenameFolder() {
   return useMutation({
     mutationFn: async (input: { id: string; name: string }) =>
       jsonOrThrow<FolderSummary>(
-        await fetch(`/api/folders/${input.id}`, {
+        await apiFetch(`/api/folders/${input.id}`, {
           method: "PATCH",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ name: input.name }),
@@ -236,7 +237,7 @@ export function useDeleteFolder() {
   return useMutation({
     mutationFn: async (id: string) =>
       jsonOrThrow<{ ok: true }>(
-        await fetch(`/api/folders/${id}`, { method: "DELETE" }),
+        await apiFetch(`/api/folders/${id}`, { method: "DELETE" }),
       ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: foldersKeys.all });

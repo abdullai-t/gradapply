@@ -33,12 +33,11 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      # `@prisma/client` types come from codegen; CI must generate before `tsc`.
-      - name: Prisma generate
-        run: pnpm exec prisma generate
-
       - name: ESLint
         run: pnpm run lint
 
       - name: TypeScript
         run: pnpm run typecheck
+
+      - name: Backend typecheck
+        run: pnpm --filter @gradapply/backend run typecheck

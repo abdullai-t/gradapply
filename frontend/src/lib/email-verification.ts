@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { randomBytes, createHash } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";

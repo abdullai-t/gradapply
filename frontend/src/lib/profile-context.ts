@@ -1,4 +1,4 @@
-import type { Profile, User } from "@prisma/client";
+import type { Profile, User } from "@/types/mongo-models";
 
 export function formatApplicantContext(user: User, profile: Profile | null) {
   const name = user.name ?? "";

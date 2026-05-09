@@ -1,4 +1,4 @@
-import { EmailStatus } from "@prisma/client";
+import { EmailStatus } from "@/types/enums";
 import { z } from "zod";
 
 import { zPrismaRecordId } from "@/lib/prisma-record-id-zod";

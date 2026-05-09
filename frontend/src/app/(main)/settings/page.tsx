@@ -72,7 +72,9 @@ export default async function SettingsPage() {
             </div>
           }
         >
-          <ConnectorsSettings planTier={user?.planTier ?? "FREE"} />
+          <ConnectorsSettings
+            planTier={(user?.planTier as string | undefined) ?? "FREE"}
+          />
         </Suspense>
       </SettingsSection>
     </div>

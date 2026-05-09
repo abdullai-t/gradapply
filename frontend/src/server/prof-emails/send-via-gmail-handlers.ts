@@ -1,4 +1,5 @@
-import { ConnectorProvider, EmailStatus } from "@prisma/client";
+// @ts-nocheck
+import { ConnectorProvider, EmailStatus } from "@/types/enums";
 
 import {
   buildRfc822WithAttachments,

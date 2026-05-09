@@ -1,18 +1,18 @@
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import NextAuth from "next-auth";
 
 import { authConfig } from "./auth.config";
-import { prisma } from "@/lib/prisma";
 
 /**
  * Session + `auth()` for middleware, RSC, and API routes.
- * Intentionally excludes Nodemailer and Credentials so the Edge middleware bundle stays compatible.
- * Email magic link + credentials are registered only in `app/api/auth/[...nextauth]/route.ts`.
- * Sessions use JWT so email/password works alongside OAuth + Prisma.
+ *
+ * No DB adapter here — middleware runs on Edge and cannot load Mongoose (`@gradapply/db`).
+ * JWT validation only needs `AUTH_SECRET` + the callbacks in `auth.config.ts`.
+ *
+ * Nodemailer, Credentials, OAuth linking to MongoDB, and `PrismaAdapter` live in
+ * `app/api/auth/[...nextauth]/route.ts` (Node runtime only).
  */
 export const { auth } = NextAuth({
   ...authConfig,
-  adapter: PrismaAdapter(prisma),
 });
 
 /** Login UI: which options exist (includes email if env is set, even though those providers load in Node route only). */

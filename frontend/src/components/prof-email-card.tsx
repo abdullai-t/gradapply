@@ -1,12 +1,13 @@
 "use client";
 
-import type { EmailStatus, ProfEmail } from "@prisma/client";
+import type { EmailStatus } from "@/types/enums";
+import type { ProfEmail } from "@/types/prof-email";
 import { format } from "date-fns";
 import { Pencil, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-function initials(name: string | null) {
+function initials(name: string | null | undefined) {
   const n = (name ?? "?").trim();
   const p = n.split(/\s+/).filter(Boolean);
   if (p.length >= 2) return (p[0][0] + p[p.length - 1][0]).toUpperCase();

@@ -1,4 +1,4 @@
-import { SchoolStatus } from "@prisma/client";
+import { SchoolStatus } from "@/types/enums";
 
 import {
   billingPrecheckResponse,

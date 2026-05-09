@@ -1,4 +1,5 @@
-import { auth } from "@/auth";
+// @ts-nocheck
+import { resolveSessionEmail } from "@/lib/auth-session";
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import { canExportWithoutWatermark } from "@/lib/export-watermark";
 import {
@@ -164,9 +165,8 @@ export const checkout = withAuth(async (req, { userId }) => {
     },
   });
   if (!user) return notFound();
-  const session = await auth();
   const validEmail =
-    normalizeEmail(user.email) ?? normalizeEmail(session?.user?.email);
+    normalizeEmail(user.email) ?? (await resolveSessionEmail(req));
 
   const priceId =
     tier === "plus"

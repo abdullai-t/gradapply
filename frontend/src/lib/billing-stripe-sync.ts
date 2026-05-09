@@ -1,4 +1,4 @@
-import type { PlanTier } from "@prisma/client";
+import type { PlanTier } from "@/types/enums";
 import type Stripe from "stripe";
 
 import { tierForStripePriceId } from "@/lib/billing-config";
