@@ -10,6 +10,7 @@ import {
   requestLoggingMiddleware,
 } from "./http/request-logging";
 import { registerApiRoutes } from "./http/registerRoutes";
+import { startAIWorker } from "./lib/ai/queue";
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 8080);
@@ -24,6 +25,7 @@ app.use(
 app.use(requestLoggingMiddleware());
 
 registerApiRoutes(app);
+startAIWorker();
 
 app.get("/health", async (_req, res) => {
   const uri = process.env.MONGODB_URI?.trim();

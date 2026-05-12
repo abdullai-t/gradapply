@@ -238,6 +238,17 @@ const SchoolSchema = new Schema(
     progress: { type: Number, default: 0 },
     reminderAt: Date,
     reminderNote: String,
+    /** Optional async SOP review from Vercel AI Gateway + BullMQ (`backend/src/lib/ai`). */
+    gatewaySopReview: {
+      status: {
+        type: String,
+        enum: ["not_started", "queued", "processing", "done", "failed"],
+        default: "not_started",
+      },
+      feedback: String,
+      reviewedAt: Date,
+      sopSnapshot: String,
+    },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
   },

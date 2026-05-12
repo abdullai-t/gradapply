@@ -36,7 +36,9 @@ import {
   paystackWebhookPost,
   stripeWebhookPost,
 } from "./webhook-handlers";
+import { coldEmailStreamExpress } from "./ai-cold-email";
 import { adapt, adaptPlain } from "./web-request";
+import * as aiGateway from "@/server/ai-gateway/handlers";
 
 async function nextAuthNotMounted(req: Request): Promise<Response> {
   const path = new URL(req.url).pathname;
@@ -72,6 +74,16 @@ export function registerApiRoutes(app: Express): void {
   api.use(express.json({ limit: "10mb" }));
 
   api.get("/health", adaptPlain(() => Response.json({ ok: true })));
+
+  api.get("/ai/health", adaptPlain(aiGateway.health));
+  api.post("/ai/deadline-extract", adapt(aiGateway.deadlineExtract));
+  api.post("/ai/status-classify", adapt(aiGateway.statusClassify));
+  api.post("/ai/fit-score", adapt(aiGateway.fitScore));
+  api.post("/ai/program-search", adapt(aiGateway.programSearch));
+  api.post("/ai/professor-lookup", adapt(aiGateway.professorLookup));
+  api.post("/ai/cold-email", coldEmailStreamExpress);
+  api.post("/ai/sop-review", adapt(aiGateway.postSopReview));
+  api.get("/ai/sop-review/:schoolId", adapt(aiGateway.getSopReview));
 
   api.get("/chat", adapt(chat.history));
   api.post("/chat", adapt(chat.send));

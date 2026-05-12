@@ -58,6 +58,7 @@ const nextConfig = {
     return [
       { source: "/api/chat", destination: `${backend}/api/chat` },
       { source: "/api/chat/:path*", destination: `${backend}/api/chat/:path*` },
+      { source: "/api/ai/:path*", destination: `${backend}/api/ai/:path*` },
       { source: "/api/sop/:path*", destination: `${backend}/api/sop/:path*` },
       {
         source: "/api/prof-emails/:path*",
