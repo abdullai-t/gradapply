@@ -6,6 +6,7 @@
  * - `CF_AI_GATEWAY_TOKEN` or `CLOUDFLARE_API_TOKEN` — API token (AI Gateway Read/Edit)
  * - `CF_AI_GATEWAY_NAME` — gateway slug (default: `default`)
  * - `CF_AI_GATEWAY_BYOK=1` — pass upstream provider API keys (BYOK); otherwise use stored keys in the dashboard
+ * - `CF_AI_GATEWAY_AUTHENTICATED=1` — send `cf-aig-authorization` (default on when BYOK=1)
  *
  * @see https://developers.cloudflare.com/ai-gateway/usage/chat-completion/
  */
@@ -29,6 +30,19 @@ function gatewayToken(): string | undefined {
   );
 }
 
+function gatewayName(): string {
+  return (
+    process.env.CF_AI_GATEWAY_NAME?.trim() ||
+    process.env.CF_AI_GATEWAY_ID?.trim() ||
+    "default"
+  );
+}
+
+function gatewayRootUrl(): string {
+  const accountId = process.env.CF_AI_GATEWAY_ACCOUNT_ID!.trim();
+  return `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayName()}`;
+}
+
 export function isAiGatewayEnabled(): boolean {
   return !!(
     process.env.CF_AI_GATEWAY_ACCOUNT_ID?.trim() && gatewayToken()
@@ -40,13 +54,22 @@ export function isAiGatewayByok(): boolean {
   return raw === "1" || raw === "true" || raw === "yes";
 }
 
+/** Unified OpenAI-compat endpoint (`{provider}/{model}` models). */
+export function aiGatewayCompatBaseUrl(): string {
+  return `${gatewayRootUrl()}/compat`;
+}
+
+/** Provider-native gateway paths (OpenRouter, etc.). */
+export function aiGatewayProviderBaseUrl(provider: LlmProvider): string {
+  if (provider === "openrouter") {
+    return `${gatewayRootUrl()}/openrouter`;
+  }
+  return aiGatewayCompatBaseUrl();
+}
+
+/** @deprecated alias */
 export function aiGatewayBaseUrl(): string {
-  const accountId = process.env.CF_AI_GATEWAY_ACCOUNT_ID!.trim();
-  const gatewayName =
-    process.env.CF_AI_GATEWAY_NAME?.trim() ||
-    process.env.CF_AI_GATEWAY_ID?.trim() ||
-    "default";
-  return `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayName}/compat`;
+  return aiGatewayCompatBaseUrl();
 }
 
 function upstreamApiKey(provider: LlmProvider): string | undefined {
@@ -84,10 +107,16 @@ function gatewayProviderFromModel(model: string): LlmProvider | null {
 }
 
 /**
- * Resolve the API key sent to the gateway compat endpoint.
+ * Resolve the API key sent to the gateway.
+ * OpenRouter always prefers `OPENROUTER_API_KEY` when set (gateway rejects CF token).
  * BYOK: upstream provider key. Stored keys: Cloudflare token.
  */
 export function resolveGatewayApiKey(provider: LlmProvider, model: string): string {
+  if (provider === "openrouter") {
+    const openRouterKey = upstreamApiKey("openrouter");
+    if (openRouterKey) return openRouterKey;
+  }
+
   if (isAiGatewayByok()) {
     const inferred = model.includes("/")
       ? gatewayProviderFromModel(model)
@@ -110,8 +139,7 @@ export function createAiGatewayClient(
   provider: LlmProvider,
   model: string,
 ): OpenAI {
-  const gatewayModel = toGatewayModel(provider, model);
-  const apiKey = resolveGatewayApiKey(provider, gatewayModel);
+  const apiKey = resolveGatewayApiKey(provider, model);
   const headers: Record<string, string> = {};
   const cfToken = gatewayToken();
 
@@ -121,23 +149,29 @@ export function createAiGatewayClient(
 
   return new OpenAI({
     apiKey,
-    baseURL: aiGatewayBaseUrl(),
+    baseURL: aiGatewayProviderBaseUrl(provider),
     defaultHeaders: Object.keys(headers).length > 0 ? headers : undefined,
     ...llmClientOptions,
   });
 }
 
-/** Map GradApply provider + native model id to a gateway unified model slug. */
+/**
+ * Map GradApply provider + native model id to the gateway request model field.
+ * Compat API: `google-ai-studio/gemini-2.5-flash`, `openai/gpt-4o`, …
+ * OpenRouter native: `anthropic/claude-sonnet-4` (no `openrouter/` prefix).
+ */
 export function toGatewayModel(provider: LlmProvider, model: string): string {
   if (provider === "openrouter") {
-    if (model.startsWith("openrouter/")) return model;
-    return model.includes("/") ? `openrouter/${model}` : `openrouter/${model}`;
+    if (model.startsWith("openrouter/")) {
+      return model.slice("openrouter/".length);
+    }
+    return model;
   }
 
   if (model.includes("/")) {
     const [prefix, ...rest] = model.split("/");
     if (prefix === "google" || prefix === "google-ai-studio") {
-      return `google/${rest.join("/")}`;
+      return `google-ai-studio/${rest.join("/")}`;
     }
     return model;
   }
@@ -148,7 +182,7 @@ export function toGatewayModel(provider: LlmProvider, model: string): string {
     case "openai":
       return `openai/${model}`;
     case "gemini":
-      return `google/${model}`;
+      return `google-ai-studio/${model}`;
     case "groq":
       return `groq/${model}`;
     default:
