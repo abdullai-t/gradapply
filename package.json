@@ -18,6 +18,7 @@
     "db:seed": "prisma db seed",
     "db:backfill:pricing-rollout": "tsx scripts/backfill-pricing-rollout.ts",
     "db:studio": "prisma studio",
+    "mail:test": "tsx scripts/test-email.ts",
     "ops:release-check": "pnpm exec prisma generate && pnpm run lint && pnpm run typecheck",
     "prepare": "husky"
   },

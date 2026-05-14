@@ -31,6 +31,7 @@ export const authConfig = {
   secret: authSecret || undefined,
   pages: {
     signIn: "/login",
+    error: "/login",
   },
   session: {
     strategy: "jwt",

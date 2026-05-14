@@ -1,48 +1,10 @@
 import { randomBytes, createHash } from "node:crypto";
 
-import { prisma } from "@/lib/prisma";
 import { appOrigin } from "@/lib/app-origin";
+import { sendMail } from "@/lib/mail";
+import { prisma } from "@/lib/prisma";
 
 const EMAIL_VERIFY_TTL_MS = 1000 * 60 * 60 * 24; // 24h
-
-function verificationSender(): string {
-  return (
-    process.env.EMAIL_FROM?.trim() ||
-    process.env.SMTP_FROM?.trim() ||
-    "no-reply@gradapply.app"
-  );
-}
-
-async function sendEmail(args: { to: string; subject: string; text: string }) {
-  const emailServer = process.env.EMAIL_SERVER?.trim();
-  const smtpHost = process.env.SMTP_HOST?.trim();
-  const smtpUser = process.env.SMTP_USER?.trim();
-  const smtpPassword = process.env.SMTP_PASSWORD?.trim();
-
-  if (!emailServer && !(smtpHost && smtpUser && smtpPassword)) {
-    return false;
-  }
-
-  const nodemailer = await import("nodemailer");
-  const transporter = emailServer
-    ? nodemailer.createTransport(emailServer)
-    : nodemailer.createTransport({
-        host: smtpHost,
-        port: Number(process.env.SMTP_PORT ?? "587"),
-        auth: {
-          user: smtpUser,
-          pass: smtpPassword,
-        },
-      });
-
-  await transporter.sendMail({
-    from: verificationSender(),
-    to: args.to,
-    subject: args.subject,
-    text: args.text,
-  });
-  return true;
-}
 
 export async function issueEmailVerificationToken(email: string): Promise<string> {
   const normalized = email.trim().toLowerCase();
@@ -73,11 +35,17 @@ export async function sendEmailVerification(email: string): Promise<boolean> {
     `Open this link to verify your account:\n${verifyUrl}\n\n` +
     `If you didn't create this account, you can ignore this email.`;
 
-  return sendEmail({
+  const result = await sendMail({
     to: normalized,
     subject: "Verify your GradApply email",
     text: body,
   });
+
+  if (result.previewUrl && process.env.NODE_ENV === "development") {
+    console.info("[mail] verification preview:", result.previewUrl);
+  }
+
+  return result.sent;
 }
 
 export async function consumeEmailVerificationToken(token: string): Promise<boolean> {
@@ -101,4 +69,3 @@ export async function consumeEmailVerificationToken(token: string): Promise<bool
   ]);
   return true;
 }
-

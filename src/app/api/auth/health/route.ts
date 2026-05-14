@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 
 import { getAuthSetupStatus } from "@/auth";
 import { appOrigin } from "@/lib/app-origin";
+import {
+  getMailTransportMode,
+  isMailConfigured,
+  mailFromAddress,
+  verifyMailTransport,
+} from "@/lib/mail";
 
 export const runtime = "nodejs";
 
@@ -20,6 +26,20 @@ export async function GET(req: Request) {
   const setup = getAuthSetupStatus();
   const configuredOrigin = appOrigin();
   const derivedOrigin = requestOrigin(req);
+  const url = new URL(req.url);
+  const runVerify = url.searchParams.get("verify") === "1";
+
+  const emailBase = {
+    configured: isMailConfigured(),
+    mode: getMailTransportMode(),
+    from: mailFromAddress(),
+    magicLinkProviderEnabled: setup.hasEmail,
+  };
+
+  const email =
+    runVerify && isMailConfigured()
+      ? { ...emailBase, ...(await verifyMailTransport()) }
+      : emailBase;
 
   return NextResponse.json(
     {
@@ -28,7 +48,9 @@ export async function GET(req: Request) {
         hasSecret: setup.hasSecret,
         hasGoogle: setup.hasGoogle,
         hasPasswordLogin: setup.hasPasswordLogin,
+        hasEmail: setup.hasEmail,
       },
+      email,
       origin: {
         configured: configuredOrigin,
         derivedFromRequest: derivedOrigin || null,
