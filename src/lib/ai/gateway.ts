@@ -1,12 +1,12 @@
 /**
  * Cloudflare AI Gateway — single OpenAI-compatible entry for all LLM providers.
  *
- * Configure:
+ * Configure (Unified Billing — no BYOK):
  * - `CF_AI_GATEWAY_ACCOUNT_ID` — Cloudflare account id
- * - `CF_AI_GATEWAY_TOKEN` or `CLOUDFLARE_API_TOKEN` — API token (AI Gateway Read/Edit)
- * - `CF_AI_GATEWAY_NAME` — gateway slug (default: `default`)
- * - `CF_AI_GATEWAY_BYOK=1` — pass upstream provider API keys (BYOK); otherwise use stored keys in the dashboard
- * - `CF_AI_GATEWAY_AUTHENTICATED=1` — send `cf-aig-authorization` (default on when BYOK=1)
+ * - `CF_AIG_TOKEN` or `CF_AI_GATEWAY_TOKEN` — AI Gateway unified billing token
+ * - `CF_AI_GATEWAY_NAME` — gateway slug (e.g. `mygradappy`)
+ *
+ * Optional BYOK (`CF_AI_GATEWAY_BYOK=1`): pass `GEMINI_API_KEY`, etc. as upstream keys.
  *
  * @see https://developers.cloudflare.com/ai-gateway/usage/chat-completion/
  */
@@ -25,6 +25,7 @@ export { cacheGet, cacheSet, stableKey } from "./cache";
 
 function gatewayToken(): string | undefined {
   return (
+    process.env.CF_AIG_TOKEN?.trim() ||
     process.env.CF_AI_GATEWAY_TOKEN?.trim() ||
     process.env.CLOUDFLARE_API_TOKEN?.trim()
   );
@@ -59,9 +60,9 @@ export function aiGatewayCompatBaseUrl(): string {
   return `${gatewayRootUrl()}/compat`;
 }
 
-/** Provider-native gateway paths (OpenRouter, etc.). */
+/** Provider-native gateway paths — only used for BYOK OpenRouter. */
 export function aiGatewayProviderBaseUrl(provider: LlmProvider): string {
-  if (provider === "openrouter") {
+  if (isAiGatewayByok() && provider === "openrouter") {
     return `${gatewayRootUrl()}/openrouter`;
   }
   return aiGatewayCompatBaseUrl();
@@ -107,16 +108,10 @@ function gatewayProviderFromModel(model: string): LlmProvider | null {
 }
 
 /**
- * Resolve the API key sent to the gateway.
- * OpenRouter always prefers `OPENROUTER_API_KEY` when set (gateway rejects CF token).
- * BYOK: upstream provider key. Stored keys: Cloudflare token.
+ * Unified Billing: always send the Cloudflare AI Gateway token as `apiKey`.
+ * BYOK: upstream provider API key (+ optional `cf-aig-authorization`).
  */
 export function resolveGatewayApiKey(provider: LlmProvider, model: string): string {
-  if (provider === "openrouter") {
-    const openRouterKey = upstreamApiKey("openrouter");
-    if (openRouterKey) return openRouterKey;
-  }
-
   if (isAiGatewayByok()) {
     const inferred = model.includes("/")
       ? gatewayProviderFromModel(model)
@@ -131,7 +126,11 @@ export function resolveGatewayApiKey(provider: LlmProvider, model: string): stri
   }
 
   const token = gatewayToken();
-  if (!token) throw new Error("CF_AI_GATEWAY_TOKEN is not configured");
+  if (!token) {
+    throw new Error(
+      "CF_AIG_TOKEN is not configured (Unified Billing AI Gateway token)",
+    );
+  }
   return token;
 }
 

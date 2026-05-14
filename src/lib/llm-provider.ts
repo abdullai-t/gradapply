@@ -21,7 +21,7 @@ export function getLlmProvider(): LlmProvider {
   if (explicit === "aigateway" || explicit === "gateway") {
     if (!isAiGatewayEnabled()) {
       throw new Error(
-        "AI_PROVIDER=aigateway but CF_AI_GATEWAY_ACCOUNT_ID and CF_AI_GATEWAY_TOKEN are not set",
+        "AI_PROVIDER=aigateway but CF_AI_GATEWAY_ACCOUNT_ID and CF_AIG_TOKEN are not set",
       );
     }
     if (process.env.OPENROUTER_API_KEY?.trim()) return "openrouter";
