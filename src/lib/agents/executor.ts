@@ -23,6 +23,7 @@ import {
   classifyLlmErrorClass,
   shouldFallbackToAlternateProvider,
 } from "@/lib/llm-credits";
+import { log } from "@/lib/logger";
 import { emitTrace } from "./trace";
 import { getToolsForAgent } from "./tools";
 import { getAgent } from "./definitions";
@@ -237,6 +238,15 @@ async function executeWithChain(
         error: error instanceof Error ? error.message : String(error),
         errorClass,
         durationMs: Date.now() - start,
+      });
+
+      log.warn("llm.chain.failed", {
+        agent: agent.id,
+        provider,
+        model: model ?? null,
+        errorClass,
+        reason: error instanceof Error ? error.message : String(error),
+        willFallback: shouldFallbackToAlternateProvider(error),
       });
 
       if (!shouldFallbackToAlternateProvider(error)) {

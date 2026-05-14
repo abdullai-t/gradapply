@@ -92,7 +92,7 @@ export function classifyLlmErrorClass(error: unknown): string {
   if (/\b429\b|too many requests|rate[_ ]limit/i.test(raw)) return "rate_limited";
   if (/\b503\b|overloaded|capacity/i.test(raw)) return "provider_overloaded";
   if (/\b5\d\d\b/.test(raw)) return "provider_5xx";
-  if (/timeout|timed out|ETIMEDOUT|ECONNRESET|EAI_AGAIN|socket hang up/i.test(raw)) {
+  if (/timeout|timed out|ETIMEDOUT|ECONNRESET|EAI_AGAIN|socket hang up|connection error|failed to fetch|fetch failed|ENOTFOUND|ECONNREFUSED/i.test(raw)) {
     return "timeout_or_network";
   }
   return "unknown";
@@ -128,7 +128,7 @@ export function shouldFallbackToAlternateProvider(error: unknown): boolean {
 
   // Over capacity — another provider might work
   if (/\b503\b|overloaded|capacity/i.test(raw)) return true;
-  if (/timeout|timed out|ETIMEDOUT|ECONNRESET|EAI_AGAIN|socket hang up/i.test(raw)) {
+  if (/timeout|timed out|ETIMEDOUT|ECONNRESET|EAI_AGAIN|socket hang up|connection error|failed to fetch|fetch failed|ENOTFOUND|ECONNREFUSED/i.test(raw)) {
     return true;
   }
 

@@ -175,27 +175,36 @@ async function fetchTierSchools(
 ): Promise<unknown[]> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const prompt = buildTierRecommendPrompt(tier, countryHint, attempt > 0);
-    const result = await runTask("school-intel", prompt, userId);
-    const raw = result.reply.trim();
     try {
-      const schools = parseRecommendSchoolsFromLlmText(raw);
-      log.debug("schools/recommend.tier", {
-        userId,
-        tier: tier.bucket,
-        attempt: attempt + 1,
-        schoolCount: schools.length,
-        provider: result.modelUsed?.provider,
-        model: result.modelUsed?.model,
-        replyChars: raw.length,
-      });
-      return schools;
+      const result = await runTask("school-intel", prompt, userId);
+      const raw = result.reply.trim();
+      try {
+        const schools = parseRecommendSchoolsFromLlmText(raw);
+        log.debug("schools/recommend.tier", {
+          userId,
+          tier: tier.bucket,
+          attempt: attempt + 1,
+          schoolCount: schools.length,
+          provider: result.modelUsed?.provider,
+          model: result.modelUsed?.model,
+          replyChars: raw.length,
+        });
+        return schools;
+      } catch (e) {
+        log.warn("schools/recommend.invalid-json", {
+          userId,
+          tier: tier.bucket,
+          attempt: attempt + 1,
+          preview: raw.slice(0, 400),
+          reason: e instanceof Error ? e.message : "unknown",
+        });
+      }
     } catch (e) {
-      log.warn("schools/recommend.invalid-json", {
+      log.warn("schools/recommend.tier-error", {
         userId,
         tier: tier.bucket,
         attempt: attempt + 1,
-        preview: raw.slice(0, 400),
-        reason: e instanceof Error ? e.message : "unknown",
+        reason: e instanceof Error ? e.message : String(e),
       });
     }
   }
@@ -220,10 +229,11 @@ export const recommend = withAuth(async (_req, { userId }) => {
         ? `Only recommend schools in these countries of interest: ${countriesOfInterest.join(", ")}.`
         : "If no countries of interest are set, you may recommend across countries.";
 
-    const tierResults = await Promise.all(
-      RECOMMEND_TIERS.map((tier) => fetchTierSchools(userId, tier, countryHint)),
-    );
-    const schools = tierResults.flat();
+    const schools: unknown[] = [];
+    for (const tier of RECOMMEND_TIERS) {
+      const tierSchools = await fetchTierSchools(userId, tier, countryHint);
+      schools.push(...tierSchools);
+    }
 
     if (schools.length === 0) {
       throw new SyntaxError("Could not parse JSON from model output");
@@ -232,10 +242,6 @@ export const recommend = withAuth(async (_req, { userId }) => {
     log.info("schools/recommend.ok", {
       userId,
       schoolCount: schools.length,
-      tiers: RECOMMEND_TIERS.map((tier, i) => ({
-        tier: tier.bucket,
-        count: tierResults[i]?.length ?? 0,
-      })),
     });
 
     await finalizeAiConsumptionForAction(userId, "school_recommendation");
