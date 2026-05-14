@@ -6,6 +6,7 @@ import {
 } from "@/lib/billing-allowance";
 import { runTask } from "@/lib/agents";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
+import { log } from "@/lib/logger";
 import {
   requireSchoolTrackingCapacity,
   requireWritableAccount,
@@ -177,9 +178,19 @@ async function fetchTierSchools(
     const result = await runTask("school-intel", prompt, userId);
     const raw = result.reply.trim();
     try {
-      return parseRecommendSchoolsFromLlmText(raw);
+      const schools = parseRecommendSchoolsFromLlmText(raw);
+      log.debug("schools/recommend.tier", {
+        userId,
+        tier: tier.bucket,
+        attempt: attempt + 1,
+        schoolCount: schools.length,
+        provider: result.modelUsed?.provider,
+        model: result.modelUsed?.model,
+        replyChars: raw.length,
+      });
+      return schools;
     } catch (e) {
-      console.warn("[schools/recommend] invalid JSON from model", {
+      log.warn("schools/recommend.invalid-json", {
         userId,
         tier: tier.bucket,
         attempt: attempt + 1,
@@ -196,6 +207,7 @@ export const recommend = withAuth(async (_req, { userId }) => {
   if (quota) return quota;
 
   try {
+    log.debug("schools/recommend.start", { userId });
     const profile = await prisma.profile.findUnique({
       where: { userId },
       select: { countriesOfInterest: true },
@@ -217,6 +229,15 @@ export const recommend = withAuth(async (_req, { userId }) => {
       throw new SyntaxError("Could not parse JSON from model output");
     }
 
+    log.info("schools/recommend.ok", {
+      userId,
+      schoolCount: schools.length,
+      tiers: RECOMMEND_TIERS.map((tier, i) => ({
+        tier: tier.bucket,
+        count: tierResults[i]?.length ?? 0,
+      })),
+    });
+
     await finalizeAiConsumptionForAction(userId, "school_recommendation");
 
     if (countriesOfInterest.length === 0) {
@@ -234,7 +255,7 @@ export const recommend = withAuth(async (_req, { userId }) => {
 
     return ok({ schools: countryMatched.length > 0 ? countryMatched : schools });
   } catch (e) {
-    console.error("[schools/recommend] failed", {
+    log.error("schools/recommend.failed", {
       userId,
       reason: e instanceof Error ? e.message : String(e),
     });

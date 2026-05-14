@@ -7,6 +7,7 @@ import {
   parseAffordableMaxTokens,
   shouldFallbackToAlternateProvider,
 } from "@/lib/llm-credits";
+import { log } from "@/lib/logger";
 import { createGeminiClient, geminiDefaultModel } from "@/lib/gemini";
 import { createGroqClient, groqDefaultModel } from "@/lib/groq";
 import {
@@ -295,7 +296,7 @@ export async function executeChatTurnWithCreditFallback(opts: {
           turns,
           maxTokens: shapedTokens,
         });
-        console.info("[llm][attempt]", {
+        log.debug("llm.attempt.ok", {
           provider,
           model: useModel ?? null,
           inFlight: status.inFlight,
@@ -303,8 +304,8 @@ export async function executeChatTurnWithCreditFallback(opts: {
           fallbackUsed: provider !== preferredProvider,
           circuitState: status.circuitState,
           latencyMs: Date.now() - startedAt,
-          errorClass: null,
           maxTokens: shapedTokens,
+          replyChars: text.length,
         });
         return {
           text,
@@ -315,7 +316,7 @@ export async function executeChatTurnWithCreditFallback(opts: {
       } catch (e) {
         lastErr = e;
         const errorClass = classifyLlmErrorClass(e);
-        console.warn("[llm][attempt]", {
+        log.warn("llm.attempt.failed", {
           provider,
           model: useModel ?? null,
           inFlight: status.inFlight,
@@ -325,6 +326,7 @@ export async function executeChatTurnWithCreditFallback(opts: {
           latencyMs: Date.now() - startedAt,
           errorClass,
           maxTokens: shapedTokens,
+          reason: e instanceof Error ? e.message : String(e),
         });
         if (!shouldFallbackToAlternateProvider(e)) throw e;
         const affordable = parseAffordableMaxTokens(e);

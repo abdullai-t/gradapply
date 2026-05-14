@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { getObjectBuffer } from "@/lib/s3";
+import { log } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 const MAX_TOTAL_DOC_CHARS = 22_000;
@@ -273,7 +274,8 @@ async function bufferToPlainText(buf: Buffer, mime: string | null): Promise<stri
         await parser.destroy().catch(() => {});
       }
     } catch (e) {
-      console.warn("[doc-extraction] pdf-parse primary path failed", {
+      log.warn("doc-extraction.pdf-parse", {
+        path: "primary",
         reason: e instanceof Error ? e.message : "unknown_error",
       });
     }
@@ -291,19 +293,22 @@ async function bufferToPlainText(buf: Buffer, mime: string | null): Promise<stri
         if (text.length >= 20) return text.slice(0, MAX_PER_DOC_CHARS);
       }
     } catch (e) {
-      console.warn("[doc-extraction] pdf-parse fallback path failed", {
+      log.warn("doc-extraction.pdf-parse", {
+        path: "legacy",
         reason: e instanceof Error ? e.message : "unknown_error",
       });
     }
 
     try {
       const text = extractPdfTextFromRawBytes(buf);
+      log.debug("doc-extraction.raw-pdf", { extractedChars: text.length });
       if (text.length >= 20) return text.slice(0, MAX_PER_DOC_CHARS);
-      console.warn("[doc-extraction] raw-pdf fallback yielded too little text", {
+      log.warn("doc-extraction.raw-pdf", {
+        reason: "too_little_text",
         extractedChars: text.length,
       });
     } catch (e) {
-      console.warn("[doc-extraction] raw-pdf fallback failed", {
+      log.warn("doc-extraction.raw-pdf", {
         reason: e instanceof Error ? e.message : "unknown_error",
       });
     }
@@ -311,9 +316,9 @@ async function bufferToPlainText(buf: Buffer, mime: string | null): Promise<stri
     try {
       const text = await extractPdfTextViaPdftotext(buf);
       if (text && text.length >= 20) return text;
-      console.warn("[doc-extraction] pdftotext fallback yielded too little text");
+      log.warn("doc-extraction.pdftotext", { reason: "too_little_text" });
     } catch (e) {
-      console.warn("[doc-extraction] pdftotext fallback failed", {
+      log.warn("doc-extraction.pdftotext", {
         reason: e instanceof Error ? e.message : "unknown_error",
       });
     }
