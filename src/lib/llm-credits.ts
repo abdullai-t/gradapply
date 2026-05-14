@@ -90,6 +90,7 @@ export function classifyLlmErrorClass(error: unknown): string {
   if (/LLM_PROVIDER_SATURATED/.test(raw)) return "provider_saturated";
   if (isLikelyAuthOrConfigError(error)) return "auth_or_config";
   if (isInsufficientCreditsError(error)) return "insufficient_credits";
+  if (/\b400\b|bad request/i.test(raw)) return "bad_request";
   if (/\b429\b|too many requests|rate[_ ]limit/i.test(raw)) return "rate_limited";
   if (/\b503\b|overloaded|capacity/i.test(raw)) return "provider_overloaded";
   if (/\b5\d\d\b/.test(raw)) return "provider_5xx";
@@ -106,6 +107,7 @@ export function shouldFallbackToAlternateProvider(error: unknown): boolean {
   if (isProviderNotConfiguredError(error)) return true;
   const kind = classifyLlmErrorClass(error);
   if (kind === "circuit_open" || kind === "provider_saturated") return true;
+  if (kind === "bad_request") return true;
   if (isLikelyAuthOrConfigError(error)) return false;
 
   const raw = stringifyLlmError(error);

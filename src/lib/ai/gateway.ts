@@ -66,8 +66,16 @@ function upstreamApiKey(provider: LlmProvider): string | undefined {
   }
 }
 
+function isAiGatewayAuthenticated(): boolean {
+  const raw = process.env.CF_AI_GATEWAY_AUTHENTICATED?.trim().toLowerCase();
+  if (raw === "1" || raw === "true" || raw === "yes") return true;
+  if (raw === "0" || raw === "false" || raw === "no") return false;
+  return isAiGatewayByok();
+}
+
 function gatewayProviderFromModel(model: string): LlmProvider | null {
   const prefix = model.split("/")[0]?.toLowerCase();
+  if (prefix === "openrouter") return "openrouter";
   if (prefix === "anthropic") return "anthropic";
   if (prefix === "openai") return "openai";
   if (prefix === "google-ai-studio" || prefix === "google") return "gemini";
@@ -102,15 +110,17 @@ export function createAiGatewayClient(
   provider: LlmProvider,
   model: string,
 ): OpenAI {
-  const token = resolveGatewayApiKey(provider, model);
+  const gatewayModel = toGatewayModel(provider, model);
+  const apiKey = resolveGatewayApiKey(provider, gatewayModel);
   const headers: Record<string, string> = {};
+  const cfToken = gatewayToken();
 
-  if (isAiGatewayByok() && gatewayToken()) {
-    headers["cf-aig-authorization"] = `Bearer ${gatewayToken()}`;
+  if (cfToken && isAiGatewayAuthenticated()) {
+    headers["cf-aig-authorization"] = `Bearer ${cfToken}`;
   }
 
   return new OpenAI({
-    apiKey: token,
+    apiKey,
     baseURL: aiGatewayBaseUrl(),
     defaultHeaders: Object.keys(headers).length > 0 ? headers : undefined,
     ...llmClientOptions,
@@ -119,9 +129,16 @@ export function createAiGatewayClient(
 
 /** Map GradApply provider + native model id to a gateway unified model slug. */
 export function toGatewayModel(provider: LlmProvider, model: string): string {
+  if (provider === "openrouter") {
+    if (model.startsWith("openrouter/")) return model;
+    return model.includes("/") ? `openrouter/${model}` : `openrouter/${model}`;
+  }
+
   if (model.includes("/")) {
     const [prefix, ...rest] = model.split("/");
-    if (prefix === "google") return `google-ai-studio/${rest.join("/")}`;
+    if (prefix === "google" || prefix === "google-ai-studio") {
+      return `google/${rest.join("/")}`;
+    }
     return model;
   }
 
@@ -131,11 +148,9 @@ export function toGatewayModel(provider: LlmProvider, model: string): string {
     case "openai":
       return `openai/${model}`;
     case "gemini":
-      return `google-ai-studio/${model}`;
+      return `google/${model}`;
     case "groq":
       return `groq/${model}`;
-    case "openrouter":
-      return `anthropic/${model}`;
     default:
       return model;
   }
