@@ -1,4 +1,5 @@
 import type { LlmProvider } from "@/lib/llm-provider";
+import { isAiGatewayByok, isAiGatewayEnabled } from "@/lib/ai/gateway";
 
 export function stringifyLlmError(error: unknown): string {
   const parts: string[] = [];
@@ -152,6 +153,9 @@ export function parseAffordableMaxTokens(error: unknown): number | null {
  * OpenRouter first, then Anthropic, OpenAI, Gemini, Groq.
  */
 export function providersWithKeysOrdered(): LlmProvider[] {
+  if (isAiGatewayEnabled() && !isAiGatewayByok()) {
+    return ["openrouter", "anthropic", "openai", "gemini", "groq"];
+  }
   const list: LlmProvider[] = [];
   if (process.env.OPENROUTER_API_KEY?.trim()) list.push("openrouter");
   if (process.env.ANTHROPIC_API_KEY?.trim()) list.push("anthropic");
@@ -165,8 +169,19 @@ export function providersWithKeysOrdered(): LlmProvider[] {
 export function orderedFallbackProviders(primary: LlmProvider): LlmProvider[] {
   const all = providersWithKeysOrdered();
   if (all.length === 0) {
+    if (isAiGatewayEnabled()) {
+      const fallback: LlmProvider[] = [
+        primary,
+        "openrouter",
+        "anthropic",
+        "openai",
+        "gemini",
+        "groq",
+      ];
+      return fallback.filter((p, i, arr) => arr.indexOf(p) === i);
+    }
     throw new Error(
-      "No LLM configured. Set GEMINI_API_KEY, OPENROUTER_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, or GROQ_API_KEY.",
+      "No LLM configured. Set CF_AI_GATEWAY_ACCOUNT_ID + CF_AI_GATEWAY_TOKEN, or set GEMINI_API_KEY, OPENROUTER_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, or GROQ_API_KEY.",
     );
   }
   const rest = all.filter((p) => p !== primary);

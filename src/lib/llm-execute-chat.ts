@@ -8,6 +8,11 @@ import {
   shouldFallbackToAlternateProvider,
 } from "@/lib/llm-credits";
 import { log } from "@/lib/logger";
+import {
+  gatewayChatCompletion,
+  gatewayChatCompletionStream,
+  isAiGatewayEnabled,
+} from "@/lib/ai/gateway";
 import { llmClientOptions } from "@/lib/llm-fetch";
 import { createGeminiClient, geminiDefaultModel } from "@/lib/gemini";
 import { createGroqClient, groqDefaultModel } from "@/lib/groq";
@@ -43,6 +48,21 @@ function groqFallbackModel(): string {
   return groqDefaultModel();
 }
 
+function defaultModelForProvider(provider: LlmProvider): string {
+  switch (provider) {
+    case "anthropic":
+      return anthropicDefaultModel();
+    case "openrouter":
+      return openRouterDefaultModel();
+    case "gemini":
+      return geminiFallbackModel();
+    case "groq":
+      return groqFallbackModel();
+    default:
+      return openAiFallbackModel();
+  }
+}
+
 /**
  * Runs one assistant turn using the chosen provider + model.
  */
@@ -62,6 +82,22 @@ export async function executeChatTurn(opts: {
     return text;
   };
   try {
+    if (isAiGatewayEnabled()) {
+      const text = await gatewayChatCompletion({
+        provider,
+        model: model ?? defaultModelForProvider(provider),
+        messages: [
+          { role: "system", content: system },
+          ...turns.map((m) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          })),
+        ],
+        maxTokens,
+      });
+      return done(text);
+    }
+
     if (provider === "anthropic") {
       const key = process.env.ANTHROPIC_API_KEY?.trim();
       if (!key) throw new Error("ANTHROPIC_API_KEY is not configured");
@@ -171,6 +207,27 @@ export async function* executeChatTurnStream(opts: {
   let accumulated = "";
 
   try {
+    if (isAiGatewayEnabled()) {
+      const gen = gatewayChatCompletionStream({
+        provider,
+        model: model ?? defaultModelForProvider(provider),
+        messages: [
+          { role: "system", content: system },
+          ...turns.map((m) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          })),
+        ],
+        maxTokens,
+      });
+      for await (const chunk of gen) {
+        accumulated += chunk;
+        yield chunk;
+      }
+      recordProviderSuccess(provider, Date.now() - startedAt);
+      return accumulated;
+    }
+
     if (provider === "anthropic") {
       const key = process.env.ANTHROPIC_API_KEY?.trim();
       if (!key) throw new Error("ANTHROPIC_API_KEY is not configured");
