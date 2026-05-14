@@ -8,6 +8,7 @@ import {
   shouldFallbackToAlternateProvider,
 } from "@/lib/llm-credits";
 import { log } from "@/lib/logger";
+import { llmClientOptions } from "@/lib/llm-fetch";
 import { createGeminiClient, geminiDefaultModel } from "@/lib/gemini";
 import { createGroqClient, groqDefaultModel } from "@/lib/groq";
 import {
@@ -65,7 +66,7 @@ export async function executeChatTurn(opts: {
       const key = process.env.ANTHROPIC_API_KEY?.trim();
       if (!key) throw new Error("ANTHROPIC_API_KEY is not configured");
 
-      const client = new Anthropic({ apiKey: key });
+      const client = new Anthropic({ apiKey: key, ...llmClientOptions });
       const response = await client.messages.create({
         model: model ?? anthropicDefaultModel(),
         max_tokens: maxTokens,
@@ -174,7 +175,7 @@ export async function* executeChatTurnStream(opts: {
       const key = process.env.ANTHROPIC_API_KEY?.trim();
       if (!key) throw new Error("ANTHROPIC_API_KEY is not configured");
 
-      const client = new Anthropic({ apiKey: key });
+      const client = new Anthropic({ apiKey: key, ...llmClientOptions });
       const stream = client.messages.stream({
         model: model ?? anthropicDefaultModel(),
         max_tokens: maxTokens,

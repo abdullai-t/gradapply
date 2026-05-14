@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 
+import { llmClientOptions } from "@/lib/llm-fetch";
+
 /** OpenRouter model slug, e.g. `anthropic/claude-sonnet-4` — see https://openrouter.ai/models */
 export function openRouterModel(): string {
   return (
@@ -26,5 +28,6 @@ export function createOpenRouterClient(): OpenAI {
       "HTTP-Referer": referer,
       "X-OpenRouter-Title": title,
     },
+    ...llmClientOptions,
   });
 }

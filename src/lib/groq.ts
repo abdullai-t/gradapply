@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 
+import { llmClientOptions } from "@/lib/llm-fetch";
+
 const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 
 /** Groq via OpenAI-compatible API. Requires `GROQ_API_KEY`. */
@@ -9,6 +11,7 @@ export function createGroqClient(): OpenAI {
   return new OpenAI({
     apiKey,
     baseURL: GROQ_BASE_URL,
+    ...llmClientOptions,
   });
 }
 

@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 
+import { llmClientOptions } from "@/lib/llm-fetch";
+
 /**
  * Gemini via Google AI Studio OpenAI-compatible endpoint.
  * Requires `GEMINI_API_KEY`.
@@ -12,6 +14,7 @@ export function createGeminiClient(): OpenAI {
   return new OpenAI({
     apiKey,
     baseURL: GEMINI_BASE_URL,
+    ...llmClientOptions,
   });
 }
 
