@@ -8,7 +8,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AuthShell } from "@/features/auth/auth-shell";
+import { AuthShell, GoogleButtonContent } from "@/features/auth/auth-shell";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -173,7 +173,7 @@ export function RegisterForm() {
             setGoogleBusy(false);
           }}
         >
-          Continue with Google
+          <GoogleButtonContent />
         </Button>
       </form>
     </AuthShell>

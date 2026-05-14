@@ -5,12 +5,14 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  GlassAuthDivider,
-  GlassAuthShell,
-  GlassGoogleLabel,
-  glassBannerClass,
-} from "@/features/auth/glass-auth-shell";
+  AuthDivider,
+  AuthShell,
+  GoogleButtonContent,
+} from "@/features/auth/auth-shell";
 
 const DEFAULT_CALLBACK = "/admin";
 
@@ -56,70 +58,72 @@ function AdminLoginInner() {
   }
 
   return (
-    <GlassAuthShell
-      icon="admin_panel_settings"
+    <AuthShell
       title="Admin sign in"
       description="Email and password for operator accounts. End users should use the public login."
-      showBrand={false}
+      topBanners={
+        error ? (
+          <div key="error" className="glass-alert-error" role="alert">
+            {error}
+          </div>
+        ) : undefined
+      }
       footer={
-        <Link href="/login" className="hover:text-white/80">
+        <Link
+          href="/login"
+          className="rounded-md px-2 py-1 underline-offset-4 hover:text-[var(--primary)] hover:underline"
+        >
           Back to public login
         </Link>
       }
     >
-      {error ? (
-        <div className={`mb-4 ${glassBannerClass("error")}`}>{error}</div>
-      ) : null}
-
       <form className="space-y-4" onSubmit={(e) => void handlePassword(e)}>
-        <div className="space-y-2">
-          <label htmlFor="admin-email" className="block text-sm font-medium text-white/90">
-            Email
-          </label>
-          <input
+        <div className="space-y-1.5">
+          <Label htmlFor="admin-email">Email</Label>
+          <Input
             id="admin-email"
             type="email"
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={busy}
-            className="w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-white/30 focus:ring-2 focus:ring-white/10"
           />
         </div>
-        <div className="space-y-2">
-          <label htmlFor="admin-password" className="block text-sm font-medium text-white/90">
-            Password
-          </label>
-          <input
+        <div className="space-y-1.5">
+          <Label htmlFor="admin-password">Password</Label>
+          <Input
             id="admin-password"
             type="password"
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             disabled={busy}
-            className="w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-white/30 focus:ring-2 focus:ring-white/10"
           />
         </div>
-        <button
+        <Button
           type="submit"
-          disabled={busy}
-          className="w-full rounded-xl bg-white py-3 text-sm font-semibold text-black transition hover:bg-white/90 disabled:opacity-50"
+          size="lg"
+          className="w-full"
+          loading={busy}
+          disabled={busy || !email.trim() || !password}
         >
           Sign in
-        </button>
+        </Button>
       </form>
 
-      <GlassAuthDivider />
+      <AuthDivider>Or continue with</AuthDivider>
 
-      <button
+      <Button
         type="button"
+        size="lg"
+        variant="secondary"
+        className="w-full"
         disabled={busy}
         onClick={() => void handleGoogle()}
-        className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-black/20 py-3 text-sm font-medium text-white transition hover:bg-white/5 disabled:opacity-50"
       >
-        <GlassGoogleLabel />
-      </button>
-    </GlassAuthShell>
+        <GoogleButtonContent />
+      </Button>
+    </AuthShell>
   );
 }
 
@@ -127,9 +131,9 @@ export function AdminLoginForm() {
   return (
     <Suspense
       fallback={
-        <GlassAuthShell title="Admin sign in" description="Loading…" showBrand={false}>
-          <div className="h-24 animate-pulse rounded-xl bg-white/5" />
-        </GlassAuthShell>
+        <AuthShell title="Admin sign in" description="Loading…">
+          <div className="h-32 animate-pulse rounded-2xl bg-[var(--surface-container)]" />
+        </AuthShell>
       }
     >
       <AdminLoginInner />

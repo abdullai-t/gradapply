@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { Icon } from "@/components/icon";
+import { GoogleIcon } from "@/features/auth/google-icon";
 import { cn } from "@/lib/utils";
 
 /**
@@ -29,7 +30,7 @@ export function AuthShell({
   return (
     <div className="relative min-h-screen overflow-hidden bg-[var(--background)] text-[var(--on-background)]">
       <BackdropOrbs />
-      <div className="relative mx-auto flex min-h-screen max-w-md flex-col px-4 py-10 md:py-14">
+      <div className="relative mx-auto flex min-h-screen max-w-xl flex-col px-4 py-10 sm:px-6 md:py-14">
         <Link
           href="/"
           aria-label="GradApply — back home"
@@ -42,7 +43,7 @@ export function AuthShell({
 
         <div
           className={cn(
-            "tactile-card rounded-3xl border-2 border-[var(--outline-variant)] p-7 md:p-8",
+            "tactile-card rounded-3xl border-2 border-[var(--outline-variant)] p-7 shadow-[0_12px_40px_-24px_color-mix(in_srgb,var(--primary)_28%,transparent)] md:p-9",
           )}
         >
           <header className="mb-6 space-y-1.5">
@@ -139,11 +140,60 @@ export function AuthDivider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Status banner with icon — for auth feedback inside or above the card. */
+export function AuthNotice({
+  tone,
+  title,
+  children,
+}: {
+  tone: "success" | "error" | "info";
+  title?: string;
+  children: React.ReactNode;
+}) {
+  const styles = {
+    success: {
+      className: "glass-alert-success",
+      icon: "check_circle",
+    },
+    error: {
+      className: "glass-alert-error",
+      icon: "error",
+    },
+    info: {
+      className:
+        "rounded-xl border border-[var(--primary-container)] bg-[var(--primary-fixed)] px-4 py-3 text-sm text-[var(--on-primary-fixed)]",
+      icon: "info",
+    },
+  } as const;
+  const style = styles[tone];
+
+  return (
+    <div
+      className={cn("flex gap-3", style.className)}
+      role={tone === "error" ? "alert" : "status"}
+      aria-live={tone === "error" ? "assertive" : "polite"}
+    >
+      <Icon
+        name={style.icon}
+        size={20}
+        className="mt-0.5 shrink-0"
+        fill={tone !== "info"}
+      />
+      <div className="min-w-0 space-y-0.5">
+        {title ? <p className="m-0 font-bold leading-snug">{title}</p> : null}
+        <div className={cn("m-0 leading-relaxed", title && "text-[0.92em]")}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Branded label for Google sign-in button. */
 export function GoogleButtonContent() {
   return (
-    <span className="inline-flex items-center gap-2">
-      <Icon name="login" size={18} />
+    <span className="inline-flex items-center gap-2.5">
+      <GoogleIcon className="shrink-0" />
       Continue with Google
     </span>
   );
