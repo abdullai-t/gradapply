@@ -1,12 +1,6 @@
 "use client";
 
-/**
- * Inline CSS for the SOP studio. Lives next to the components so the
- * keyframes and Tiptap-specific selectors don't pollute globals.css.
- */
-export function StudioStyles() {
-  return (
-    <style jsx global>{`
+const STUDIO_CSS = `
       @keyframes sop-avatar-pulse {
         0%,
         100% {
@@ -60,8 +54,6 @@ export function StudioStyles() {
           transform: translateY(-2px);
         }
       }
-      /* Tiptap document styling — applied to the .prose-doc wrapper so the
-         editable surface matches the visual hierarchy of the mock. */
       .prose-doc {
         color: var(--on-surface);
         line-height: 1.7;
@@ -116,9 +108,6 @@ export function StudioStyles() {
         pointer-events: none;
         height: 0;
       }
-      /* The placeholder extension toggles is-editor-empty on each empty
-         block, but we also want the very first paragraph's placeholder to
-         show on initial render. */
       .prose-doc p.is-editor-empty:first-child::before {
         content: attr(data-placeholder);
         float: left;
@@ -126,8 +115,6 @@ export function StudioStyles() {
         pointer-events: none;
         height: 0;
       }
-
-      /* ===== AI suggestion node ===== */
       .ai-suggestion {
         display: inline;
         position: relative;
@@ -207,8 +194,6 @@ export function StudioStyles() {
           background: rgba(26, 163, 126, 0.16);
         }
       }
-
-      /* ===== Studio toast ===== */
       @keyframes studio-toast-in {
         from {
           opacity: 0;
@@ -235,8 +220,6 @@ export function StudioStyles() {
       .studio-toast-out {
         animation: studio-toast-out 220ms ease-in both;
       }
-
-      /* ===== Document review fade-in ===== */
       @keyframes sop-review-fade-in {
         from {
           opacity: 0;
@@ -250,6 +233,12 @@ export function StudioStyles() {
       .sop-review-fade-in {
         animation: sop-review-fade-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
       }
-    `}</style>
-  );
+    `;
+
+/**
+ * Inline CSS for the SOP studio. Lives next to the components so the
+ * keyframes and Tiptap-specific selectors don't pollute globals.css.
+ */
+export function StudioStyles() {
+  return <style dangerouslySetInnerHTML={{ __html: STUDIO_CSS }} />;
 }

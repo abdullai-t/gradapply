@@ -354,7 +354,7 @@ function ComposeBox({
   onUpload: (f: File) => void;
   placeholder: string;
   disabled?: boolean;
-  fileRef: React.RefObject<HTMLInputElement>;
+  fileRef: React.RefObject<HTMLInputElement | null>;
   hint: React.ReactNode;
 }) {
   return (

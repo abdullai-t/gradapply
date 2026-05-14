@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { cn } from "@/lib/utils";
@@ -12,13 +12,16 @@ type Props = {
   className?: string;
 };
 
-const markdownComponents = {
-  a: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+const markdownComponents: Components = {
+  a: ({ className, ...props }) => (
     <a
       {...props}
+      className={cn(
+        "font-bold text-[var(--primary)] underline-offset-4 hover:underline",
+        className,
+      )}
       target="_blank"
       rel="noopener noreferrer"
-      className="font-bold text-[var(--primary)] underline-offset-4 hover:underline"
     />
   ),
 };

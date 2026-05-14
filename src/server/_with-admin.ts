@@ -33,7 +33,7 @@ export type AdminHandler<TParams = Record<string, string>> = (
  */
 export function withAdmin<TParams = Record<string, string>>(
   handler: AdminHandler<TParams>,
-): (req: Request, routeCtx: { params: TParams }) => Promise<Response> {
+): (req: Request, routeCtx: { params: Promise<TParams> }) => Promise<Response> {
   return withAuth<TParams>(async (req, ctx) => {
     const actor = await requireElevatedUser();
     if (!actor) return forbidden();

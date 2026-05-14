@@ -28,7 +28,7 @@ import { type AuthedHandler, withAuth } from "./_with-auth";
 export function withPlanGate<TParams = Record<string, string>>(
   feature: LockedFeature,
   handler: AuthedHandler<TParams>,
-): (req: Request, routeCtx: { params: TParams }) => Promise<Response> {
+): (req: Request, routeCtx: { params: Promise<TParams> }) => Promise<Response> {
   return withAuth<TParams>(async (req, ctx) => {
     if (req.method !== "GET") {
       const readOnly = await requireWritableAccount(ctx.userId);

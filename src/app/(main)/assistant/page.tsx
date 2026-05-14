@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -23,7 +23,13 @@ import { SopStudio } from "@/features/sop-studio/studio";
 import { usePlanTier } from "@/hooks/use-plan-tier";
 
 const MarkdownBody = dynamic(
-  () => import("@/components/markdown-body").then((m) => ({ default: m.MarkdownBody })),
+  () =>
+    import("@/components/markdown-body").then((m) => ({
+      default: m.MarkdownBody as ComponentType<{
+        content: string;
+        className?: string;
+      }>,
+    })),
   {
     loading: () => (
       <div className="flex flex-col gap-2">

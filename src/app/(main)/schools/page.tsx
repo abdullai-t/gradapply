@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -13,7 +13,11 @@ import { PageLoader } from "@/components/page-loader";
 const AddSchoolModal = dynamic(
   () =>
     import("@/components/add-school-modal").then((m) => ({
-      default: m.AddSchoolModal,
+      default: m.AddSchoolModal as ComponentType<{
+        open: boolean;
+        onClose: () => void;
+        onSaved: () => void;
+      }>,
     })),
   { ssr: false },
 );

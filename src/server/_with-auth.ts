@@ -33,14 +33,12 @@ export type AuthedHandler<TParams = Record<string, string>> = (
  * helpers from `./_responses` or to return a `NextResponse` directly — both
  * are valid `Response` instances.
  *
- * Compatible with the Next.js 14 App Router signature
- * `(req, { params }) => Promise<Response>` for dynamic routes; for static
- * routes the `routeCtx` argument is supplied (as `{ params: {} }`) by Next.js
- * itself, so this wrapper handles both.
+ * Compatible with the Next.js App Router signature where dynamic route
+ * `params` are provided asynchronously.
  */
 export function withAuth<TParams = Record<string, string>>(
   handler: AuthedHandler<TParams>,
-): (req: Request, routeCtx: { params: TParams }) => Promise<Response> {
+): (req: Request, routeCtx: { params: Promise<TParams> }) => Promise<Response> {
   return async (req, routeCtx) => {
     const session = await auth();
     if (!session?.user?.id) return unauthorized();
@@ -49,7 +47,7 @@ export function withAuth<TParams = Record<string, string>>(
       if (!isTrustedMutationOrigin(req)) return forbidden("Untrusted origin");
     }
 
-    const params = (routeCtx?.params ?? ({} as TParams)) as TParams;
+    const params = (await routeCtx?.params) ?? ({} as TParams);
     return handler(req, { userId: session.user.id, params });
   };
 }
