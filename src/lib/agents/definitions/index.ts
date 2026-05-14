@@ -74,7 +74,14 @@ function t2WithTokens(maxTokens: number, envVar?: string): ModelConfig {
   return {
     tier: "t2-balanced",
     chain: [
-      { provider: "gemini", model: envVar ? (process.env[envVar]?.trim() || "gemini-2.5-flash") : "gemini-2.5-flash" },
+      { provider: "openrouter", model: "anthropic/claude-sonnet-4" },
+      { provider: "openai", model: "gpt-4o" },
+      {
+        provider: "gemini",
+        model: envVar
+          ? process.env[envVar]?.trim() || "gemini-2.5-flash"
+          : "gemini-2.5-flash",
+      },
       { provider: "groq", model: "llama-3.3-70b-versatile" },
       { provider: "anthropic", model: "claude-sonnet-4-20250514" },
     ],

@@ -234,6 +234,10 @@ export const recommend = withAuth(async (_req, { userId }) => {
 
     return ok({ schools: countryMatched.length > 0 ? countryMatched : schools });
   } catch (e) {
+    console.error("[schools/recommend] failed", {
+      userId,
+      reason: e instanceof Error ? e.message : String(e),
+    });
     return bad(formatLlmFailureMessage(e), 500);
   }
 });

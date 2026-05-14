@@ -27,6 +27,13 @@ export function formatLlmFailureMessage(error: unknown): string {
     return "AI capacity is temporarily constrained. Please retry shortly.";
   }
   if (errorClass === "auth_or_config") {
+    if (/No LLM configured|is not configured|is not set/i.test(raw)) {
+      return (
+        "AI is not configured on this server. Set at least one of OPENAI_API_KEY, " +
+        "OPENROUTER_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY, or GROQ_API_KEY " +
+        "in your Cloudflare Worker environment variables."
+      );
+    }
     return (
       "AI service is temporarily unavailable due to provider configuration. " +
       "Please contact support if this continues."
@@ -76,6 +83,10 @@ export function formatLlmFailureMessage(error: unknown): string {
       "This AI request was too large or invalid for the current model. " +
       "Please shorten your input and try again."
     );
+  }
+
+  if (/Could not parse JSON from model output/i.test(raw)) {
+    return "The AI returned an unreadable response. Please try again in a moment.";
   }
 
   return "The AI service could not process this request. Please retry shortly.";

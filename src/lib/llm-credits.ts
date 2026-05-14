@@ -58,10 +58,22 @@ export function isInsufficientCreditsError(error: unknown): boolean {
 }
 
 /**
+ * Missing env key for a provider in the agent chain — skip to the next backend.
+ */
+export function isProviderNotConfiguredError(error: unknown): boolean {
+  const raw = stringifyLlmError(error);
+  return (
+    /is not configured|is not set/i.test(raw) ||
+    /No LLM configured/i.test(raw)
+  );
+}
+
+/**
  * Don’t rotate API keys — bad credentials won’t be fixed by trying another provider.
  */
 export function isLikelyAuthOrConfigError(error: unknown): boolean {
   const raw = stringifyLlmError(error);
+  if (isProviderNotConfiguredError(error)) return true;
   return (
     /invalid[_ ]api[_ ]key|incorrect api key|no api key provided|missing api key/i.test(
       raw,
@@ -90,6 +102,7 @@ export function classifyLlmErrorClass(error: unknown): string {
  * Provider/billing/quota/status conditions where trying another configured LLM may succeed.
  */
 export function shouldFallbackToAlternateProvider(error: unknown): boolean {
+  if (isProviderNotConfiguredError(error)) return true;
   const kind = classifyLlmErrorClass(error);
   if (kind === "circuit_open" || kind === "provider_saturated") return true;
   if (isLikelyAuthOrConfigError(error)) return false;
