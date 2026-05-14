@@ -1,20 +1,17 @@
 /**
- * Cloudflare AI Gateway — single OpenAI-compatible entry for all LLM providers.
+ * Cloudflare AI Gateway via the official `ai-gateway-provider` + Vercel AI SDK.
  *
- * Configure (Unified Billing — no BYOK):
- * - `CF_AI_GATEWAY_ACCOUNT_ID` — Cloudflare account id
- * - `CF_AIG_TOKEN` or `CF_AI_GATEWAY_TOKEN` — AI Gateway unified billing token
- * - `CF_AI_GATEWAY_NAME` — gateway slug (e.g. `mygradappy`)
+ * Unified Billing (no BYOK) — match the Cloudflare dashboard snippet:
+ *   CF_AI_GATEWAY_ACCOUNT_ID, CF_AIG_TOKEN, CF_AI_GATEWAY_NAME=mygradappy
  *
- * Optional BYOK (`CF_AI_GATEWAY_BYOK=1`): pass `GEMINI_API_KEY`, etc. as upstream keys.
- *
- * @see https://developers.cloudflare.com/ai-gateway/usage/chat-completion/
+ * @see https://developers.cloudflare.com/ai-gateway/integrations/vercel-ai-sdk/
  */
-import OpenAI from "openai";
+import { createAiGateway } from "ai-gateway-provider";
+import { createUnified } from "ai-gateway-provider/providers/unified";
+import { generateText, streamText } from "ai";
 import type { z } from "zod";
 
 import type { LlmProvider } from "@/lib/llm-provider";
-import { llmClientOptions } from "@/lib/llm-fetch";
 import { parseJsonFromLlmText } from "@/lib/parse-llm-json";
 
 import { cacheGet, cacheSet, stableKey } from "./cache";
@@ -35,138 +32,50 @@ function gatewayName(): string {
   return (
     process.env.CF_AI_GATEWAY_NAME?.trim() ||
     process.env.CF_AI_GATEWAY_ID?.trim() ||
-    "default"
+    "mygradappy"
   );
 }
 
-function gatewayRootUrl(): string {
-  const accountId = process.env.CF_AI_GATEWAY_ACCOUNT_ID!.trim();
-  return `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayName()}`;
+function accountId(): string | undefined {
+  return process.env.CF_AI_GATEWAY_ACCOUNT_ID?.trim();
 }
 
 export function isAiGatewayEnabled(): boolean {
-  return !!(
-    process.env.CF_AI_GATEWAY_ACCOUNT_ID?.trim() && gatewayToken()
-  );
+  return !!(accountId() && gatewayToken());
 }
 
+/** Legacy BYOK flag — when set, `llm-execute-chat` uses direct provider SDKs instead. */
 export function isAiGatewayByok(): boolean {
   const raw = process.env.CF_AI_GATEWAY_BYOK?.trim().toLowerCase();
   return raw === "1" || raw === "true" || raw === "yes";
 }
 
-/** Unified OpenAI-compat endpoint (`{provider}/{model}` models). */
-export function aiGatewayCompatBaseUrl(): string {
-  return `${gatewayRootUrl()}/compat`;
-}
+let gatewayInstance: ReturnType<typeof createAiGateway> | null = null;
+const unified = createUnified();
 
-/** Provider-native gateway paths — only used for BYOK OpenRouter. */
-export function aiGatewayProviderBaseUrl(provider: LlmProvider): string {
-  if (isAiGatewayByok() && provider === "openrouter") {
-    return `${gatewayRootUrl()}/openrouter`;
-  }
-  return aiGatewayCompatBaseUrl();
-}
-
-/** @deprecated alias */
-export function aiGatewayBaseUrl(): string {
-  return aiGatewayCompatBaseUrl();
-}
-
-function upstreamApiKey(provider: LlmProvider): string | undefined {
-  switch (provider) {
-    case "anthropic":
-      return process.env.ANTHROPIC_API_KEY?.trim();
-    case "openai":
-      return process.env.OPENAI_API_KEY?.trim();
-    case "gemini":
-      return process.env.GEMINI_API_KEY?.trim();
-    case "groq":
-      return process.env.GROQ_API_KEY?.trim();
-    case "openrouter":
-      return process.env.OPENROUTER_API_KEY?.trim();
-    default:
-      return undefined;
-  }
-}
-
-function isAiGatewayAuthenticated(): boolean {
-  const raw = process.env.CF_AI_GATEWAY_AUTHENTICATED?.trim().toLowerCase();
-  if (raw === "1" || raw === "true" || raw === "yes") return true;
-  if (raw === "0" || raw === "false" || raw === "no") return false;
-  return isAiGatewayByok();
-}
-
-function gatewayProviderFromModel(model: string): LlmProvider | null {
-  const prefix = model.split("/")[0]?.toLowerCase();
-  if (prefix === "openrouter") return "openrouter";
-  if (prefix === "anthropic") return "anthropic";
-  if (prefix === "openai") return "openai";
-  if (prefix === "google-ai-studio" || prefix === "google") return "gemini";
-  if (prefix === "groq") return "groq";
-  return null;
-}
-
-/**
- * Unified Billing: always send the Cloudflare AI Gateway token as `apiKey`.
- * BYOK: upstream provider API key (+ optional `cf-aig-authorization`).
- */
-export function resolveGatewayApiKey(provider: LlmProvider, model: string): string {
-  if (isAiGatewayByok()) {
-    const inferred = model.includes("/")
-      ? gatewayProviderFromModel(model)
-      : provider;
-    const key = upstreamApiKey(inferred ?? provider);
-    if (!key) {
+function getAiGateway() {
+  if (!gatewayInstance) {
+    const id = accountId();
+    const token = gatewayToken();
+    if (!id || !token) {
       throw new Error(
-        `CF_AI_GATEWAY_BYOK is enabled but no API key is set for provider "${inferred ?? provider}"`,
+        "CF_AI_GATEWAY_ACCOUNT_ID and CF_AIG_TOKEN are required for AI Gateway",
       );
     }
-    return key;
+    gatewayInstance = createAiGateway({
+      accountId: id,
+      gateway: gatewayName(),
+      apiKey: token,
+    });
   }
-
-  const token = gatewayToken();
-  if (!token) {
-    throw new Error(
-      "CF_AIG_TOKEN is not configured (Unified Billing AI Gateway token)",
-    );
-  }
-  return token;
+  return gatewayInstance;
 }
 
-export function createAiGatewayClient(
-  provider: LlmProvider,
-  model: string,
-): OpenAI {
-  const apiKey = resolveGatewayApiKey(provider, model);
-  const headers: Record<string, string> = {};
-  const cfToken = gatewayToken();
-
-  if (cfToken && isAiGatewayAuthenticated()) {
-    headers["cf-aig-authorization"] = `Bearer ${cfToken}`;
-  }
-
-  return new OpenAI({
-    apiKey,
-    baseURL: aiGatewayProviderBaseUrl(provider),
-    defaultHeaders: Object.keys(headers).length > 0 ? headers : undefined,
-    ...llmClientOptions,
-  });
-}
-
-/**
- * Map GradApply provider + native model id to the gateway request model field.
- * Compat API: `google-ai-studio/gemini-2.5-flash`, `openai/gpt-4o`, …
- * OpenRouter native: `anthropic/claude-sonnet-4` (no `openrouter/` prefix).
- */
-export function toGatewayModel(provider: LlmProvider, model: string): string {
+function gatewayModel(provider: LlmProvider, model: string): string {
   if (provider === "openrouter") {
-    if (model.startsWith("openrouter/")) {
-      return model.slice("openrouter/".length);
-    }
-    return model;
+    if (model.startsWith("openrouter/")) return model;
+    return model.includes("/") ? `openrouter/${model}` : `openrouter/${model}`;
   }
-
   if (model.includes("/")) {
     const [prefix, ...rest] = model.split("/");
     if (prefix === "google" || prefix === "google-ai-studio") {
@@ -174,7 +83,6 @@ export function toGatewayModel(provider: LlmProvider, model: string): string {
     }
     return model;
   }
-
   switch (provider) {
     case "anthropic":
       return `anthropic/${model}`;
@@ -189,16 +97,8 @@ export function toGatewayModel(provider: LlmProvider, model: string): string {
   }
 }
 
-export function gatewayModelForAgent(
-  agentId: string | undefined,
-  provider: LlmProvider,
-  model: string,
-): string {
-  if (agentId) {
-    const feature = AGENT_MODEL_FEATURE[agentId];
-    if (feature) return MODELS[feature];
-  }
-  return toGatewayModel(provider, model);
+export function toGatewayModel(provider: LlmProvider, model: string): string {
+  return gatewayModel(provider, model);
 }
 
 export type GatewayChatMessage = {
@@ -206,21 +106,42 @@ export type GatewayChatMessage = {
   content: string;
 };
 
+function buildPrompt(messages: GatewayChatMessage[]): {
+  system?: string;
+  messages: { role: "user" | "assistant"; content: string }[];
+} {
+  const systemParts = messages
+    .filter((m) => m.role === "system")
+    .map((m) => m.content);
+  const system =
+    systemParts.length > 0 ? systemParts.join("\n\n") : undefined;
+  const chatMessages = messages
+    .filter((m) => m.role !== "system")
+    .map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
+  return { system, messages: chatMessages };
+}
+
 export async function gatewayChatCompletion(opts: {
   provider: LlmProvider;
   model: string;
   messages: GatewayChatMessage[];
   maxTokens: number;
 }): Promise<string> {
-  const gatewayModel = toGatewayModel(opts.provider, opts.model);
-  const client = createAiGatewayClient(opts.provider, gatewayModel);
-  const completion = await client.chat.completions.create({
-    model: gatewayModel,
-    messages: opts.messages,
-    max_tokens: opts.maxTokens,
+  const slug = gatewayModel(opts.provider, opts.model);
+  const aigateway = getAiGateway();
+  const { system, messages } = buildPrompt(opts.messages);
+
+  const { text } = await generateText({
+    model: aigateway(unified(slug)),
+    system,
+    messages,
+    maxOutputTokens: opts.maxTokens,
   });
-  const content = completion.choices[0]?.message?.content;
-  return typeof content === "string" ? content : "";
+
+  return text;
 }
 
 export async function* gatewayChatCompletionStream(opts: {
@@ -229,22 +150,21 @@ export async function* gatewayChatCompletionStream(opts: {
   messages: GatewayChatMessage[];
   maxTokens: number;
 }): AsyncGenerator<string, string, unknown> {
-  const gatewayModel = toGatewayModel(opts.provider, opts.model);
-  const client = createAiGatewayClient(opts.provider, gatewayModel);
-  const stream = await client.chat.completions.create({
-    model: gatewayModel,
-    messages: opts.messages,
-    max_tokens: opts.maxTokens,
-    stream: true,
+  const slug = gatewayModel(opts.provider, opts.model);
+  const aigateway = getAiGateway();
+  const { system, messages } = buildPrompt(opts.messages);
+
+  const result = streamText({
+    model: aigateway(unified(slug)),
+    system,
+    messages,
+    maxOutputTokens: opts.maxTokens,
   });
 
   let accumulated = "";
-  for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta?.content;
-    if (delta) {
-      accumulated += delta;
-      yield delta;
-    }
+  for await (const chunk of result.textStream) {
+    accumulated += chunk;
+    yield chunk;
   }
   return accumulated;
 }
@@ -255,17 +175,15 @@ export async function aiGenerate(
   prompt: string,
   maxTokens = 4096,
 ): Promise<string> {
-  const model = MODELS[feature];
-  const provider = gatewayProviderFromModel(model) ?? "openai";
-  return gatewayChatCompletion({
-    provider,
-    model,
-    maxTokens,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: prompt },
-    ],
+  const slug = MODELS[feature];
+  const aigateway = getAiGateway();
+  const { text } = await generateText({
+    model: aigateway(unified(slug)),
+    system,
+    prompt,
+    maxOutputTokens: maxTokens,
   });
+  return text;
 }
 
 export async function aiExtract<T extends z.ZodTypeAny>(
@@ -316,4 +234,22 @@ export async function cachedAiGenerate(
   const text = await aiGenerate(feature, system, prompt, maxTokens);
   await cacheSet(cacheNamespace, key, text);
   return text;
+}
+
+/** @deprecated use gateway via ai-gateway-provider */
+export function aiGatewayBaseUrl(): string {
+  const id = accountId() ?? "{account_id}";
+  return `https://gateway.ai.cloudflare.com/v1/${id}/${gatewayName()}/compat`;
+}
+
+/** @deprecated */
+export function resolveGatewayApiKey(): string {
+  const token = gatewayToken();
+  if (!token) throw new Error("CF_AIG_TOKEN is not configured");
+  return token;
+}
+
+/** @deprecated */
+export function createAiGatewayClient(): never {
+  throw new Error("createAiGatewayClient is deprecated; use ai-gateway-provider");
 }

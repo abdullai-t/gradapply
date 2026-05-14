@@ -11,6 +11,7 @@ import { log } from "@/lib/logger";
 import {
   gatewayChatCompletion,
   gatewayChatCompletionStream,
+  isAiGatewayByok,
   isAiGatewayEnabled,
 } from "@/lib/ai/gateway";
 import { llmClientOptions } from "@/lib/llm-fetch";
@@ -82,7 +83,7 @@ export async function executeChatTurn(opts: {
     return text;
   };
   try {
-    if (isAiGatewayEnabled()) {
+    if (isAiGatewayEnabled() && !isAiGatewayByok()) {
       const text = await gatewayChatCompletion({
         provider,
         model: model ?? defaultModelForProvider(provider),
@@ -207,7 +208,7 @@ export async function* executeChatTurnStream(opts: {
   let accumulated = "";
 
   try {
-    if (isAiGatewayEnabled()) {
+    if (isAiGatewayEnabled() && !isAiGatewayByok()) {
       const gen = gatewayChatCompletionStream({
         provider,
         model: model ?? defaultModelForProvider(provider),
