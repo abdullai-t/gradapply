@@ -7,6 +7,13 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  serverExternalPackages: ["@prisma/client", ".prisma/client"],
+  outputFileTracingIncludes: {
+    "**/*": [
+      "./node_modules/pg-cloudflare/dist/**",
+      "./node_modules/pg-cloudflare/esm/**",
+    ],
+  },
   experimental: {
   },
   async headers() {
@@ -46,6 +53,8 @@ const nextConfig = {
     ];
   },
   images: {
+    // OpenNext on Cloudflare cannot run the default image optimizer (`/_next/image`).
+    unoptimized: process.env.CF_BUILD === "1",
     remotePatterns: [
       {
         protocol: "https",
@@ -66,10 +75,14 @@ const nextConfig = {
   },
 };
 
-/** Init is gated in `sentry.*.config.ts`; wrap stays enabled so client/server instrumentation matches Sentry’s Next.js docs. */
-export default withSentryConfig(withBundleAnalyzer(nextConfig), {
-  silent: true,
-  sourcemaps: {
-    disable: true,
-  },
-});
+const analyzedConfig = withBundleAnalyzer(nextConfig);
+
+/** Sentry’s webpack/turbopack hooks add significant server bundle weight; skip on CF builds. */
+export default process.env.CF_BUILD
+  ? analyzedConfig
+  : withSentryConfig(analyzedConfig, {
+      silent: true,
+      sourcemaps: {
+        disable: true,
+      },
+    });
