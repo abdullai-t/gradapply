@@ -338,7 +338,7 @@ export const schoolIntelAgent: AgentDefinition = {
   id: "school-intel",
   label: "School Intelligence",
   description: "Infers school details from names and recommends schools based on applicant profile.",
-  modelConfig: t2WithTokens(3072, "AGENT_SCHOOL_INTEL_MODEL"),
+  modelConfig: t2WithTokens(8192, "AGENT_SCHOOL_INTEL_MODEL"),
   tools: ["getProfile", "getExistingSchools", "getCountryOptions", "getProgramOptions", "getDegreeOptions"],
   buildSystemPrompt: () =>
     `You are a graduate school intelligence specialist for GradApply. You have two main functions:

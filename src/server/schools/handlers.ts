@@ -12,8 +12,8 @@ import {
 } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
 import {
-  normalizeRecommendSchoolsPayload,
   parseJsonFromLlmText,
+  parseRecommendSchoolsFromLlmText,
 } from "@/lib/parse-llm-json";
 import { parseDeadlineBody } from "@/lib/school-deadline";
 import { progressFromStatus } from "@/lib/school-progress";
@@ -142,6 +142,55 @@ export const remove = withAuth<{ id: string }>(
   },
 );
 
+const RECOMMEND_TIERS = [
+  { bucket: "top_tier", label: "top-tier reach" },
+  { bucket: "mid_tier", label: "mid-tier match" },
+  { bucket: "safety", label: "safety" },
+] as const;
+
+function buildTierRecommendPrompt(
+  tier: (typeof RECOMMEND_TIERS)[number],
+  countryHint: string,
+  retry: boolean,
+): string {
+  const lines = [
+    `Recommend exactly 5 ${tier.label} graduate schools for my tracking list based on my profile.`,
+    `Set tierBucket to "${tier.bucket}" on every row.`,
+    "Prioritize strong funding fit. Keep whyFit <= 20 words and notes <= 12 words.",
+    countryHint,
+    'Return ONLY minified JSON: {"schools":[{"name","program","degree","country","tierBucket","whyFit","notes","portalUrl":null}]}',
+    "No markdown fences or prose before or after the JSON.",
+  ];
+  if (retry) {
+    lines.push("Previous output was invalid JSON. Output a single minified JSON object only.");
+  }
+  return lines.join("\n");
+}
+
+async function fetchTierSchools(
+  userId: string,
+  tier: (typeof RECOMMEND_TIERS)[number],
+  countryHint: string,
+): Promise<unknown[]> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const prompt = buildTierRecommendPrompt(tier, countryHint, attempt > 0);
+    const result = await runTask("school-intel", prompt, userId);
+    const raw = result.reply.trim();
+    try {
+      return parseRecommendSchoolsFromLlmText(raw);
+    } catch (e) {
+      console.warn("[schools/recommend] invalid JSON from model", {
+        userId,
+        tier: tier.bucket,
+        attempt: attempt + 1,
+        preview: raw.slice(0, 400),
+        reason: e instanceof Error ? e.message : "unknown",
+      });
+    }
+  }
+  return [];
+}
+
 export const recommend = withAuth(async (_req, { userId }) => {
   const quota = await billingPrecheckResponse(userId, "school_recommendation");
   if (quota) return quota;
@@ -159,51 +208,14 @@ export const recommend = withAuth(async (_req, { userId }) => {
         ? `Only recommend schools in these countries of interest: ${countriesOfInterest.join(", ")}.`
         : "If no countries of interest are set, you may recommend across countries.";
 
-    const basePrompt = [
-      "Recommend exactly 15 graduate schools for my tracking list based on my profile.",
-      "Split the list into: 5 top-tier schools, 5 mid-tier schools, and 5 safety schools.",
-      "Include a field `tierBucket` for each school with one of: `top_tier`, `mid_tier`, `safety`.",
-      "Funding is a top-priority constraint: strongly prioritize programs/schools with full funding first, then high partial funding.",
-      "For every school, include funding strength in `whyFit` and add a concise funding availability note in `notes` (e.g., full funding likely, high partial, limited/uncertain).",
-      "If funding is weak/uncertain, only include when overall fit is still compelling and say so clearly.",
-      "Keep `whyFit` to <= 30 words and `notes` to <= 15 words.",
-      countryHint,
-      "Return ONLY valid JSON with shape: { \"schools\": [{ \"name\", \"program\", \"degree\", \"country\", \"tierBucket\", \"whyFit\", \"notes\", \"portalUrl\" }] }",
-      "Do not output markdown fences, preamble text, explanations, or any characters before/after the JSON object.",
-    ].join("\n");
+    const tierResults = await Promise.all(
+      RECOMMEND_TIERS.map((tier) => fetchTierSchools(userId, tier, countryHint)),
+    );
+    const schools = tierResults.flat();
 
-    const strictRetryPrompt = [
-      basePrompt,
-      "Previous output was invalid JSON. Retry now.",
-      "Output a single minified JSON object only.",
-    ].join("\n");
-
-    let schools: unknown[] = [];
-    let lastParseError: unknown = null;
-
-    const prompts = [basePrompt, strictRetryPrompt];
-    for (let attempt = 0; attempt < prompts.length; attempt += 1) {
-      const prompt = prompts[attempt];
-      const result = await runTask("school-intel", prompt, userId);
-      const raw = result.reply.trim();
-
-      try {
-        const parsed = parseJsonFromLlmText(raw);
-        schools = normalizeRecommendSchoolsPayload(parsed);
-        lastParseError = null;
-        break;
-      } catch (e) {
-        lastParseError = e;
-        console.warn("[schools/recommend] invalid JSON from model", {
-          userId,
-          attempt: attempt + 1,
-          preview: raw.slice(0, 400),
-          reason: e instanceof Error ? e.message : "unknown",
-        });
-      }
+    if (schools.length === 0) {
+      throw new SyntaxError("Could not parse JSON from model output");
     }
-
-    if (lastParseError) throw lastParseError;
 
     await finalizeAiConsumptionForAction(userId, "school_recommendation");
 
