@@ -15,12 +15,12 @@ export const MODELS = {
   navigator: envModel("AI_MODEL_NAVIGATOR", "google-ai-studio/gemini-2.5-flash"),
   school_intel: envModel(
     "AI_MODEL_SCHOOL_INTEL",
-    "anthropic/claude-sonnet-4-20250514",
+    "google-ai-studio/gemini-2.5-flash",
   ),
   sop_writer: envModel("AI_MODEL_SOP_WRITER", "openai/gpt-4o"),
   sop_scorer: envModel("AI_MODEL_SOP_SCORER", "anthropic/claude-sonnet-4"),
   email_drafter: envModel("AI_MODEL_EMAIL_DRAFTER", "anthropic/claude-sonnet-4"),
-  prof_audit: envModel("AI_MODEL_PROF_AUDIT", "anthropic/claude-sonnet-4"),
+  prof_audit: envModel("AI_MODEL_PROF_AUDIT", "google-ai-studio/gemini-2.5-flash"),
   faculty_discovery: envModel(
     "AI_MODEL_FACULTY_DISCOVERY",
     "google-ai-studio/gemini-2.5-flash",

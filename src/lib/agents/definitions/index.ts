@@ -115,16 +115,32 @@ const T3_PREMIUM_EMAIL: ModelConfig = {
   maxTokens: 2048,
 };
 
+const T2_SCHOOL_INTEL: ModelConfig = {
+  tier: "t2-balanced",
+  chain: [
+    {
+      provider: "gemini",
+      model:
+        process.env.AGENT_SCHOOL_INTEL_MODEL?.trim() || "gemini-2.5-flash",
+    },
+    { provider: "openrouter", model: "anthropic/claude-sonnet-4" },
+    { provider: "openai", model: "gpt-4o" },
+    { provider: "groq", model: "llama-3.3-70b-versatile" },
+    { provider: "anthropic", model: "claude-sonnet-4-20250514" },
+  ],
+  maxTokens: 8192,
+};
+
 const T2_PROF_AUDIT: ModelConfig = {
   tier: "t2-balanced",
   chain: [
-    { provider: "groq", model: "llama-3.3-70b-versatile" },
     {
-      provider: "openrouter",
+      provider: "gemini",
       model:
-        process.env.AGENT_PROF_AUDIT_MODEL?.trim() ||
-        "anthropic/claude-sonnet-4",
+        process.env.AGENT_PROF_AUDIT_MODEL?.trim() || "gemini-2.5-flash",
     },
+    { provider: "groq", model: "llama-3.3-70b-versatile" },
+    { provider: "openrouter", model: "anthropic/claude-sonnet-4" },
   ],
   maxTokens: 2048,
 };
@@ -345,7 +361,7 @@ export const schoolIntelAgent: AgentDefinition = {
   id: "school-intel",
   label: "School Intelligence",
   description: "Infers school details from names and recommends schools based on applicant profile.",
-  modelConfig: t2WithTokens(8192, "AGENT_SCHOOL_INTEL_MODEL"),
+  modelConfig: T2_SCHOOL_INTEL,
   tools: ["getProfile", "getExistingSchools", "getCountryOptions", "getProgramOptions", "getDegreeOptions"],
   buildSystemPrompt: () =>
     `You are a graduate school intelligence specialist for GradApply. You have two main functions:
