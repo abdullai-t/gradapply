@@ -195,6 +195,7 @@ export async function sendMail(args: {
   subject: string;
   text: string;
   html?: string;
+  replyTo?: string;
 }): Promise<{ sent: boolean; error?: string; previewUrl?: string }> {
   const mode = getMailTransportMode();
   if (mode === "none") {
@@ -217,6 +218,7 @@ export async function sendMail(args: {
       subject: args.subject,
       text: args.text,
       html: args.html,
+      replyTo: args.replyTo,
     });
 
     let previewUrl: string | undefined;
