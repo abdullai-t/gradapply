@@ -61,7 +61,7 @@ export async function runOrchestrator(
       reply: "I'm sorry, I couldn't process your request. Please try again.",
       agentId: "orchestrator",
       traceId: ctx.traceId,
-      modelUsed: { provider: "anthropic", model: "" },
+      modelUsed: { provider: "openrouter", model: "" },
       trace: ctx.trace,
     };
   }
@@ -187,7 +187,7 @@ export function runOrchestratorStream(
           reply: "I'm sorry, I couldn't process your request. Please try again.",
           agentId: "orchestrator",
           traceId: ctx.traceId,
-          modelUsed: { provider: "anthropic", model: "" },
+          modelUsed: { provider: "openrouter", model: "" },
           trace: ctx.trace,
         };
         yield { type: "error", message: errorResult.reply };

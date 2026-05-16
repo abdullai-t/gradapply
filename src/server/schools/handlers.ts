@@ -1,4 +1,4 @@
-import { SchoolStatus } from "@prisma/client";
+import { AdmissionTerm, SchoolStatus } from "@prisma/client";
 
 import {
   billingPrecheckResponse,
@@ -16,7 +16,7 @@ import {
   parseJsonFromLlmText,
   parseRecommendSchoolsFromLlmText,
 } from "@/lib/parse-llm-json";
-import { parseDeadlineBody } from "@/lib/school-deadline";
+import { parseDeadlineBody, coerceSchoolInferDeadlineToFuture } from "@/lib/school-deadline";
 import { progressFromStatus } from "@/lib/school-progress";
 
 import { bad, notFound, ok } from "../_responses";
@@ -269,6 +269,34 @@ export const recommend = withAuth(async (_req, { userId }) => {
   }
 });
 
+function coerceInferTerm(v: unknown): AdmissionTerm | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v !== "string") return null;
+  const u = v.trim().toUpperCase();
+  if (u === "FALL" || u === "SPRING" || u === "SUMMER") return u as AdmissionTerm;
+  return null;
+}
+
+function normalizeInferDeadline(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== "string") return null;
+  const s = raw.trim();
+  if (!s) return null;
+  const d = parseDeadlineBody(s);
+  if (!d) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+function normalizeInferPortalUrl(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== "string") return null;
+  const s = raw.trim();
+  if (!s) return null;
+  if (!/^https?:\/\//i.test(s)) return null;
+  if (s.length > 2000) return null;
+  return s;
+}
+
 export const infer = withAuth(async (req, { userId }) => {
   const json = await req.json().catch(() => null);
   const parsed = inferSchoolSchema.safeParse(json);
@@ -278,21 +306,64 @@ export const infer = withAuth(async (req, { userId }) => {
   if (quota) return quota;
 
   try {
+    let contextName: string;
+    let program = "";
+    let degree = "";
+    let country: string | null = null;
+    let termHint: AdmissionTerm | null | undefined = parsed.data.term;
+
+    if (parsed.data.schoolId) {
+      const row = await prisma.school.findFirst({
+        where: { id: parsed.data.schoolId, userId },
+      });
+      if (!row) return notFound();
+      contextName = row.name;
+      program = row.program;
+      degree = row.degree;
+      country = row.country;
+      if (termHint === undefined) termHint = row.term ?? undefined;
+    } else {
+      contextName = parsed.data.name!.trim();
+    }
+
+    const todayUtc = new Date().toISOString().slice(0, 10);
+
     const message = [
-      `Infer application-tracking fields for this school: "${parsed.data.name.trim()}"`,
-      parsed.data.term ? `Intake term: ${parsed.data.term}` : "",
-      "Return ONLY valid JSON with keys: program, degree, country, deadline, funding, notes, portalUrl.",
-    ].filter(Boolean).join("\n");
+      "Infer application-tracking fields for this saved graduate-program entry.",
+      `School / institution: "${contextName}"`,
+      program ? `Program (from user record): ${program}` : "",
+      degree ? `Degree (from user record): ${degree}` : "",
+      country ? `Country (from user record): ${country}` : "",
+      termHint ? `Preferred intake term hint: ${termHint}` : "",
+      "",
+      `Today's calendar date (UTC) is ${todayUtc}.`,
+      `The application deadline MUST be ${todayUtc} or a later date for an upcoming admissions cycle — never a year that is already in the past relative to today.`,
+      "If you cannot verify a current-cycle deadline from reliable public information, use null for deadline.",
+      "",
+      "Return ONLY valid JSON with these keys (use null when unknown or not confident):",
+      '- program (string), degree (string), country (string)',
+      '- term: one of \"FALL\" | \"SPRING\" | \"SUMMER\" or null (primary admission intake term)',
+      `- deadline: primary application deadline as \"YYYY-MM-DD\" on or after ${todayUtc} (UTC), or null`,
+      '- funding: short string (funding / stipend / tuition typical for this program), or null',
+      '- notes: short neutral note (e.g. GRE, fee waiver) under 220 chars, or null',
+      '- portalUrl: official https application or graduate admissions portal URL, or null',
+      "",
+      "Ground answers in well-known public information; prefer official university domains for portalUrl.",
+      "Never invent a precise deadline or URL if uncertain — use null.",
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     const result = await runTask("school-intel", message, userId, {
-      schoolName: parsed.data.name.trim(),
-      term: parsed.data.term ?? null,
+      schoolName: contextName,
+      term: termHint ?? null,
+      ...(parsed.data.schoolId ? { schoolId: parsed.data.schoolId } : {}),
     });
 
     const raw = result.reply.trim();
-    let fields: unknown;
+    let fields: Record<string, unknown>;
     try {
-      fields = parseJsonFromLlmText(raw);
+      fields = parseJsonFromLlmText(raw) as Record<string, unknown>;
     } catch (e) {
       console.warn("[schools/infer] invalid JSON from model", {
         userId,
@@ -302,8 +373,37 @@ export const infer = withAuth(async (req, { userId }) => {
       throw e;
     }
 
+    const term = coerceInferTerm(fields.term);
+    const deadlineNorm = normalizeInferDeadline(fields.deadline);
+    const deadline = coerceSchoolInferDeadlineToFuture(deadlineNorm);
+    if (deadlineNorm && deadline && deadline !== deadlineNorm) {
+      log.info("schools/infer.deadline-advanced-to-future", {
+        userId,
+        from: deadlineNorm,
+        to: deadline,
+      });
+    }
+    if (deadlineNorm && !deadline) {
+      log.warn("schools/infer.deadline-dropped-invalid-or-stale", {
+        userId,
+        raw: deadlineNorm,
+      });
+    }
+    const portalUrl = normalizeInferPortalUrl(fields.portalUrl);
+
+    const out: Record<string, unknown> = {
+      program: typeof fields.program === "string" ? fields.program.trim() || null : null,
+      degree: typeof fields.degree === "string" ? fields.degree.trim() || null : null,
+      country: typeof fields.country === "string" ? fields.country.trim() || null : null,
+      term,
+      deadline,
+      funding: typeof fields.funding === "string" ? fields.funding.trim() || null : null,
+      notes: typeof fields.notes === "string" ? fields.notes.trim() || null : null,
+      portalUrl,
+    };
+
     await finalizeAiConsumptionForAction(userId, "school_infer");
-    return ok(fields as Record<string, unknown>);
+    return ok(out);
   } catch (e) {
     return bad(formatLlmFailureMessage(e), 500);
   }

@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { format, differenceInCalendarDays } from "date-fns";
+import { Loader2 } from "lucide-react";
 
 import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,10 @@ export interface SchoolGridCardProps {
   expanded: boolean;
   onToggleExpand: () => void;
   onDelete: () => void;
+  /** AI: suggest deadline, intake term, funding, notes, portal URL (PATCHes the school). */
+  onAiSuggestDetails?: () => void | Promise<void>;
+  /** True while `onAiSuggestDetails` is running. */
+  aiSuggestDetailsLoading?: boolean;
   /** Children render slot for the expanded edit form (lives below the card body). */
   children?: React.ReactNode;
 }
@@ -36,6 +41,8 @@ export function SchoolGridCard({
   expanded,
   onToggleExpand,
   onDelete,
+  onAiSuggestDetails,
+  aiSuggestDetailsLoading,
   children,
 }: SchoolGridCardProps) {
   const tag = STATUS_TAG[school.status];
@@ -47,8 +54,9 @@ export function SchoolGridCard({
 
   return (
     <div
+      id={`school-card-${school.id}`}
       className={cn(
-        "tactile-card group relative flex flex-col gap-4 rounded-2xl border border-[var(--outline-variant)] p-6",
+        "tactile-card group relative flex flex-col gap-4 scroll-mt-24 rounded-2xl border border-[var(--outline-variant)] p-6",
       )}
     >
       <div className="absolute right-4 top-4">
@@ -113,16 +121,36 @@ export function SchoolGridCard({
               <Icon name="open_in_new" size={18} />
             </a>
           ) : null}
-          <Link
-            href={`/assistant?mode=sop&schoolId=${school.id}`}
-            prefetch={false}
-            className="grid h-9 w-9 place-items-center rounded-lg text-[var(--outline)] transition-colors hover:bg-[var(--surface-container)] hover:text-[var(--primary)]"
-            aria-label="Open SOP studio"
-            title="Tailor SOP for this school"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Icon name="auto_awesome" fill size={18} />
-          </Link>
+          {onAiSuggestDetails ? (
+            <button
+              type="button"
+              disabled={aiSuggestDetailsLoading}
+              className="grid h-9 w-9 place-items-center rounded-lg text-[var(--outline)] transition-colors hover:bg-[var(--surface-container)] hover:text-[var(--primary)] disabled:pointer-events-none disabled:opacity-45"
+              aria-label="Suggest deadline, intake term, funding, notes, and application portal with AI"
+              title="Suggest details with AI"
+              onClick={(e) => {
+                e.stopPropagation();
+                void onAiSuggestDetails();
+              }}
+            >
+              {aiSuggestDetailsLoading ? (
+                <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden />
+              ) : (
+                <Icon name="auto_awesome" fill size={18} />
+              )}
+            </button>
+          ) : (
+            <Link
+              href={`/assistant?mode=sop&schoolId=${school.id}`}
+              prefetch={false}
+              className="grid h-9 w-9 place-items-center rounded-lg text-[var(--outline)] transition-colors hover:bg-[var(--surface-container)] hover:text-[var(--primary)]"
+              aria-label="Open SOP studio"
+              title="Tailor SOP for this school"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Icon name="auto_awesome" fill size={18} />
+            </Link>
+          )}
           <button
             type="button"
             className="grid h-9 w-9 place-items-center rounded-lg text-[var(--outline)] transition-colors hover:bg-[var(--error-container)] hover:text-[var(--error)]"

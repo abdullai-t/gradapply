@@ -26,7 +26,6 @@ enum AccountAccessMode {
 }
 
 enum BillingProvider {
-  STRIPE
   PAYSTACK
 }
 
@@ -35,12 +34,6 @@ enum BillingPaymentKind {
   CREDITS_PACK
   CV_DEEP_REVIEW
   SOP_DETAILED_CRITIQUE
-}
-
-/// Dedupe Stripe webhook deliveries (same event id must not apply twice).
-model StripeEventLog {
-  eventId   String   @id
-  createdAt DateTime @default(now())
 }
 
 /// Dedupe Paystack fulfillment (callback + webhook) per transaction reference.
@@ -77,57 +70,153 @@ model User {
   createdAt     DateTime  @default(now())
   role          UserRole  @default(USER)
 
-  /// Subscription & AI allowance. Enforced when Stripe and/or Paystack keys are set (see billing-config).
-  planTier             PlanTier @default(FREE)
-  stripeCustomerId     String?  @unique
-  stripeSubscriptionId String?
-  stripePriceId        String?
-  subscriptionStatus   String?
-  currentPeriodEnd     DateTime?
-  /// Paystack customer id (numeric string from API) and subscription code for renewals / portal.
-  paystackCustomerId       String? @unique
+  /// Subscription & AI allowance. Enforced when Paystack keys are set (see billing-config).
+  planTier                 PlanTier          @default(FREE)
+  subscriptionStatus       String?
+  currentPeriodEnd         DateTime?
+  /// Paystack customer id (numeric string from API) and subscription code for renewals.
+  paystackCustomerId       String?           @unique
   paystackSubscriptionCode String?
   /// Successful AI actions counted against monthly tier allowance this billing period.
-  aiUsageUsed          Int      @default(0)
+  aiUsageUsed              Int               @default(0)
   /// Bonus credits from one-time packs; consumed before monthly allowance.
-  aiCreditsBalance     Int      @default(0)
+  aiCreditsBalance         Int               @default(0)
   /// ISO month token (`YYYY-MM`) for monthly credit usage reset.
-  aiUsageMonth         String?
+  aiUsageMonth             String?
   /// Free-plan lifetime cold email generations consumed.
-  freeEmailGenUsed     Int      @default(0)
+  freeEmailGenUsed         Int               @default(0)
   /// Free-plan lifetime SOP previews consumed.
-  freeSopPreviewUsed   Int      @default(0)
+  freeSopPreviewUsed       Int               @default(0)
   /// Account access mode; expired subscriptions become READ_ONLY.
-  accessMode           AccountAccessMode @default(FULL)
+  accessMode               AccountAccessMode @default(FULL)
   /// Optional date the subscription most recently expired.
-  accessReadOnlySince  DateTime?
+  accessReadOnlySince      DateTime?
 
-  accounts      Account[]
-  sessions      Session[]
-  profile       Profile?
-  schools       School[]
-  emails        ProfEmail[]
-  chatMessages  ChatMessage[]
+  accounts        Account[]
+  sessions        Session[]
+  profile         Profile?
+  schools         School[]
+  emails          ProfEmail[]
+  chatMessages    ChatMessage[]
   documents       Document[]
   folders         Folder[]
   connectors      Connector[]
   contentVersions ContentVersion[]
   sopVariants     SopVariant[]
   billingPayments BillingPayment[]
+
+  /// LLM / grad-program workflow (OpenRouter orchestration).
+  userPrograms    UserProgram[]
+  generatedEmails GeneratedEmail[]
+  sopReviews      SopReview[]
+  llmCostLogs     LlmCostLog[]
+}
+
+model Program {
+  id            String    @id @default(cuid())
+  name          String
+  university    String
+  degree        String
+  funded        Boolean   @default(false)
+  researchAreas String[]
+  description   String?   @db.Text
+  deadline      DateTime?
+  country       String?
+  createdAt     DateTime  @default(now())
+
+  userPrograms    UserProgram[]
+  generatedEmails GeneratedEmail[]
+}
+
+model UserProgram {
+  id        String   @id @default(cuid())
+  userId    String
+  programId String
+  status    String   @default("shortlisted") // shortlisted | in_progress | submitted | accepted | rejected
+  notes     String?
+  fitScore  Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, programId])
+}
+
+model Professor {
+  id              String   @id @default(cuid())
+  name            String
+  university      String
+  department      String
+  researchSummary String?  @db.Text
+  publications    String[]
+  email           String?
+  createdAt       DateTime @default(now())
+
+  generatedEmails GeneratedEmail[]
+}
+
+model GeneratedEmail {
+  id          String   @id @default(cuid())
+  userId      String
+  professorId String
+  programId   String?
+  subject     String
+  body        String   @db.Text
+  wordCount   Int
+  overlaps    String[]
+  tone        String   @default("professional")
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  professor Professor @relation(fields: [professorId], references: [id], onDelete: Cascade)
+  program   Program?  @relation(fields: [programId], references: [id], onDelete: SetNull)
+}
+
+model SopReview {
+  id           String   @id @default(cuid())
+  userId       String
+  programId    String?
+  sopText      String   @db.Text
+  overallScore Int
+  relevance    Json
+  tone         Json
+  structure    Json
+  fit          Json
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LlmCostLog {
+  id         String   @id @default(cuid())
+  userId     String
+  feature    String
+  model      String
+  inputCost  Float
+  outputCost Float
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }
 
 model BillingPayment {
   id                String             @id @default(cuid())
-  userId             String
-  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  provider           BillingProvider
-  providerReference  String
-  kind               BillingPaymentKind
-  tier               PlanTier?
-  amountMinor        Int?
-  currency           String?
-  paidAt             DateTime
-  createdAt          DateTime           @default(now())
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          BillingProvider
+  providerReference String
+  kind              BillingPaymentKind
+  tier              PlanTier?
+  amountMinor       Int?
+  currency          String?
+  paidAt            DateTime
+  createdAt         DateTime           @default(now())
 
   @@unique([provider, providerReference])
   @@index([userId, paidAt])
@@ -142,19 +231,19 @@ enum ContentEntityType {
 
 /// Named snapshots for drafts (email text, SOP text, or file URL pointers).
 model ContentVersion {
-  id              String             @id @default(cuid())
+  id              String            @id @default(cuid())
   userId          String
-  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   entityType      ContentEntityType
   entityId        String?
   label           String
   /// Plain text, or JSON for PROF_EMAIL: {"emailSubject":"...","emailBody":"..."}
-  body            String?            @db.Text
+  body            String?           @db.Text
   fileUrl         String?
-  createdAt       DateTime           @default(now())
+  createdAt       DateTime          @default(now())
   parentVersionId String?
-  parentVersion   ContentVersion?    @relation("ContentVersionChain", fields: [parentVersionId], references: [id], onDelete: SetNull)
-  childVersions   ContentVersion[]   @relation("ContentVersionChain")
+  parentVersion   ContentVersion?   @relation("ContentVersionChain", fields: [parentVersionId], references: [id], onDelete: SetNull)
+  childVersions   ContentVersion[]  @relation("ContentVersionChain")
 
   @@index([userId, entityType, entityId])
 }
@@ -218,46 +307,46 @@ model VerificationToken {
 }
 
 model Profile {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  targetDegree      String?
-  focusArea         String?
-  greScore          String?
-  greVerbal         Int?
-  greQuant          Int?
-  greAWA            Float?
-  undergradSchool   String?
-  undergradDegree   String?
-  undergradGPA      Float?
-  yearsExperience   String?
-  researchInterests String?
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetDegree        String?
+  focusArea           String?
+  greScore            String?
+  greVerbal           Int?
+  greQuant            Int?
+  greAWA              Float?
+  undergradSchool     String?
+  undergradDegree     String?
+  undergradGPA        Float?
+  yearsExperience     String?
+  researchInterests   String?
   countriesOfInterest String[] @default([])
-  bio               String?
-  updatedAt         DateTime @updatedAt
+  bio                 String?
+  updatedAt           DateTime @updatedAt
 }
 
 model School {
-  id        String         @id @default(cuid())
-  userId    String
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String
-  program   String
-  degree    String
-  country   String?
+  id           String         @id @default(cuid())
+  userId       String
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  program      String
+  degree       String
+  country      String?
   /// Intake term (e.g. Fall 2026)
-  term      AdmissionTerm?
-  deadline  DateTime?
-  status    SchoolStatus   @default(PLANNING)
-  funding   String?
-  notes     String?
-  portalUrl String?
-  progress  Int            @default(0)
+  term         AdmissionTerm?
+  deadline     DateTime?
+  status       SchoolStatus   @default(PLANNING)
+  funding      String?
+  notes        String?
+  portalUrl    String?
+  progress     Int            @default(0)
   /// Optional nudge before/on the application deadline (email-style reminder in data model only).
   reminderAt   DateTime?
   reminderNote String?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
   sopVariant   SopVariant?
   chatMessages ChatMessage[]
 
@@ -283,31 +372,33 @@ enum AdmissionTerm {
 }
 
 model ProfEmail {
-  id            String      @id @default(cuid())
-  userId        String
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  String       @id @default(cuid())
+  userId              String
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Filled by AI from the profile URL when possible; user can edit.
-  profName      String?
-  profEmail     String?
-  university    String?
+  profName            String?
+  profEmail           String?
+  university          String?
   /// Faculty profile / lab / directory page — primary input for AI extraction + drafting
-  profileUrl    String?
-  researchArea  String?
-  emailSubject  String?
-  emailBody     String?
-  status        EmailStatus @default(DRAFT)
-  sentAt       DateTime?
-  repliedAt    DateTime?
+  profileUrl          String?
+  /// Cached output of POST /prof-emails/:id/audit — { latestResearch, sourceUrl, auditedAt }
+  researchAudit       Json?
+  researchArea        String?
+  emailSubject        String?
+  emailBody           String?
+  status              EmailStatus  @default(DRAFT)
+  sentAt              DateTime?
+  repliedAt           DateTime?
   /// Latest pasted or synced excerpt of the professor's reply (replaces legacy replySnippet).
-  lastReplySnippet String?
-  replyIntent               ReplyIntent?
-  suggestedReplyDraft       String?    @db.Text
-  replyRationale            String?    @db.Text
-  lastClassifiedAt DateTime?
-  followUpCount Int         @default(0)
-  notes         String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  lastReplySnippet    String?
+  replyIntent         ReplyIntent?
+  suggestedReplyDraft String?      @db.Text
+  replyRationale      String?      @db.Text
+  lastClassifiedAt    DateTime?
+  followUpCount       Int          @default(0)
+  notes               String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 
   @@index([userId, updatedAt])
   @@index([userId, status, updatedAt])

@@ -81,15 +81,9 @@ if [ -n "$STAGED_FILES" ]; then
       SECRETS_FOUND=1
     fi
 
-    # Stripe secret key
-    if echo "$CONTENT" | grep -qE 'sk_live_[A-Za-z0-9]{20,}'; then
-      echo "SECRET DETECTED in $FILE: Stripe live secret key"
-      SECRETS_FOUND=1
-    fi
-
-    # Paystack secret key
+    # Paystack secret key (sk_test_ / sk_live_)
     if echo "$CONTENT" | grep -qE 'sk_test_[A-Za-z0-9]{20,}|sk_live_[A-Za-z0-9]{20,}'; then
-      echo "SECRET DETECTED in $FILE: Paystack/Stripe secret key"
+      echo "SECRET DETECTED in $FILE: Paystack secret key"
       SECRETS_FOUND=1
     fi
   done

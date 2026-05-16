@@ -12,15 +12,6 @@ const settingsCache = new Map<string, { value: string; expiresAt: number }>();
 const CACHE_TTL_MS = 20_000;
 
 export const BILLING_SETTING_KEYS = {
-  stripeSecretKey: "billing.stripeSecretKey",
-  stripeWebhookSecret: "billing.stripeWebhookSecret",
-  stripePricePlus: "billing.stripePricePlus",
-  stripePricePro: "billing.stripePricePro",
-  stripePriceProRenewal: "billing.stripePriceProRenewal",
-  stripePricePlusRenewal: "billing.stripePricePlusRenewal",
-  stripePriceCreditsPack: "billing.stripePriceCreditsPack",
-  stripePriceCvDeepReview: "billing.stripePriceCvDeepReview",
-  stripePriceSopDetailedCritique: "billing.stripePriceSopDetailedCritique",
   paystackSecretKey: "billing.paystackSecretKey",
   paystackCurrency: "billing.paystackCurrency",
   paystackPlanCodePlus: "billing.paystackPlanCodePlus",

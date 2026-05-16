@@ -201,10 +201,10 @@ export default function ProfilePage() {
             )}
             <div className="mt-4 flex flex-wrap gap-2">
               {form.undergradSchool ? (
-                <ProfileChip icon="school" label={form.undergradSchool} />
+                <ProfileChip icon="domain" label={form.undergradSchool} />
               ) : null}
               {form.undergradDegree ? (
-                <ProfileChip icon="account_balance" label={form.undergradDegree} />
+                <ProfileChip icon="menu_book" label={form.undergradDegree} />
               ) : null}
               {form.yearsExperience ? (
                 <ProfileChip icon="work" label={form.yearsExperience} />

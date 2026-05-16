@@ -8,8 +8,6 @@ import { Input } from "@/components/ui/input";
 
 type ConfigResponse = {
   settings: {
-    stripeSecretKeySet: boolean;
-    stripeWebhookSecretSet: boolean;
     paystackSecretKeySet: boolean;
     paystackCurrency: string;
   };
@@ -39,13 +37,9 @@ export function AdminSettingsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const [stripeSecretKey, setStripeSecretKey] = useState("");
-  const [stripeWebhookSecret, setStripeWebhookSecret] = useState("");
   const [paystackSecretKey, setPaystackSecretKey] = useState("");
   const [paystackCurrency, setPaystackCurrency] = useState("GHS");
 
-  const [stripeSecretSet, setStripeSecretSet] = useState(false);
-  const [stripeWebhookSet, setStripeWebhookSet] = useState(false);
   const [paystackSecretSet, setPaystackSecretSet] = useState(false);
 
   const load = useCallback(async () => {
@@ -64,8 +58,6 @@ export function AdminSettingsPanel() {
       setLoading(false);
       return;
     }
-    setStripeSecretSet(json.settings.stripeSecretKeySet);
-    setStripeWebhookSet(json.settings.stripeWebhookSecretSet);
     setPaystackSecretSet(json.settings.paystackSecretKeySet);
     setPaystackCurrency(json.settings.paystackCurrency);
     setLoading(false);
@@ -80,8 +72,6 @@ export function AdminSettingsPanel() {
     setError(null);
     setMessage(null);
     const payload: Record<string, string> = {};
-    if (stripeSecretKey.trim()) payload.stripeSecretKey = stripeSecretKey.trim();
-    if (stripeWebhookSecret.trim()) payload.stripeWebhookSecret = stripeWebhookSecret.trim();
     if (paystackSecretKey.trim()) payload.paystackSecretKey = paystackSecretKey.trim();
     if (paystackCurrency.trim()) payload.paystackCurrency = paystackCurrency.trim().toUpperCase();
 
@@ -98,8 +88,6 @@ export function AdminSettingsPanel() {
       setSaving(false);
       return;
     }
-    setStripeSecretKey("");
-    setStripeWebhookSecret("");
     setPaystackSecretKey("");
     setMessage(json?.changed ? "Settings saved." : "No changes.");
     await load();
@@ -120,70 +108,38 @@ export function AdminSettingsPanel() {
       <div className="glass-panel p-5">
         <h1 className="font-display text-3xl font-semibold tracking-tight">Platform settings</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Manage provider API keys and core billing runtime settings.
+          Manage Paystack API keys and billing currency.
         </p>
         {error ? <p className="mt-3 text-sm text-amber-200">{error}</p> : null}
         {message ? <p className="mt-3 text-sm text-emerald-200">{message}</p> : null}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="glass-panel space-y-4 p-5">
-          <h2 className="font-display text-xl font-semibold">Stripe</h2>
-          <p className="text-sm text-muted-foreground">
-            Keys for Stripe checkout, subscriptions, and webhook verification.
-          </p>
-          <div className="space-y-2">
-            <label className="text-xs uppercase tracking-wider text-muted-foreground">
-              Stripe secret key {stripeSecretSet ? "(stored)" : "(not set)"}
-            </label>
-            <Input
-              value={stripeSecretKey}
-              onChange={(e) => setStripeSecretKey(e.target.value)}
-              placeholder={stripeSecretSet ? "******** (stored, enter to replace)" : "sk_live_..."}
-              type="password"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs uppercase tracking-wider text-muted-foreground">
-              Stripe webhook secret {stripeWebhookSet ? "(stored)" : "(not set)"}
-            </label>
-            <Input
-              value={stripeWebhookSecret}
-              onChange={(e) => setStripeWebhookSecret(e.target.value)}
-              placeholder={stripeWebhookSet ? "******** (stored, enter to replace)" : "whsec_..."}
-              type="password"
-            />
-          </div>
+      <div className="glass-panel space-y-4 p-5">
+        <h2 className="font-display text-xl font-semibold">Paystack</h2>
+        <p className="text-sm text-muted-foreground">
+          Secret key and currency used for checkout and webhooks.
+        </p>
+        <div className="space-y-2">
+          <label className="text-xs uppercase tracking-wider text-muted-foreground">
+            Paystack secret key {paystackSecretSet ? "(stored)" : "(not set)"}
+          </label>
+          <Input
+            value={paystackSecretKey}
+            onChange={(e) => setPaystackSecretKey(e.target.value)}
+            placeholder={paystackSecretSet ? "******** (stored, enter to replace)" : "sk_test_..."}
+            type="password"
+          />
         </div>
 
-        <div className="glass-panel space-y-4 p-5">
-          <h2 className="font-display text-xl font-semibold">Paystack</h2>
-          <p className="text-sm text-muted-foreground">
-            Keys and billing currency used for Paystack subscriptions and credits.
-          </p>
-          <div className="space-y-2">
-            <label className="text-xs uppercase tracking-wider text-muted-foreground">
-              Paystack secret key {paystackSecretSet ? "(stored)" : "(not set)"}
-            </label>
-            <Input
-              value={paystackSecretKey}
-              onChange={(e) => setPaystackSecretKey(e.target.value)}
-              placeholder={paystackSecretSet ? "******** (stored, enter to replace)" : "sk_test_..."}
-              type="password"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs uppercase tracking-wider text-muted-foreground">
-              Paystack currency
-            </label>
-            <Input
-              value={paystackCurrency}
-              onChange={(e) => setPaystackCurrency(e.target.value)}
-              placeholder="GHS"
-            />
-          </div>
+        <div className="space-y-2">
+          <label className="text-xs uppercase tracking-wider text-muted-foreground">
+            Paystack currency
+          </label>
+          <Input
+            value={paystackCurrency}
+            onChange={(e) => setPaystackCurrency(e.target.value)}
+            placeholder="GHS"
+          />
         </div>
       </div>
 

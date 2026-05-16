@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { RevealOnScroll } from "./reveal-on-scroll";
 import { WorkspaceShowcase } from "./workspace-showcase";
 
-/** Illustrative USD amounts when Stripe/Paystack checkout is enabled; exact
+/** Illustrative GHS amounts when Paystack checkout is enabled; exact
  * totals at checkout. Real prices are admin-configured in `BillingAdminConfig`. */
 export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
   const [

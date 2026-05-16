@@ -10,17 +10,8 @@ export const updateUserSchema = z.object({
 });
 
 export const updateConfigSchema = z.object({
-  stripeSecretKey: z.string().trim().min(1).optional(),
-  stripeWebhookSecret: z.string().trim().min(1).optional(),
   paystackSecretKey: z.string().trim().min(1).optional(),
   paystackCurrency: z.string().trim().min(3).max(10).optional(),
-  stripePricePlus: z.string().trim().min(1).optional(),
-  stripePricePro: z.string().trim().min(1).optional(),
-  stripePriceProRenewal: z.string().trim().min(1).optional(),
-  stripePricePlusRenewal: z.string().trim().min(1).optional(),
-  stripePriceCreditsPack: z.string().trim().min(1).optional(),
-  stripePriceCvDeepReview: z.string().trim().min(1).optional(),
-  stripePriceSopDetailedCritique: z.string().trim().min(1).optional(),
   paystackPlanCodePlus: z.string().trim().min(1).optional(),
   paystackPlanCodePro: z.string().trim().min(1).optional(),
   paystackPlanCodeProRenewal: z.string().trim().min(1).optional(),

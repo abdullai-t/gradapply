@@ -4,6 +4,7 @@ export const chatModeSchema = z.enum([
   "sop",
   "email",
   "feedback",
+  "grammar",
 ]);
 
 export const sendMessageSchema = z.object({

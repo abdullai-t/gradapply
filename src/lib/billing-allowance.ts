@@ -28,7 +28,7 @@ export class AiBudgetExceededError extends Error {
 
 /**
  * Throws {@link AiBudgetExceededError} when the user has no credits and no monthly allowance left.
- * No-op when Stripe billing is not configured.
+ * No-op when Paystack billing is not configured.
  */
 export async function assertAiBudgetWithinLimit(userId: string): Promise<void> {
   await assertAiBudgetWithinLimitForAction(userId, "generic");
@@ -79,7 +79,7 @@ export async function assertAiBudgetWithinLimitForAction(
   action: AiActionCostKey,
 ): Promise<void> {
   const cfg = await getBillingAdminConfig();
-  if (!cfg.stripeSecretKey && !cfg.paystackSecretKey) return;
+  if (!cfg.paystackSecretKey) return;
   await maybeResetMonthlyUsage(userId);
 
   const user = await prisma.user.findUnique({
@@ -114,7 +114,7 @@ export async function finalizeAiConsumptionForAction(
   action: AiActionCostKey,
 ): Promise<void> {
   const cfg = await getBillingAdminConfig();
-  if (!cfg.stripeSecretKey && !cfg.paystackSecretKey) return;
+  if (!cfg.paystackSecretKey) return;
   const token = monthToken();
   const cost = resolveCost(action);
 

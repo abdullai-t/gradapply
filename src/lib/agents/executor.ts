@@ -173,7 +173,7 @@ export async function executeAgentChain(
         type: "result",
         text: output.intermediateResult ?? "An error occurred during handoff.",
         agentId: currentAgent.id,
-        modelUsed: { provider: "anthropic", model: "" },
+        modelUsed: { provider: "openrouter", model: "" },
       };
     }
 
@@ -190,7 +190,7 @@ export async function executeAgentChain(
     type: "result",
     text: "Maximum handoff depth reached.",
     agentId: agent.id,
-    modelUsed: { provider: "anthropic", model: "" },
+    modelUsed: { provider: "openrouter", model: "" },
   };
 }
 

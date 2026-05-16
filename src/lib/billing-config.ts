@@ -1,16 +1,12 @@
 import type { PlanTier } from "@prisma/client";
 
-export function stripeEnabled(): boolean {
-  return Boolean(process.env.STRIPE_SECRET_KEY?.trim());
-}
-
 export function paystackEnabled(): boolean {
   return Boolean(process.env.PAYSTACK_SECRET_KEY?.trim());
 }
 
-/** AI quotas apply when either provider is configured. */
+/** AI quotas apply when Paystack billing is configured. */
 export function billingEnabled(): boolean {
-  return stripeEnabled() || paystackEnabled();
+  return paystackEnabled();
 }
 
 function envNum(key: string, fallback: number): number {
@@ -33,11 +29,11 @@ export function monthlyAiAllowanceForTier(tier: PlanTier): number {
   }
 }
 
-/** Credits added when a credit-pack checkout succeeds (Stripe or Paystack). */
+/** Credits added when a credit-pack checkout succeeds (Paystack). */
 export function creditsPackSize(): number {
   return envNum(
     "CREDITS_PACK_SIZE",
-    envNum("STRIPE_CREDITS_PACK_SIZE", envNum("PAYSTACK_CREDITS_PACK_SIZE", 50)),
+    envNum("PAYSTACK_CREDITS_PACK_SIZE", 50),
   );
 }
 
@@ -80,24 +76,6 @@ export function tierForPaystackPlanCode(
   return null;
 }
 
-export function stripeCheckoutConfigured(): boolean {
-  return (
-    Boolean(stripePricePlus()) &&
-    Boolean(stripePricePro()) &&
-    Boolean(stripePriceCreditsPack())
-  );
-}
-
-/** Whether Stripe can start checkout for this product (secret key + price ID). */
-export function stripeCheckoutReadyForTier(
-  tier: "plus" | "pro" | "credits",
-): boolean {
-  if (!stripeEnabled()) return false;
-  if (tier === "credits") return Boolean(stripePriceCreditsPack());
-  if (tier === "plus") return Boolean(stripePricePlus());
-  return Boolean(stripePricePro());
-}
-
 /** Whether Paystack can start checkout for this product (secret key + plan code / amount). */
 export function paystackCheckoutReadyForTier(
   tier: "plus" | "pro" | "credits",
@@ -111,27 +89,5 @@ export function paystackCheckoutReadyForTier(
 export function checkoutReadyForTier(
   tier: "plus" | "pro" | "credits",
 ): boolean {
-  return (
-    stripeCheckoutReadyForTier(tier) || paystackCheckoutReadyForTier(tier)
-  );
-}
-
-export function stripePricePlus(): string | undefined {
-  return process.env.STRIPE_PRICE_PLUS_MONTHLY?.trim();
-}
-
-export function stripePricePro(): string | undefined {
-  return process.env.STRIPE_PRICE_PRO_MONTHLY?.trim();
-}
-
-export function stripePriceCreditsPack(): string | undefined {
-  return process.env.STRIPE_PRICE_CREDITS_PACK?.trim();
-}
-
-export function tierForStripePriceId(priceId: string): PlanTier | null {
-  const plus = stripePricePlus();
-  const pro = stripePricePro();
-  if (plus && priceId === plus) return "PLUS";
-  if (pro && priceId === pro) return "PRO";
-  return null;
+  return paystackCheckoutReadyForTier(tier);
 }

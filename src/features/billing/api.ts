@@ -14,7 +14,6 @@ export const billingKeys = {
 export type BillingStatus = {
   billingEnabled: boolean;
   checkoutConfigured: boolean;
-  stripeEnabled: boolean;
   paystackEnabled: boolean;
   canCheckoutPlus: boolean;
   canCheckoutPro: boolean;
@@ -40,7 +39,6 @@ export type BillingStatus = {
   displayPricePlusRenewalGhs: number;
   subscriptionStatus: string | null;
   currentPeriodEnd: string | null;
-  hasStripeCustomer: boolean;
   hasSubscription: boolean;
   hasPaystackCustomer: boolean;
 };
@@ -60,7 +58,6 @@ export function useBillingStatus() {
     queryKey: billingKeys.status(),
     queryFn: async () =>
       jsonOrThrow<BillingStatus>(await fetch("/api/billing/status")),
-    // Billing state changes after redirects from Stripe — keep it fresh.
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
@@ -99,14 +96,5 @@ export function useCheckout() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: billingKeys.all });
     },
-  });
-}
-
-export function useOpenPortal() {
-  return useMutation({
-    mutationFn: async () =>
-      jsonOrThrow<{ url: string }>(
-        await fetch("/api/billing/portal", { method: "POST" }),
-      ),
   });
 }

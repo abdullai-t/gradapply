@@ -49,12 +49,7 @@ export const overview = withAdmin(async (_req, { role: actorRole }) => {
     prisma.user.count({ where: { role: "ADMIN" } }),
     prisma.user.count({ where: { role: "SUPERADMIN" } }),
     prisma.user.count({
-      where: {
-        OR: [
-          { stripeCustomerId: { not: null } },
-          { paystackCustomerId: { not: null } },
-        ],
-      },
+      where: { paystackCustomerId: { not: null } },
     }),
     prisma.user.count({
       where: {
@@ -165,7 +160,6 @@ export const listUsers = withAdmin(async (req, { role: actorRole }) => {
         role: true,
         planTier: true,
         subscriptionStatus: true,
-        stripeCustomerId: true,
         paystackCustomerId: true,
         aiUsageUsed: true,
         aiCreditsBalance: true,
@@ -184,7 +178,6 @@ export const listUsers = withAdmin(async (req, { role: actorRole }) => {
       users: rows.map((u) => ({
         ...u,
         createdAt: u.createdAt.toISOString(),
-        hasStripeCustomer: Boolean(u.stripeCustomerId),
         hasPaystackCustomer: Boolean(u.paystackCustomerId),
       })),
     },
@@ -258,7 +251,6 @@ export const updateUser = withAdmin<{ id: string }>(
         subscriptionStatus: true,
         aiUsageUsed: true,
         aiCreditsBalance: true,
-        stripeCustomerId: true,
         paystackCustomerId: true,
         createdAt: true,
       },
@@ -277,7 +269,6 @@ export const updateUser = withAdmin<{ id: string }>(
         aiUsageUsed: user.aiUsageUsed,
         aiCreditsBalance: user.aiCreditsBalance,
         createdAt: user.createdAt.toISOString(),
-        hasStripeCustomer: Boolean(user.stripeCustomerId),
         hasPaystackCustomer: Boolean(user.paystackCustomerId),
       },
     });
@@ -312,32 +303,18 @@ export const deleteUser = withAdmin<{ id: string }>(
 
 export const getConfig = withAdmin(async (_req, { role: actorRole }) => {
   const cfg = await getBillingAdminConfig();
-  const [stripeSecretKeyRaw, stripeWebhookSecretRaw, paystackSecretKeyRaw] =
-    await Promise.all([
-      getAppSettingValue(BILLING_SETTING_KEYS.stripeSecretKey),
-      getAppSettingValue(BILLING_SETTING_KEYS.stripeWebhookSecret),
-      getAppSettingValue(BILLING_SETTING_KEYS.paystackSecretKey),
-    ]);
+  const paystackSecretKeyRaw = await getAppSettingValue(
+    BILLING_SETTING_KEYS.paystackSecretKey,
+  );
 
   return NextResponse.json(
     {
       actorRole,
       settings: {
-        stripeSecretKeySet: Boolean(stripeSecretKeyRaw || cfg.stripeSecretKey),
-        stripeWebhookSecretSet: Boolean(
-          stripeWebhookSecretRaw || cfg.stripeWebhookSecret,
-        ),
         paystackSecretKeySet: Boolean(
           paystackSecretKeyRaw || cfg.paystackSecretKey,
         ),
         paystackCurrency: cfg.paystackCurrency,
-        stripePricePlus: cfg.stripePricePlus ?? "",
-        stripePricePro: cfg.stripePricePro ?? "",
-        stripePriceProRenewal: cfg.stripePriceProRenewal ?? "",
-        stripePricePlusRenewal: cfg.stripePricePlusRenewal ?? "",
-        stripePriceCreditsPack: cfg.stripePriceCreditsPack ?? "",
-        stripePriceCvDeepReview: cfg.stripePriceCvDeepReview ?? "",
-        stripePriceSopDetailedCritique: cfg.stripePriceSopDetailedCritique ?? "",
         paystackPlanCodePlus: cfg.paystackPlanCodePlus ?? "",
         paystackPlanCodePro: cfg.paystackPlanCodePro ?? "",
         paystackPlanCodeProRenewal: cfg.paystackPlanCodeProRenewal ?? "",
@@ -379,14 +356,6 @@ export const patchConfig = withAdmin(async (req) => {
     ops.push(setAppSettingValue({ key, value, secret }));
   };
 
-  if (updates.stripeSecretKey)
-    put(BILLING_SETTING_KEYS.stripeSecretKey, updates.stripeSecretKey, true);
-  if (updates.stripeWebhookSecret)
-    put(
-      BILLING_SETTING_KEYS.stripeWebhookSecret,
-      updates.stripeWebhookSecret,
-      true,
-    );
   if (updates.paystackSecretKey)
     put(
       BILLING_SETTING_KEYS.paystackSecretKey,
@@ -397,32 +366,6 @@ export const patchConfig = withAdmin(async (req) => {
     put(
       BILLING_SETTING_KEYS.paystackCurrency,
       updates.paystackCurrency.toUpperCase(),
-    );
-  if (updates.stripePricePlus)
-    put(BILLING_SETTING_KEYS.stripePricePlus, updates.stripePricePlus);
-  if (updates.stripePricePro)
-    put(BILLING_SETTING_KEYS.stripePricePro, updates.stripePricePro);
-  if (updates.stripePriceProRenewal)
-    put(BILLING_SETTING_KEYS.stripePriceProRenewal, updates.stripePriceProRenewal);
-  if (updates.stripePricePlusRenewal)
-    put(
-      BILLING_SETTING_KEYS.stripePricePlusRenewal,
-      updates.stripePricePlusRenewal,
-    );
-  if (updates.stripePriceCreditsPack)
-    put(
-      BILLING_SETTING_KEYS.stripePriceCreditsPack,
-      updates.stripePriceCreditsPack,
-    );
-  if (updates.stripePriceCvDeepReview)
-    put(
-      BILLING_SETTING_KEYS.stripePriceCvDeepReview,
-      updates.stripePriceCvDeepReview,
-    );
-  if (updates.stripePriceSopDetailedCritique)
-    put(
-      BILLING_SETTING_KEYS.stripePriceSopDetailedCritique,
-      updates.stripePriceSopDetailedCritique,
     );
   if (updates.paystackPlanCodePlus)
     put(

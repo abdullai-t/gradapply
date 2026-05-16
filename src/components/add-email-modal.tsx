@@ -213,7 +213,7 @@ export function AddEmailModal({ open, onClose, editing, onSaved }: Props) {
             <button
               type="button"
               disabled={generating}
-              title="Uses your configured LLM (OpenRouter or Anthropic)"
+              title="Uses your configured LLM (OpenRouter or Groq)"
               className="text-xs font-medium text-violet-700 hover:underline disabled:opacity-50 dark:text-violet-400"
               onClick={() => void generateWithAI()}
             >

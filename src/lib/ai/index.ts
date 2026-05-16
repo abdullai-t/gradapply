@@ -2,16 +2,7 @@ export {
   aiGenerate,
   aiGenerateWithFallback,
   aiExtract,
-  aiGatewayBaseUrl,
   cachedAiGenerate,
-  gatewayChatCompletion,
-  gatewayChatCompletionStream,
-  isAiGatewayByok,
-  isAiGatewayEnabled,
-  toGatewayModel,
-  AGENT_MODEL_FEATURE,
-  MODELS,
-  type FeatureKey,
-  type GatewayChatMessage,
-} from "./gateway";
+} from "./generate";
+export { MODELS, AGENT_MODEL_FEATURE, type FeatureKey } from "./models";
 export { cacheGet, cacheSet, stableKey } from "./cache";

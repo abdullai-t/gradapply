@@ -1,6 +1,8 @@
 import { AdmissionTerm, SchoolStatus } from "@prisma/client";
 import { z } from "zod";
 
+import { zPrismaRecordId } from "@/lib/prisma-record-id-zod";
+
 export const createSchoolSchema = z.object({
   name: z.string().min(1),
   program: z.string().min(1),
@@ -31,7 +33,13 @@ export const updateSchoolSchema = z.object({
   portalUrl: z.string().nullable().optional(),
 });
 
-export const inferSchoolSchema = z.object({
-  name: z.string().min(1).max(500),
-  term: z.nativeEnum(AdmissionTerm).nullable().optional(),
-});
+export const inferSchoolSchema = z
+  .object({
+    name: z.string().min(1).max(500).optional(),
+    schoolId: zPrismaRecordId.optional(),
+    term: z.nativeEnum(AdmissionTerm).nullable().optional(),
+  })
+  .refine((d) => Boolean(d.name?.trim()) || Boolean(d.schoolId), {
+    message: "Provide name or schoolId.",
+    path: ["name"],
+  });

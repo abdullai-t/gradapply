@@ -35,7 +35,6 @@ type AdminUserRow = {
   aiUsageUsed: number;
   aiCreditsBalance: number;
   createdAt: string;
-  hasStripeCustomer: boolean;
   hasPaystackCustomer: boolean;
 };
 
@@ -254,8 +253,7 @@ export function AdminUsersPanel() {
                       <td className="px-3 py-2">{u.aiUsageUsed}</td>
                       <td className="px-3 py-2">{u.aiCreditsBalance}</td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">
-                        <div>Stripe: {u.hasStripeCustomer ? "yes" : "no"}</div>
-                        <div>Paystack: {u.hasPaystackCustomer ? "yes" : "no"}</div>
+                        Paystack customer: {u.hasPaystackCustomer ? "yes" : "no"}
                       </td>
                       <td className="px-3 py-2">
                         <Button size="sm" variant="outline" onClick={() => openEdit(u)}>

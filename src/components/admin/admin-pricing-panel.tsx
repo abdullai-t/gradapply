@@ -9,9 +9,6 @@ import { Label } from "@/components/ui/label";
 
 type ConfigResponse = {
   settings: {
-    stripePricePlus: string;
-    stripePricePro: string;
-    stripePriceCreditsPack: string;
     paystackPlanCodePlus: string;
     paystackPlanCodePro: string;
     paystackAmountCreditsMinor: number;
@@ -82,9 +79,6 @@ export function AdminPricingPanel() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const [stripePricePlus, setStripePricePlus] = useState("");
-  const [stripePricePro, setStripePricePro] = useState("");
-  const [stripePriceCreditsPack, setStripePriceCreditsPack] = useState("");
   const [paystackPlanCodePlus, setPaystackPlanCodePlus] = useState("");
   const [paystackPlanCodePro, setPaystackPlanCodePro] = useState("");
   const [paystackAmountCreditsMinor, setPaystackAmountCreditsMinor] = useState("5000");
@@ -113,9 +107,6 @@ export function AdminPricingPanel() {
       setLoading(false);
       return;
     }
-    setStripePricePlus(json.settings.stripePricePlus);
-    setStripePricePro(json.settings.stripePricePro);
-    setStripePriceCreditsPack(json.settings.stripePriceCreditsPack);
     setPaystackPlanCodePlus(json.settings.paystackPlanCodePlus);
     setPaystackPlanCodePro(json.settings.paystackPlanCodePro);
     setPaystackAmountCreditsMinor(String(json.settings.paystackAmountCreditsMinor));
@@ -150,11 +141,6 @@ export function AdminPricingPanel() {
       freeSignupCredits: Number(freeSignupCredits || "0"),
       freeMonthlyCreditsGrant: Number(freeMonthlyCreditsGrant || "0"),
     };
-    if (stripePricePlus.trim()) payload.stripePricePlus = stripePricePlus.trim();
-    if (stripePricePro.trim()) payload.stripePricePro = stripePricePro.trim();
-    if (stripePriceCreditsPack.trim()) {
-      payload.stripePriceCreditsPack = stripePriceCreditsPack.trim();
-    }
     if (paystackPlanCodePlus.trim()) {
       payload.paystackPlanCodePlus = paystackPlanCodePlus.trim();
     }
@@ -194,45 +180,49 @@ export function AdminPricingPanel() {
       <div className="glass-panel p-5">
         <h1 className="font-display text-3xl font-semibold tracking-tight">Pricing & billing</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Configure plan prices, Paystack plans, allowances, and credits pack size.
+          Configure Paystack plan codes, checkout amounts, displayed prices, and allowances.
         </p>
         {error ? <p className="mt-3 text-sm text-amber-200">{error}</p> : null}
         {message ? <p className="mt-3 text-sm text-emerald-200">{message}</p> : null}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="glass-panel space-y-4 p-5">
-          <h2 className="font-display text-xl font-semibold">Stripe</h2>
-          <p className="text-sm text-muted-foreground">
-            Configure Stripe price IDs used for Plus, Pro, and credits checkout.
-          </p>
-          <div className="space-y-3">
+      <div className="glass-panel space-y-4 p-5">
+        <h2 className="font-display text-xl font-semibold">Paystack</h2>
+        <p className="text-sm text-muted-foreground">
+          Plan codes match recurring subscriptions from Paystack (used for renewals and
+          webhook fulfillment). One-time plan checkout uses display prices below.
+        </p>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="plan-plus">Plus plan code</Label>
             <Input
-              value={stripePricePlus}
-              onChange={(e) => setStripePricePlus(e.target.value)}
-              placeholder="Stripe Plus price id"
+              id="plan-plus"
+              value={paystackPlanCodePlus}
+              onChange={(e) => setPaystackPlanCodePlus(e.target.value)}
+              placeholder="PLN_..."
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="plan-pro">Pro plan code</Label>
             <Input
-              value={stripePricePro}
-              onChange={(e) => setStripePricePro(e.target.value)}
-              placeholder="Stripe Pro price id"
-            />
-            <Input
-              value={stripePriceCreditsPack}
-              onChange={(e) => setStripePriceCreditsPack(e.target.value)}
-              placeholder="Stripe credits pack price id"
+              id="plan-pro"
+              value={paystackPlanCodePro}
+              onChange={(e) => setPaystackPlanCodePro(e.target.value)}
+              placeholder="PLN_..."
             />
           </div>
         </div>
-
-        <div className="glass-panel space-y-4 p-5">
-          <h2 className="font-display text-xl font-semibold">Paystack (legacy)</h2>
-          <p className="text-sm text-muted-foreground">
-            These legacy fields are no longer used by the current checkout flow.
-          </p>
-          <p className="rounded-lg border border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-3 py-2 text-xs text-[var(--on-surface-variant)]">
-            Plan and credit payments are now initialized directly using configured
-            display prices and credit unit price.
+        <div className="space-y-2">
+          <Label htmlFor="credits-minor">Credits reference amount (minor units)</Label>
+          <Input
+            id="credits-minor"
+            value={paystackAmountCreditsMinor}
+            onChange={(e) => setPaystackAmountCreditsMinor(e.target.value)}
+            placeholder="5000"
+          />
+          <p className="text-xs text-muted-foreground">
+            Legacy field; per-credit checkout uses the credit unit price and pack size from
+            server config.
           </p>
         </div>
       </div>

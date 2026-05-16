@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Icon } from "@/components/icon";
+import { messageFromApiErrorPayload } from "@/lib/api-error-json";
 
 type Props = {
   value: string;
@@ -20,11 +21,13 @@ export function AIEnhanceTextarea({
   enhancePrompt,
 }: Props) {
   const [enhancing, setEnhancing] = useState(false);
+  const [enhanceError, setEnhanceError] = useState<string | null>(null);
 
   const handleEnhance = async () => {
     if (!value.trim() || enhancing) return;
 
     setEnhancing(true);
+    setEnhanceError(null);
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -35,11 +38,16 @@ export function AIEnhanceTextarea({
         }),
       });
 
+      const data = (await response.json().catch(() => ({}))) as {
+        reply?: string;
+        error?: unknown;
+      };
+
       if (!response.ok) {
-        throw new Error("Failed to enhance text");
+        setEnhanceError(messageFromApiErrorPayload(data));
+        return;
       }
 
-      const data = (await response.json()) as { reply?: string };
       if (data.reply) {
         // Clean up the response in case the AI still adds labels
         let enhanced = data.reply;
@@ -51,9 +59,14 @@ export function AIEnhanceTextarea({
         enhanced = enhanced.trim();
 
         onChange(enhanced);
+      } else {
+        setEnhanceError("No enhanced text was returned. Try again or shorten the input.");
       }
     } catch (error) {
       console.error("Enhancement failed:", error);
+      setEnhanceError(
+        error instanceof Error ? error.message : "Something went wrong.",
+      );
     } finally {
       setEnhancing(false);
     }
@@ -63,7 +76,10 @@ export function AIEnhanceTextarea({
     <div className="relative">
       <Textarea
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          setEnhanceError(null);
+          onChange(e.target.value);
+        }}
         placeholder={placeholder}
         className={className}
       />
@@ -82,6 +98,11 @@ export function AIEnhanceTextarea({
           )}
         </button>
       )}
+      {enhanceError ? (
+        <p className="mt-2 text-xs text-[var(--error)]" role="alert">
+          {enhanceError}
+        </p>
+      ) : null}
     </div>
   );
 }

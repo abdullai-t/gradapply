@@ -1,5 +1,4 @@
 import type { LlmProvider } from "@/lib/llm-provider";
-import { isAiGatewayByok, isAiGatewayEnabled } from "@/lib/ai/gateway";
 
 export function stringifyLlmError(error: unknown): string {
   const parts: string[] = [];
@@ -43,7 +42,7 @@ export function stringifyLlmError(error: unknown): string {
   return parts.join(" ");
 }
 
-/** OpenRouter 402 / insufficient balance, OpenAI quota, Anthropic billing, etc. */
+/** OpenRouter 402 / insufficient balance, Groq quota, etc. */
 export function isInsufficientCreditsError(error: unknown): boolean {
   const raw = stringifyLlmError(error);
   return (
@@ -70,7 +69,7 @@ export function isProviderNotConfiguredError(error: unknown): boolean {
 }
 
 /**
- * Don’t rotate API keys — bad credentials won’t be fixed by trying another provider.
+ * Likely bad/missing credentials or static misconfiguration for the current provider.
  */
 export function isLikelyAuthOrConfigError(error: unknown): boolean {
   const raw = stringifyLlmError(error);
@@ -90,7 +89,14 @@ export function classifyLlmErrorClass(error: unknown): string {
   if (/LLM_PROVIDER_SATURATED/.test(raw)) return "provider_saturated";
   if (isLikelyAuthOrConfigError(error)) return "auth_or_config";
   if (isInsufficientCreditsError(error)) return "insufficient_credits";
-  if (/\b400\b|bad request/i.test(raw)) return "bad_request";
+  if (
+    /no endpoints found|unsupported model|unknown model|model not found|not a valid model id/i.test(
+      raw,
+    )
+  ) {
+    return "model_unavailable";
+  }
+  if (/\b400\b|\b404\b|bad request/i.test(raw)) return "bad_request";
   if (/\b429\b|too many requests|rate[_ ]limit/i.test(raw)) return "rate_limited";
   if (/\b503\b|overloaded|capacity/i.test(raw)) return "provider_overloaded";
   if (/\b5\d\d\b/.test(raw)) return "provider_5xx";
@@ -102,19 +108,24 @@ export function classifyLlmErrorClass(error: unknown): string {
 
 /**
  * Provider/billing/quota/status conditions where trying another configured LLM may succeed.
+ * Auth errors without HTTP status (e.g. missing env) do not fall back; 401/403 do (separate keys per provider).
  */
 export function shouldFallbackToAlternateProvider(error: unknown): boolean {
   if (isProviderNotConfiguredError(error)) return true;
   const kind = classifyLlmErrorClass(error);
   if (kind === "circuit_open" || kind === "provider_saturated") return true;
-  if (kind === "bad_request") return true;
-  if (isLikelyAuthOrConfigError(error)) return false;
+  if (kind === "bad_request" || kind === "model_unavailable") return true;
+  if (isLikelyAuthOrConfigError(error)) {
+    const raw = stringifyLlmError(error);
+    // OpenRouter vs Groq use different API keys; 401 on one does not mean the other is dead.
+    if (/\b401\b/.test(raw) || /\b403\b/.test(raw)) return true;
+    return false;
+  }
 
   const raw = stringifyLlmError(error);
 
   if (isInsufficientCreditsError(error)) return true;
 
-  // OpenAI / generic quota & billing
   if (
     /billing_hard_limit|exceeded your (current )?quota|does not have enough|insufficient[_ ]fund/i.test(
       raw,
@@ -122,14 +133,11 @@ export function shouldFallbackToAlternateProvider(error: unknown): boolean {
   )
     return true;
 
-  // Payment / plan
   if (/\bpayment_required\b|\b402\b/i.test(raw)) return true;
 
-  // Often indicates account tier / credits (still worth trying another backend)
   if (/\b429\b/.test(raw)) return true;
   if (/too many requests|rate[_ ]limit/i.test(raw)) return true;
 
-  // Over capacity — another provider might work
   if (/\b503\b|overloaded|capacity/i.test(raw)) return true;
   if (/timeout|timed out|ETIMEDOUT|ECONNRESET|EAI_AGAIN|socket hang up|connection error|failed to fetch|fetch failed|ENOTFOUND|ECONNREFUSED/i.test(raw)) {
     return true;
@@ -152,17 +160,10 @@ export function parseAffordableMaxTokens(error: unknown): number | null {
 
 /**
  * Providers that have env keys, in **fallback rotation order** after the primary fails.
- * OpenRouter first, then Anthropic, OpenAI, Gemini, Groq.
  */
 export function providersWithKeysOrdered(): LlmProvider[] {
-  if (isAiGatewayEnabled() && !isAiGatewayByok()) {
-    return ["openrouter", "anthropic", "openai", "gemini", "groq"];
-  }
   const list: LlmProvider[] = [];
   if (process.env.OPENROUTER_API_KEY?.trim()) list.push("openrouter");
-  if (process.env.ANTHROPIC_API_KEY?.trim()) list.push("anthropic");
-  if (process.env.OPENAI_API_KEY?.trim()) list.push("openai");
-  if (process.env.GEMINI_API_KEY?.trim()) list.push("gemini");
   if (process.env.GROQ_API_KEY?.trim()) list.push("groq");
   return list;
 }
@@ -171,19 +172,8 @@ export function providersWithKeysOrdered(): LlmProvider[] {
 export function orderedFallbackProviders(primary: LlmProvider): LlmProvider[] {
   const all = providersWithKeysOrdered();
   if (all.length === 0) {
-    if (isAiGatewayEnabled()) {
-      const fallback: LlmProvider[] = [
-        primary,
-        "openrouter",
-        "anthropic",
-        "openai",
-        "gemini",
-        "groq",
-      ];
-      return fallback.filter((p, i, arr) => arr.indexOf(p) === i);
-    }
     throw new Error(
-      "No LLM configured. Set CF_AI_GATEWAY_ACCOUNT_ID + CF_AI_GATEWAY_TOKEN, or set GEMINI_API_KEY, OPENROUTER_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, or GROQ_API_KEY.",
+      "No LLM configured. Set OPENROUTER_API_KEY and/or GROQ_API_KEY.",
     );
   }
   const rest = all.filter((p) => p !== primary);

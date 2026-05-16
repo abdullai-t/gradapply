@@ -10,7 +10,7 @@ export type ModelTier = "t1-router" | "t2-balanced" | "t3-premium";
 
 export type ModelConfig = {
   tier: ModelTier;
-  /** Ordered provider→model pairs. First available wins; last is always Anthropic safety-net. */
+  /** Ordered provider→model pairs. First available wins; later links are fallbacks (Groq / OpenRouter). */
   chain: { provider: LlmProvider; model: string }[];
   maxTokens: number;
 };

@@ -216,8 +216,12 @@ export function recordProviderSuccess(provider: LlmProvider, latencyMs: number):
 export function recordProviderFailure(provider: LlmProvider, errorClass: string): void {
   const state = stateFor(provider);
   state.failures += 1;
-  state.consecutiveFailures += 1;
   state.lastErrorClass = errorClass;
+  // Missing API keys / bad static config are not provider overload — do not open the circuit.
+  if (errorClass === "auth_or_config") return;
+  // Wrong or sunset model slug — retrying the same route won't heal it until config changes.
+  if (errorClass === "model_unavailable") return;
+  state.consecutiveFailures += 1;
   const threshold = circuitFailureThreshold();
   if (state.consecutiveFailures >= threshold) {
     state.circuitOpenedUntilMs = Date.now() + circuitOpenMs();

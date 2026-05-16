@@ -103,50 +103,31 @@ Set these in **Vercel Project → Settings → Environment Variables**:
 
 Recommended optional variables:
 
-- AI providers (at least one): `GEMINI_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `GROQ_API_KEY`
-- `AI_PROVIDER` — optional override for default LLM routing (`anthropic`, `openai`, `gemini`, `openrouter`, `groq`; otherwise auto-selected from available keys). With multiple keys, **OpenRouter is preferred first**, then Anthropic → OpenAI → Gemini → Groq.
+- AI providers (at least one): `OPENROUTER_API_KEY`, `GROQ_API_KEY`
+- `AI_PROVIDER` — optional override (`openrouter` or `groq`). If both keys are set, **OpenRouter is preferred** unless you force `AI_PROVIDER=groq`.
 - Uploads: `CLOUDINARY_URL` (or S3-compatible vars your repo documents for storage)
 - Google auth/connectors: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 - `SUPERADMIN_EMAILS` — optional bootstrap allowlist for the first superadmin (see §2)
 - **`NEXT_PUBLIC_SUPPORT_EMAIL`** — optional; shown on **`/support`**, sidebar “Support”, and marketing footer so users can reach you (rebuild after changing)
 - **`UPSTASH_REDIS_REST_URL`** and **`UPSTASH_REDIS_REST_TOKEN`** — optional; together they enable **distributed** API rate limits across Vercel instances (see **Distributed rate limiting** under §2)
 
-### Stripe billing (optional)
-
-When `STRIPE_SECRET_KEY` is set, the app enforces **per-user monthly AI allowances** by plan and optional **credit packs**. If `STRIPE_SECRET_KEY` is unset, billing checks are skipped (useful for self-hosted / dev).
-
-**Server env:**
-
-- `STRIPE_SECRET_KEY` — Stripe secret API key
-- `STRIPE_WEBHOOK_SECRET` — signing secret from the Stripe webhook endpoint (dashboard → Developers → Webhooks)
-- `STRIPE_PRICE_PLUS_MONTHLY`, `STRIPE_PRICE_PRO_MONTHLY` — recurring Price IDs for Plus / Pro
-- `STRIPE_PRICE_CREDITS_PACK` — one-time Price ID for a credit bundle
-
-**Webhook URL (production):** `https://<your-domain>/api/webhooks/stripe` — enable events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`.
-
-**Optional tuning:**
-
-- `BILLING_FREE_MONTHLY_AI` (default `35`), `BILLING_PLUS_MONTHLY_AI` (default `200`), `BILLING_PRO_MONTHLY_AI` (default `600`)
-- `STRIPE_CREDITS_PACK_SIZE` — credits granted per successful credit-pack checkout (default `50`)
-
-Users manage plans from **Settings** (checkout + billing portal).
-
 ### Paystack billing (optional)
 
-When `PAYSTACK_SECRET_KEY` is set (with or without Stripe), the same **monthly AI allowances** and **credit packs** apply. Checkout uses **Stripe first** when the secret key and price IDs for that product are configured; otherwise it uses Paystack.
+When `PAYSTACK_SECRET_KEY` is set, the app enforces **per-user monthly AI allowances** by plan and optional **credit packs**. If it is unset, billing quota checks are skipped (useful for self-hosted / dev).
 
 **Server env:**
 
 - `PAYSTACK_SECRET_KEY` — Paystack secret key (Dashboard → Settings → API Keys & Webhooks)
-- `PAYSTACK_CURRENCY` — ISO code (default `GHS`). Amounts below are in the **smallest currency unit** (pesewas, kobo, etc.).
-- `PAYSTACK_PLAN_CODE_PLUS`, `PAYSTACK_PLAN_CODE_PRO` — plan codes from Paystack Plans (for subscriptions)
-- `PAYSTACK_AMOUNT_CREDITS_MINOR` — one-time credit-pack amount in minor units (default `5000` = e.g. 50.00 in GHS)
+- `PAYSTACK_CURRENCY` — ISO code (default `GHS`). Amounts below are in the **smallest currency unit** (pesewas, kobo, etc.) where applicable.
+- `PAYSTACK_PLAN_CODE_PLUS`, `PAYSTACK_PLAN_CODE_PRO` — plan codes from Paystack Plans (for subscription renewals and webhook fulfillment)
+- `PAYSTACK_AMOUNT_CREDITS_MINOR` — legacy reference amount in minor units (default `5000`); per-credit checkout uses `BILLING_CREDIT_UNIT_PRICE_GHS` and pack size from admin settings / `CREDITS_PACK_SIZE`
+- Display and renewal prices: `BILLING_DISPLAY_PRO_GHS`, `BILLING_DISPLAY_PLUS_GHS`, `BILLING_DISPLAY_PRO_RENEWAL_GHS`, `BILLING_DISPLAY_PLUS_RENEWAL_GHS`, `BILLING_CREDIT_UNIT_PRICE_GHS` (see `billing-admin-config`)
 
 **Webhook URL (production):** `https://<your-domain>/api/webhooks/paystack` — enable **`charge.success`**. Paystack signs payloads; the raw body must match what was sent (already handled in the route handler).
 
 **Callback:** `https://<your-domain>/api/billing/paystack/callback` — set automatically on `POST /api/billing/checkout` for Paystack checkouts (`callback_url`). Users must have an **email** on their account for Paystack checkout.
 
-Optional: `PAYSTACK_CREDITS_PACK_SIZE` aliases the same credit count as `STRIPE_CREDITS_PACK_SIZE` / `CREDITS_PACK_SIZE` (see `billing-config`).
+Optional: `PAYSTACK_CREDITS_PACK_SIZE` or `CREDITS_PACK_SIZE` — credits granted per successful credit-pack checkout (default `50`).
 
 ### Distributed rate limiting (recommended for production)
 
@@ -302,7 +283,7 @@ Vercel may still **build** the deployment, but it will **not assign your product
 - `/dashboard`, `/schools`, `/emails`, `/assistant`, `/documents` load
 - **`/settings`**: if feature flag `user_settings_page` is off or unset, expect redirect to `/dashboard`; if enabled, settings and billing flows load
 - **`/admin`**: reachable only as `ADMIN` / `SUPERADMIN`; verify overview, users, feature flags, pricing/settings after bootstrap
-- Billing: start a test checkout or portal session only from the deployed origin (CSRF); confirm Stripe/Paystack webhooks receive events in provider dashboards
+- Billing: start a test checkout only from the deployed origin (CSRF); confirm the Paystack webhook receives events in the provider dashboard
 - If connectors enabled: from `/settings` (when available), Gmail/Drive connect without env errors
 - If uploads enabled: document upload succeeds
 - **`/status`** — public status page (reflects `/api/health`); **`/api/health`** returns JSON for monitors

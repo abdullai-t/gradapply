@@ -9,15 +9,6 @@ function parseNum(raw: string | undefined, fallback: number): number {
 }
 
 export type BillingAdminConfig = {
-  stripeSecretKey?: string;
-  stripeWebhookSecret?: string;
-  stripePricePlus?: string;
-  stripePricePro?: string;
-  stripePriceProRenewal?: string;
-  stripePricePlusRenewal?: string;
-  stripePriceCreditsPack?: string;
-  stripePriceCvDeepReview?: string;
-  stripePriceSopDetailedCritique?: string;
   paystackSecretKey?: string;
   paystackCurrency: string;
   paystackPlanCodePlus?: string;
@@ -41,15 +32,6 @@ export type BillingAdminConfig = {
 
 export async function getBillingAdminConfig(): Promise<BillingAdminConfig> {
   const [
-    stripeSecretKey,
-    stripeWebhookSecret,
-    stripePricePlus,
-    stripePricePro,
-    stripePriceCreditsPack,
-    stripePriceProRenewal,
-    stripePricePlusRenewal,
-    stripePriceCvDeepReview,
-    stripePriceSopDetailedCritique,
     paystackSecretKey,
     paystackCurrency,
     paystackPlanCodePlus,
@@ -69,42 +51,6 @@ export async function getBillingAdminConfig(): Promise<BillingAdminConfig> {
     freeMonthlyCreditsGrant,
     creditsPackSize,
   ] = await Promise.all([
-    getAppSettingValue(
-      BILLING_SETTING_KEYS.stripeSecretKey,
-      process.env.STRIPE_SECRET_KEY?.trim(),
-    ),
-    getAppSettingValue(
-      BILLING_SETTING_KEYS.stripeWebhookSecret,
-      process.env.STRIPE_WEBHOOK_SECRET?.trim(),
-    ),
-    getAppSettingValue(
-      BILLING_SETTING_KEYS.stripePricePlus,
-      process.env.STRIPE_PRICE_PLUS_MONTHLY?.trim(),
-    ),
-    getAppSettingValue(
-      BILLING_SETTING_KEYS.stripePricePro,
-      process.env.STRIPE_PRICE_PRO_MONTHLY?.trim(),
-    ),
-    getAppSettingValue(
-      BILLING_SETTING_KEYS.stripePriceCreditsPack,
-      process.env.STRIPE_PRICE_CREDITS_PACK?.trim(),
-    ),
-    getAppSettingValue(
-      BILLING_SETTING_KEYS.stripePriceProRenewal,
-      process.env.STRIPE_PRICE_PRO_RENEWAL?.trim(),
-    ),
-    getAppSettingValue(
-      BILLING_SETTING_KEYS.stripePricePlusRenewal,
-      process.env.STRIPE_PRICE_PLUS_RENEWAL?.trim(),
-    ),
-    getAppSettingValue(
-      BILLING_SETTING_KEYS.stripePriceCvDeepReview,
-      process.env.STRIPE_PRICE_CV_DEEP_REVIEW?.trim(),
-    ),
-    getAppSettingValue(
-      BILLING_SETTING_KEYS.stripePriceSopDetailedCritique,
-      process.env.STRIPE_PRICE_SOP_DETAILED_CRITIQUE?.trim(),
-    ),
     getAppSettingValue(
       BILLING_SETTING_KEYS.paystackSecretKey,
       process.env.PAYSTACK_SECRET_KEY?.trim(),
@@ -176,22 +122,11 @@ export async function getBillingAdminConfig(): Promise<BillingAdminConfig> {
     getAppSettingValue(
       BILLING_SETTING_KEYS.creditsPackSize,
       process.env.CREDITS_PACK_SIZE?.trim() ??
-        process.env.STRIPE_CREDITS_PACK_SIZE?.trim() ??
         process.env.PAYSTACK_CREDITS_PACK_SIZE?.trim(),
     ),
   ]);
 
   return {
-    stripeSecretKey: stripeSecretKey?.trim() || undefined,
-    stripeWebhookSecret: stripeWebhookSecret?.trim() || undefined,
-    stripePricePlus: stripePricePlus?.trim() || undefined,
-    stripePricePro: stripePricePro?.trim() || undefined,
-    stripePriceProRenewal: stripePriceProRenewal?.trim() || undefined,
-    stripePricePlusRenewal: stripePricePlusRenewal?.trim() || undefined,
-    stripePriceCreditsPack: stripePriceCreditsPack?.trim() || undefined,
-    stripePriceCvDeepReview: stripePriceCvDeepReview?.trim() || undefined,
-    stripePriceSopDetailedCritique:
-      stripePriceSopDetailedCritique?.trim() || undefined,
     paystackSecretKey: paystackSecretKey?.trim() || undefined,
     paystackCurrency: (paystackCurrency?.trim().toUpperCase() || "GHS"),
     paystackPlanCodePlus: paystackPlanCodePlus?.trim() || undefined,
@@ -216,7 +151,6 @@ export async function getBillingAdminConfig(): Promise<BillingAdminConfig> {
       5000,
     ),
     allowance: {
-      // Locked rollout entitlements.
       FREE: 0,
       PLUS: 200,
       PRO: 80,

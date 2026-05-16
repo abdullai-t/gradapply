@@ -59,7 +59,7 @@ All keys and comments live in `**[.env.example](.env.example)`**. Copy it to `.e
 Optional but needed for features:
 
 - **Google sign-in & connectors:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (see comments in `.env.example` for redirect URIs and APIs to enable).
-- **LLM (assistant, drafts, school infer):** at least one of `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GROQ_API_KEY`.
+- **LLM (assistant, drafts, school infer):** at least one of `OPENROUTER_API_KEY` or `GROQ_API_KEY` (both recommended for automatic fallback).
 - **File uploads:** `CLOUDINARY_URL` or S3-style variables documented in `.env.example`.
 
 LLM overload protection tuning (optional):

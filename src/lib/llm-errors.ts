@@ -27,11 +27,16 @@ export function formatLlmFailureMessage(error: unknown): string {
     return "AI capacity is temporarily constrained. Please retry shortly.";
   }
   if (errorClass === "auth_or_config") {
+    if (/401.*user not found|user not found/i.test(raw)) {
+      return (
+        "OpenRouter rejected the API key (401 User not found). Regenerate the key at " +
+        "https://openrouter.ai/keys and set OPENROUTER_API_KEY, or rely on GROQ_API_KEY if configured."
+      );
+    }
     if (/No LLM configured|is not configured|is not set/i.test(raw)) {
       return (
-        "AI is not configured on this server. Set at least one of OPENAI_API_KEY, " +
-        "OPENROUTER_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY, or GROQ_API_KEY " +
-        "in your Cloudflare Worker environment variables."
+        "AI is not configured on this server. Set OPENROUTER_API_KEY and/or GROQ_API_KEY " +
+        "in your deployment environment variables."
       );
     }
     return (
@@ -45,6 +50,12 @@ export function formatLlmFailureMessage(error: unknown): string {
       "Please try again later or contact support."
     );
   }
+  if (errorClass === "model_unavailable") {
+    return (
+      "The configured AI model is not available from the provider (it may have been renamed or removed). " +
+      "Set AGENT_SCHOOL_INTEL_MODEL, AI_MODEL_SCHOOL_INTEL, or OPENROUTER_MODEL to a current OpenRouter model id."
+    );
+  }
   if (errorClass === "provider_5xx") {
     return "The AI provider returned a server error. Please retry shortly.";
   }
@@ -55,9 +66,8 @@ export function formatLlmFailureMessage(error: unknown): string {
     /Anthropic API/i.test(raw)
   ) {
     return (
-      "Anthropic refused this request because the API account has no usable credits. " +
-      "Add billing at console.anthropic.com, or add OPENAI_API_KEY / OPENROUTER_API_KEY — " +
-      "GradApply rotates providers when quota or credits run out."
+      "The AI provider account is out of quota or credits for this request. " +
+      "Add credits on OpenRouter or Groq, or set both OPENROUTER_API_KEY and GROQ_API_KEY so the app can fall back."
     );
   }
 
@@ -69,7 +79,7 @@ export function formatLlmFailureMessage(error: unknown): string {
   ) {
     return (
       "The LLM provider rejected this request (billing, quota, or token budget). " +
-      "Configure more than one of OPENAI_API_KEY, OPENROUTER_API_KEY, and ANTHROPIC_API_KEY — the app switches automatically when possible."
+      "Configure both OPENROUTER_API_KEY and GROQ_API_KEY when possible — the app switches automatically when one backend fails."
     );
   }
 

@@ -1,8 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+} from "react";
 import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
+
+import { messageFromApiErrorPayload } from "@/lib/api-error-json";
 
 import { Button } from "@/components/ui/button";
 import { PageLoader } from "@/components/page-loader";
@@ -35,9 +46,12 @@ import {
 } from "@/features/schools/api";
 import type { SchoolRow } from "@/features/schools/types";
 
-export default function SchoolsPage() {
+function SchoolsPageInner() {
   const qc = useQueryClient();
-  const { data, isLoading } = useSchools();
+  const searchParams = useSearchParams();
+  const schoolIdFromUrl = searchParams.get("schoolId");
+
+  const { data, isLoading, isFetched } = useSchools();
   const updateSchool = useUpdateSchool();
   const deleteSchoolMutation = useDeleteSchool();
   const schools = useMemo(() => (data ?? []) as SchoolRow[], [data]);
@@ -51,6 +65,8 @@ export default function SchoolsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [linkedSchoolId, setLinkedSchoolId] = useState<string | null>(null);
+  const [suggestingSchoolId, setSuggestingSchoolId] = useState<string | null>(null);
+  const scrolledToDeepLinkRef = useRef<string | null>(null);
 
   const sorted = useMemo(
     () =>
@@ -62,20 +78,110 @@ export default function SchoolsPage() {
   );
 
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("schoolId");
-    setLinkedSchoolId(id);
-  }, []);
+    setLinkedSchoolId(schoolIdFromUrl);
+  }, [schoolIdFromUrl]);
 
   useEffect(() => {
-    if (!linkedSchoolId) return;
+    scrolledToDeepLinkRef.current = null;
+  }, [linkedSchoolId]);
+
+  useEffect(() => {
+    if (!linkedSchoolId || !isFetched || isLoading) return;
     const exists = schools.some((s) => s.id === linkedSchoolId);
-    if (exists) setExpandedId(linkedSchoolId);
-  }, [linkedSchoolId, schools]);
+    if (!exists) return;
+    setExpandedId(linkedSchoolId);
+
+    if (scrolledToDeepLinkRef.current === linkedSchoolId) return;
+
+    const id = linkedSchoolId;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`school-card-${id}`);
+        if (el) {
+          scrolledToDeepLinkRef.current = linkedSchoolId;
+          el.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+            inline: "nearest",
+          });
+          return;
+        }
+        window.setTimeout(() => {
+          const el2 = document.getElementById(`school-card-${id}`);
+          if (!el2) return;
+          scrolledToDeepLinkRef.current = linkedSchoolId;
+          el2.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+            inline: "nearest",
+          });
+        }, 120);
+      });
+    });
+  }, [linkedSchoolId, schools, isFetched, isLoading]);
 
   const patchSchool = (
     id: string,
     body: Partial<SchoolRow> & Record<string, unknown>,
   ) => updateSchool.mutateAsync({ id, data: body });
+
+  const suggestSchoolDetailsWithAi = useCallback(
+    async (school: SchoolRow) => {
+      setSuggestingSchoolId(school.id);
+      try {
+        const res = await fetch("/api/schools/infer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ schoolId: school.id }),
+        });
+        const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+        if (!res.ok) {
+          throw new Error(messageFromApiErrorPayload(data));
+        }
+
+        const patch: Partial<SchoolRow> & Record<string, unknown> = {};
+        if (typeof data.program === "string" && data.program.trim()) {
+          patch.program = data.program.trim();
+        }
+        if (typeof data.degree === "string" && data.degree.trim()) {
+          patch.degree = data.degree.trim();
+        }
+        if (typeof data.country === "string" && data.country.trim()) {
+          patch.country = data.country.trim();
+        }
+        const term = data.term;
+        if (term === "FALL" || term === "SPRING" || term === "SUMMER") {
+          patch.term = term;
+        }
+        if (typeof data.deadline === "string" && data.deadline.trim()) {
+          patch.deadline = data.deadline.trim();
+        }
+        if (typeof data.funding === "string" && data.funding.trim()) {
+          patch.funding = data.funding.trim();
+        }
+        if (typeof data.notes === "string" && data.notes.trim()) {
+          patch.notes = data.notes.trim();
+        }
+        if (typeof data.portalUrl === "string" && data.portalUrl.trim()) {
+          patch.portalUrl = data.portalUrl.trim();
+        }
+
+        if (Object.keys(patch).length === 0) {
+          alert(
+            "AI did not return enough confident details to update this school. You can try again or edit fields manually.",
+          );
+          return;
+        }
+
+        await updateSchool.mutateAsync({ id: school.id, data: patch });
+      } catch (e) {
+        alert(e instanceof Error ? e.message : "Suggest failed");
+      } finally {
+        setSuggestingSchoolId(null);
+      }
+    },
+    [updateSchool],
+  );
 
   const deleteSchool = async (id: string) => {
     if (!confirm("Delete this school record?")) return;
@@ -119,6 +225,8 @@ export default function SchoolsPage() {
               expanded={expandedId === school.id}
               onToggleExpand={() => toggleExpanded(school.id)}
               onDelete={() => deleteSchool(school.id)}
+              onAiSuggestDetails={() => suggestSchoolDetailsWithAi(school)}
+              aiSuggestDetailsLoading={suggestingSchoolId === school.id}
             >
               <SchoolDetailForm
                 school={school}
@@ -142,5 +250,13 @@ export default function SchoolsPage() {
         onSaved={invalidateSchools}
       />
     </div>
+  );
+}
+
+export default function SchoolsPage() {
+  return (
+    <Suspense fallback={<PageLoader label="Loading schools…" />}>
+      <SchoolsPageInner />
+    </Suspense>
   );
 }

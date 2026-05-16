@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 import { runTask } from "@/lib/agents";
@@ -6,7 +7,10 @@ import {
   billingPrecheckResponse,
   finalizeAiConsumption,
 } from "@/lib/billing-allowance";
+import { discoverAndFetchFacultyPage } from "@/lib/faculty-profile-discovery";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
+import { classifyLlmErrorClass, stringifyLlmError } from "@/lib/llm-credits";
+import { log } from "@/lib/logger";
 import { requirePlusForFeature } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
 import { zPrismaRecordId } from "@/lib/prisma-record-id-zod";
@@ -26,6 +30,42 @@ type AuditResearch = {
   summary: string;
   evidence: string | null;
 };
+
+type ProfRow = {
+  profileUrl: string | null;
+  profName: string | null;
+  university: string | null;
+};
+
+async function resolveFacultyPageForAudit(row: ProfRow): Promise<{ url: string; text: string }> {
+  const name = row.profName?.trim();
+  const uni = row.university?.trim();
+  const profileUrl = row.profileUrl?.trim();
+
+  if (profileUrl) {
+    try {
+      return await fetchProfilePagePlainText(profileUrl);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (name && uni) {
+        log.warn("prof-emails/audit.stored-url-failed-try-discovery", {
+          profileUrl,
+          reason: msg,
+        });
+        return await discoverAndFetchFacultyPage(name, uni);
+      }
+      throw e instanceof Error ? e : new Error(String(e));
+    }
+  }
+
+  if (name && uni) {
+    return await discoverAndFetchFacultyPage(name, uni);
+  }
+
+  throw new Error(
+    "Add a professor profile URL, or add professor name and university so we can find a public faculty page.",
+  );
+}
 
 function parseAuditResearch(reply: string): AuditResearch[] {
   const raw = reply.trim();
@@ -81,15 +121,19 @@ export const audit = withAuth<{ id: string }>(async (_req, { userId, params }) =
     where: { id, userId },
   });
   if (!row) return notFound();
-  if (!row.profileUrl?.trim()) {
-    return bad("Add a professor profile URL before running audit.", 422);
-  }
 
-  let fetched;
+  let fetched: { url: string; text: string };
   try {
-    fetched = await fetchProfilePagePlainText(row.profileUrl.trim());
+    fetched = await resolveFacultyPageForAudit(row);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed to load profile page";
+    log.warn("prof-emails/audit.page-resolve-error", {
+      userId,
+      profEmailId: id,
+      profileUrl: row.profileUrl?.trim() ?? null,
+      hasNameUni: Boolean(row.profName?.trim() && row.university?.trim()),
+      reason: msg,
+    });
     return bad(msg, 422);
   }
 
@@ -118,12 +162,33 @@ export const audit = withAuth<{ id: string }>(async (_req, { userId, params }) =
     const latestResearch = parseAuditResearch(result.reply);
     await Promise.all([finalizeAiConsumption(userId), markProfEmailLlmSuccess(userId)]);
 
+    const auditedAt = new Date().toISOString();
+    const researchAudit = {
+      latestResearch,
+      sourceUrl: fetched.url,
+      auditedAt,
+    } satisfies Record<string, unknown>;
+
+    await prisma.profEmail.update({
+      where: { id },
+      data: { researchAudit: researchAudit as Prisma.InputJsonValue },
+    });
+
     return ok({
       latestResearch,
-      auditedAt: new Date().toISOString(),
+      auditedAt,
       sourceUrl: fetched.url,
     });
   } catch (e) {
+    const raw = stringifyLlmError(e);
+    log.warn("prof-emails/audit.llm-or-parse-error", {
+      userId,
+      profEmailId: id,
+      profileUrl: fetched.url,
+      errorClass: classifyLlmErrorClass(e),
+      reason: e instanceof Error ? e.message : String(e),
+      detail: raw.slice(0, 2000),
+    });
     return bad(formatLlmFailureMessage(e), 500);
   }
 });

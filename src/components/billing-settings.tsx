@@ -9,7 +9,6 @@ import {
   type CheckoutTier,
   useBillingStatus,
   useCheckout,
-  useOpenPortal,
 } from "@/features/billing/api";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +38,6 @@ function toErrorMessage(value: unknown, fallback: string): string {
 export function BillingSettings() {
   const statusQuery = useBillingStatus();
   const checkoutMutation = useCheckout();
-  const portalMutation = useOpenPortal();
 
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,24 +71,6 @@ export function BillingSettings() {
     }
   };
 
-  const openPortal = async () => {
-    setCheckoutLoading("portal");
-    setError(null);
-    try {
-      const data = await portalMutation.mutateAsync();
-      if (data?.url) {
-        window.location.href = data.url;
-        return;
-      }
-    } catch (e) {
-      setError(
-        toErrorMessage(e instanceof Error ? e.message : e, "Portal failed."),
-      );
-    } finally {
-      setCheckoutLoading(null);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center gap-2 rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-8 text-sm text-[var(--on-surface-variant)]">
@@ -107,8 +87,7 @@ export function BillingSettings() {
           Billing is not configured on this deployment.
         </p>
         <p className="mt-2 leading-relaxed">
-          Set <CodeChip>STRIPE_SECRET_KEY</CodeChip> or{" "}
-          <CodeChip>PAYSTACK_SECRET_KEY</CodeChip> in <CodeChip>.env</CodeChip>.
+          Set <CodeChip>PAYSTACK_SECRET_KEY</CodeChip> in <CodeChip>.env</CodeChip>.
           AI features remain available without plan limits in this state.
         </p>
       </div>
@@ -119,7 +98,6 @@ export function BillingSettings() {
   const cap = status.monthlyAllowance;
   const pct = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
 
-  const showPortal = status.hasStripeCustomer && status.stripeEnabled;
   const currentPlan = status.planTier.toUpperCase();
   const isFreePlan = currentPlan === "FREE";
   const plusIsCurrent = currentPlan === "PLUS";
@@ -263,7 +241,7 @@ export function BillingSettings() {
         </div>
       ) : null}
 
-      {/* Credits + portal */}
+      {/* Credits */}
       <div className="flex flex-wrap gap-2">
         {status.checkoutConfigured ? (
           <>
@@ -328,19 +306,6 @@ export function BillingSettings() {
             onClick={() => void startCheckout("plus", true)}
           >
             Renew Plus (GHS {status.displayPricePlusRenewalGhs})
-          </Button>
-        ) : null}
-        {showPortal ? (
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={checkoutLoading !== null}
-            loading={checkoutLoading === "portal"}
-            icon="settings"
-            className="border border-[var(--outline-variant)]"
-            onClick={() => void openPortal()}
-          >
-            Manage billing (Stripe)
           </Button>
         ) : null}
       </div>

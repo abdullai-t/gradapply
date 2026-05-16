@@ -21,7 +21,7 @@
 | Auth | NextAuth 5.0-beta (JWT, Google OAuth + email/password, Prisma adapter) |
 | AI | Anthropic, OpenAI, Gemini, Groq, OpenRouter — multi-provider router with circuit-breaker (`src/lib/llm-router.ts`) |
 | File storage | AWS S3 + Cloudinary |
-| Payments | Stripe + Paystack (parallel processors, both webhook-deduped) |
+| Payments | Paystack (webhook-deduped) |
 | Email send | Nodemailer (SMTP) + Gmail OAuth connector |
 | Rate limiting | Upstash Redis + `@upstash/ratelimit` |
 | Monitoring | Sentry |
@@ -49,7 +49,7 @@ The shell is `src/app/(main)/layout.tsx` — sticky `AppSidebar` (md+), `MobileN
 | `/assistant` | `src/app/(main)/assistant/page.tsx` | Chat with 5 modes (general / grammar / sop / email / feedback) — auto-routing for "general" |
 | `/documents` | `src/app/(main)/documents/page.tsx` | File library with type, size, date · FAB → `AddDocumentModal` · plan-gated |
 | `/profile` | `src/app/(main)/profile/page.tsx` | Applicant data form: target degree, focus, GRE (score/V/Q/AWA), undergrad, years, research interests, countries (multi-select max 5), bio |
-| `/settings` | `src/app/(main)/settings/page.tsx` | Feature-gated · `BillingSettings` (plan/usage/upgrade/portal/credits) + `ConnectorsSettings` (Gmail / Drive OAuth) |
+| `/settings` | `src/app/(main)/settings/page.tsx` | Feature-gated · `BillingSettings` (plan/usage/upgrade/credits) + `ConnectorsSettings` (Gmail / Drive OAuth) |
 | `/support` | `src/app/(main)/support/page.tsx` | Support page (conditional) |
 | `/admin/*` | `src/app/(main)/admin/...` | ADMIN/SUPERADMIN — overview, users, feature-flags, pricing, settings |
 
@@ -147,7 +147,6 @@ Two tabs:
 **BillingSettings:**
 - Plan card (tier · status · period end · usage bar · bonus credits)
 - "Upgrade to Plus" / "Upgrade to Pro" / "Buy credits" → `POST /api/billing/checkout {tier}` redirect
-- "Manage billing (Stripe)" → `POST /api/billing/portal`
 - "Refresh usage" link
 
 **ConnectorsSettings:**
@@ -182,26 +181,25 @@ profile       GET PATCH /api/profile
 documents     GET POST /api/documents                        · DELETE /api/documents/:id
               POST /api/documents/upload
 billing       GET /api/billing/status                        · POST /api/billing/checkout
-              POST /api/billing/portal
               POST /api/billing/paystack/callback
 versions      GET POST /api/content-versions                 · POST /api/content-versions/:id/restore
               PATCH DELETE /api/content-versions/:id
 connectors    /api/connectors[/gmail|/google-drive]/{start,callback}     · GET /api/connectors
 admin         /api/admin/{overview,users,feature-flags,config}
-webhooks      /api/webhooks/stripe · /api/webhooks/paystack
+webhooks      /api/webhooks/paystack
 health        /api/health · /api/upload/presign
 ```
 
 ## 7. Prisma models (key)
 
-`User · Profile · School · ProfEmail · ChatMessage · Document · ContentVersion · Connector · FeatureFlag · AppSetting · SopVariant · StripeEventLog · PaystackEventLog`.
+`User · Profile · School · ProfEmail · ChatMessage · Document · ContentVersion · Connector · FeatureFlag · AppSetting · SopVariant · PaystackEventLog`.
 
 Enums: `Role(USER|ADMIN|SUPERADMIN)` · `PlanTier(FREE|PLUS|PRO)` · `SchoolStatus` · `EmailStatus` · `ReplyIntent` · `AdmissionTerm` · `DocumentKind` · `ContentEntityType` · `ConnectorProvider`.
 
 ## 8. Cross-cutting libs (`src/lib/`)
 
 - **LLM**: `llm-provider.ts` (selects), `llm-router.ts` (circuit/queue), `assistant-agents.ts` (5 modes + router), `ai.ts`, `chat-prompts.ts`, `chat-modes.ts`.
-- **Billing**: `billing-config.ts`, `billing-allowance.ts`, `billing-stripe-sync.ts`, `billing-admin-config.ts`, `paystack-api.ts`, `paystack-fulfillment.ts`, `llm-credits.ts`.
+- **Billing**: `billing-config.ts`, `billing-allowance.ts`, `billing-credits.ts`, `billing-admin-config.ts`, `paystack-api.ts`, `paystack-fulfillment.ts`, `llm-credits.ts`.
 - **Feature gates**: `feature-flags.ts` (DB + 30s cache + env override), `plan-gates.ts`.
 - **AI features**: `school-from-name-ai.ts` · `school-recommendations-ai.ts` · `professor-from-url-ai.ts` · `faculty-discovery-ai.ts` · `analyze-prof-reply.ts` · `sop-tailor-generate.ts`.
 - **Connectors**: `gmail-connector.ts` · `google-drive-connector.ts` · `google-oauth-tokens.ts` · `oauth-state.ts`.
@@ -210,7 +208,7 @@ Enums: `Role(USER|ADMIN|SUPERADMIN)` · `PlanTier(FREE|PLUS|PRO)` · `SchoolStat
 
 ## 9. Env-var matrix
 
-Database: `DATABASE_URL`. Auth: `AUTH_SECRET`/`NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID/SECRET`. LLM: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `AI_PROVIDER`, plus router knobs (`LLM_*`). Storage: `AWS_*`, `S3_BUCKET`, `CLOUDINARY_URL`. SMTP: `SMTP_*`, `EMAIL_FROM`. Stripe: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, price IDs. Paystack: `PAYSTACK_SECRET_KEY`, `PAYSTACK_WEBHOOK_SECRET`, plan codes. Allowances: `BILLING_*_MONTHLY_AI`, `CREDITS_PACK_SIZE`. Rate limit: `UPSTASH_REDIS_REST_URL/TOKEN`. Sentry: `SENTRY_*`. Origin: `APP_ORIGIN`, `NEXT_PUBLIC_APP_ORIGIN`. Flag overrides: `FEATURE_FLAG_*`.
+Database: `DATABASE_URL`. Auth: `AUTH_SECRET`/`NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID/SECRET`. LLM: `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `AI_PROVIDER`, plus router knobs (`LLM_*`). Storage: `AWS_*`, `S3_BUCKET`, `CLOUDINARY_URL`. SMTP: `SMTP_*`, `EMAIL_FROM`. Paystack: `PAYSTACK_SECRET_KEY`, `PAYSTACK_WEBHOOK_SECRET`, plan codes. Allowances: `BILLING_*_MONTHLY_AI`, `CREDITS_PACK_SIZE`. Rate limit: `UPSTASH_REDIS_REST_URL/TOKEN`. Sentry: `SENTRY_*`. Origin: `APP_ORIGIN`, `NEXT_PUBLIC_APP_ORIGIN`. Flag overrides: `FEATURE_FLAG_*`.
 
 ## 10. Notable patterns
 
@@ -255,7 +253,7 @@ This is the parity checklist for v2.
 - [x] Assistant: 5 modes (general/grammar/sop/email/feedback) · agent badge · auto-routing from general (`features/assistant/`)
 - [x] Documents: upload · delete · plan gate (`features/documents/` + AddDocumentModal)
 - [x] Profile: GRE breakdown · undergrad · countries multi-select (max 5) · research interests · bio · save (full sectioned form)
-- [x] Settings — Billing: status fetch · usage bar · upgrade Plus/Pro/credits · Stripe portal · Paystack support · refresh (existing `BillingSettings`)
+- [x] Settings — Billing: status fetch · usage bar · upgrade Plus/Pro/credits · Paystack support · refresh (existing `BillingSettings`)
 - [x] Settings — Connectors: Gmail + Drive OAuth start/callback/revoke (existing `ConnectorsSettings`)
 - [x] Admin: feature flags CRUD · users panel · pricing · overview (out of scope per decision §2.5)
 
@@ -264,6 +262,6 @@ This is the parity checklist for v2.
 - [x] Plan gates (FREE blocked from assistant + documents) preserved — both pages render full upgrade card
 - [x] Feature flags (`user_settings_page`, `homepage_pricing_section`) honored — `/` and `/settings` both gate properly
 - [x] Rate limiting (chat) preserved — assistant page does not touch the existing Upstash rate limiter
-- [x] Webhooks (Stripe + Paystack) untouched — no API changes anywhere
+- [x] Webhooks (Paystack) — signature-verified
 - [x] Sentry monitoring untouched — instrumentation hook still loads (build-side issue is pre-existing, not a regression)
 - [x] All Prisma models + API routes untouched — this was strictly a UI rebuild

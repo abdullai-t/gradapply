@@ -1,5 +1,5 @@
 /**
- * Cloudflare Workers expose fetch, but `nodejs_compat` makes OpenAI/Anthropic SDKs
+ * Cloudflare Workers expose fetch, but `nodejs_compat` makes some OpenAI SDK clients
  * pick node-fetch + keep-alive agents, which fail with APIConnectionError.
  */
 export function llmFetch(

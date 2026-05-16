@@ -40,6 +40,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { messageFromApiErrorPayload } from "@/lib/api-error-json";
+import { log } from "@/lib/logger";
 import { useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -65,6 +66,17 @@ type ReplyIntentKind =
   | "DECLINED"
   | "UNKNOWN";
 
+type ResearchAuditStored = {
+  latestResearch: Array<{
+    title: string;
+    year: string | null;
+    summary: string;
+    evidence: string | null;
+  }>;
+  sourceUrl: string;
+  auditedAt: string;
+};
+
 type EmailRow = {
   id: string;
   profName: string | null;
@@ -82,6 +94,7 @@ type EmailRow = {
   replyRationale?: string | null;
   lastClassifiedAt?: string | null;
   updatedAt?: string | null;
+  researchAudit?: ResearchAuditStored | null;
 };
 
 const statuses: EmailStatus[] = [
@@ -108,6 +121,11 @@ export default function EmailsPage() {
     [profEmailsQuery.data],
   );
   const selectedDetailQuery = useProfEmail(selectedId);
+  const selected = useMemo(() => {
+    const fallback = rows.find((r) => r.id === selectedId) ?? null;
+    const detail = selectedDetailQuery.data as EmailRow | undefined;
+    return detail ?? fallback;
+  }, [rows, selectedId, selectedDetailQuery.data]);
   const loading = profEmailsQuery.isLoading;
 
   const [drafting, setDrafting] = useState<string | null>(null);
@@ -172,6 +190,23 @@ export default function EmailsPage() {
   const [statusFilter, setStatusFilter] = useState<"ALL" | EmailStatus>("ALL");
   const [createDraftOpen, setCreateDraftOpen] = useState(false);
   const [createDraftTab, setCreateDraftTab] = useState<"url" | "schools">("schools");
+
+  const resetCreateDraftForm = useCallback(() => {
+    setProfileUrlInput("");
+    setSelectedSchoolIds([]);
+    setDiscoveryCandidates([]);
+    setDiscoveryAdvisory(null);
+    setDiscoverySchoolRun(false);
+    setCreateDraftTab("schools");
+    setDiscovering(false);
+    setWorking(false);
+    setDraftingDiscoverId(null);
+  }, []);
+
+  const closeCreateDraftModal = useCallback(() => {
+    resetCreateDraftForm();
+    setCreateDraftOpen(false);
+  }, [resetCreateDraftForm]);
   const [detailTab, setDetailTab] = useState<"profile" | "insights" | "publications">(
     "profile",
   );
@@ -218,10 +253,36 @@ export default function EmailsPage() {
   }, [selectedId, rows, selectedDetailQuery.data]);
 
   useEffect(() => {
-    setAuditLatestResearch([]);
     setAuditError(null);
     setDetailTab("profile");
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setAuditLatestResearch([]);
+      return;
+    }
+    if (!selected || selected.id !== selectedId) {
+      setAuditLatestResearch([]);
+      return;
+    }
+    const ra = selected.researchAudit;
+    if (ra?.latestResearch && Array.isArray(ra.latestResearch)) {
+      setAuditLatestResearch(
+        ra.latestResearch
+          .map((r) => ({
+            title: (r.title ?? "").trim(),
+            year: r.year ?? null,
+            summary: (r.summary ?? "").trim(),
+            evidence: r.evidence ?? null,
+          }))
+          .filter((r) => r.title.length > 0)
+          .slice(0, 3),
+      );
+      return;
+    }
+    setAuditLatestResearch([]);
+  }, [selectedId, selected]);
 
   const loadVersions = useCallback(async () => {
     await qc.invalidateQueries({
@@ -234,10 +295,13 @@ export default function EmailsPage() {
 
   useEffect(() => {
     if (!selectedId) return;
+    // Avoid clearing during initial load: empty `rows` before the list fetch
+    // completes would incorrectly drop a deep-linked `?thread=` selection.
+    if (!profEmailsQuery.isFetched) return;
     if (!rows.some((r) => r.id === selectedId)) {
       setSelectedId(null);
     }
-  }, [rows, selectedId]);
+  }, [rows, selectedId, profEmailsQuery.isFetched]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -246,11 +310,6 @@ export default function EmailsPage() {
     setSelectedId((prev) => (prev === qThread ? prev : qThread));
   }, []);
 
-  const selected = useMemo(() => {
-    const fallback = rows.find((r) => r.id === selectedId) ?? null;
-    const detail = selectedDetailQuery.data as EmailRow | undefined;
-    return detail ?? fallback;
-  }, [rows, selectedId, selectedDetailQuery.data]);
   const filteredRows = useMemo(() => {
     const q = threadQuery.trim().toLowerCase();
     return rows.filter((row) => {
@@ -333,7 +392,7 @@ export default function EmailsPage() {
       /** Keep URL in the field if you want to paste another page after this run. */
       await load();
       setSelectedId(created.id);
-      setCreateDraftOpen(false);
+      closeCreateDraftModal();
       router.replace(`/emails?thread=${encodeURIComponent(created.id)}`);
     } finally {
       setWorking(false);
@@ -455,11 +514,7 @@ export default function EmailsPage() {
         return;
       }
       await load();
-      const created = payload as { id?: string };
-      if (created.id) {
-        setSelectedId(created.id);
-      }
-      setCreateDraftOpen(false);
+      // Stay on suggestions (e.g. keep Create draft modal open) so you can add several drafts.
     } finally {
       setDraftingDiscoverId(null);
     }
@@ -476,7 +531,7 @@ export default function EmailsPage() {
       const j = (await res.json().catch(() => ({}))) as { error?: string };
       alert(
         j.error ??
-          "Regeneration failed. Add a profile URL or set OPENROUTER_API_KEY or ANTHROPIC_API_KEY.",
+          "Regeneration failed. Add a profile URL or set OPENROUTER_API_KEY or GROQ_API_KEY.",
       );
     }
   };
@@ -498,8 +553,13 @@ export default function EmailsPage() {
         }>;
       };
       if (!res.ok) {
-        setAuditLatestResearch([]);
-        setAuditError(j.error ?? "Audit failed.");
+        const errMsg = j.error ?? "Audit failed.";
+        log.warn("prof-emails/audit.client-failed", {
+          profEmailId: id,
+          status: res.status,
+          error: typeof errMsg === "string" ? errMsg : String(errMsg),
+        });
+        setAuditError(errMsg);
         return;
       }
       const rows =
@@ -514,7 +574,10 @@ export default function EmailsPage() {
               .filter((r) => r.title.length > 0)
           : [];
       setAuditLatestResearch(rows.slice(0, 3));
+      setAuditError(null);
       setDetailTab("publications");
+      await qc.invalidateQueries({ queryKey: [...profEmailsKeys.all, "detail", id] });
+      await qc.invalidateQueries({ queryKey: profEmailsKeys.list() });
     } finally {
       setAuditingResearch(false);
     }
@@ -976,11 +1039,6 @@ export default function EmailsPage() {
                         </div>
                       ) : (
                         <div className="mt-4 space-y-2">
-                          {auditError ? (
-                            <p className="rounded-md border border-[var(--error)]/40 bg-[var(--error-container)] p-2 text-xs text-[var(--on-error-container)]">
-                              {auditError}
-                            </p>
-                          ) : null}
                           {auditLatestResearch.length === 0 ? (
                             <p className="rounded-md border border-[var(--outline-variant)] bg-[var(--surface-container)] p-3 text-sm text-muted-foreground">
                               Run research audit to load the 3 latest research items.
@@ -1012,6 +1070,15 @@ export default function EmailsPage() {
                           )}
                         </div>
                       )}
+
+                      {auditError ? (
+                        <p
+                          role="alert"
+                          className="mt-4 rounded-md border border-[var(--error)]/40 bg-[var(--error-container)] p-2 text-xs text-[var(--on-error-container)]"
+                        >
+                          {auditError}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -1369,7 +1436,13 @@ export default function EmailsPage() {
         </aside>
       </div>
 
-      <Dialog open={createDraftOpen} onOpenChange={setCreateDraftOpen}>
+      <Dialog
+        open={createDraftOpen}
+        onOpenChange={(open) => {
+          if (open) setCreateDraftOpen(true);
+          else closeCreateDraftModal();
+        }}
+      >
         <DialogContent className="max-w-3xl border-[var(--outline-variant)] bg-[var(--surface-container-lowest)]">
           <DialogHeader>
             <DialogTitle>Create outreach draft</DialogTitle>

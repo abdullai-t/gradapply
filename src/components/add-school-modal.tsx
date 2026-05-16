@@ -162,6 +162,12 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
         program: typeof data.program === "string" ? data.program : prev.program,
         degree: typeof data.degree === "string" ? data.degree : prev.degree,
         country: typeof data.country === "string" ? data.country : prev.country,
+        term:
+          data.term === "FALL" ||
+          data.term === "SPRING" ||
+          data.term === "SUMMER"
+            ? data.term
+            : prev.term,
         deadline:
           typeof data.deadline === "string" ? data.deadline : prev.deadline,
         funding: typeof data.funding === "string" ? data.funding : prev.funding,

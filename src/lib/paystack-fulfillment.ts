@@ -1,6 +1,6 @@
 import type { PlanTier } from "@prisma/client";
 
-import { grantCreditsPackToUser } from "@/lib/billing-stripe-sync";
+import { grantCreditsPackToUser } from "@/lib/billing-credits";
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import {
   paystackVerifyTransaction,

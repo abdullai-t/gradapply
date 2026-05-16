@@ -1,12 +1,9 @@
 import { auth } from "@/auth";
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import { canExportWithoutWatermark } from "@/lib/export-watermark";
-import {
-  paystackInitializeTransaction,
-} from "@/lib/paystack-api";
+import { paystackInitializeTransaction } from "@/lib/paystack-api";
 import { prisma } from "@/lib/prisma";
 import { isTrustedMutationOrigin } from "@/lib/request-origin";
-import { getStripe } from "@/lib/stripe-server";
 
 import { bad, forbidden, notFound, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
@@ -27,6 +24,10 @@ function ghsToMinor(value: number): number {
   return Math.max(0, Math.round(value * 100));
 }
 
+function subscriptionActive(status: string | null | undefined): boolean {
+  return status === "active" || status === "trialing";
+}
+
 export const status = withAuth(async (_req, { userId }) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -41,9 +42,8 @@ export const status = withAuth(async (_req, { userId }) => {
       accessReadOnlySince: true,
       subscriptionStatus: true,
       currentPeriodEnd: true,
-      stripeCustomerId: true,
-      stripeSubscriptionId: true,
       paystackCustomerId: true,
+      paystackSubscriptionCode: true,
     },
   });
   if (!user) return notFound();
@@ -67,24 +67,15 @@ export const status = withAuth(async (_req, { userId }) => {
   }
 
   const cfg = await getBillingAdminConfig();
-  const stripeEnabled = Boolean(cfg.stripeSecretKey);
   const paystackEnabled = Boolean(cfg.paystackSecretKey);
-  const billingEnabled = stripeEnabled || paystackEnabled;
-  const canCheckoutPlus =
-    (stripeEnabled && Boolean(cfg.stripePricePlus)) ||
-    (paystackEnabled && cfg.displayPricePlusGhs > 0);
-  const canCheckoutPro =
-    (stripeEnabled && Boolean(cfg.stripePricePro)) ||
-    (paystackEnabled && cfg.displayPriceProGhs > 0);
-  const canCheckoutCredits =
-    (stripeEnabled && Boolean(cfg.stripePriceCreditsPack)) ||
-    (paystackEnabled && cfg.creditUnitPriceGhs > 0);
+  const billingEnabled = paystackEnabled;
+  const canCheckoutPlus = paystackEnabled && cfg.displayPricePlusGhs > 0;
+  const canCheckoutPro = paystackEnabled && cfg.displayPriceProGhs > 0;
+  const canCheckoutCredits = paystackEnabled && cfg.creditUnitPriceGhs > 0;
   const canCheckoutCvReview =
-    (stripeEnabled && Boolean(cfg.stripePriceCvDeepReview)) ||
-    (paystackEnabled && cfg.paystackAmountCvDeepReviewMinor > 0);
+    paystackEnabled && cfg.paystackAmountCvDeepReviewMinor > 0;
   const canCheckoutSopCritique =
-    (stripeEnabled && Boolean(cfg.stripePriceSopDetailedCritique)) ||
-    (paystackEnabled && cfg.paystackAmountSopDetailedCritiqueMinor > 0);
+    paystackEnabled && cfg.paystackAmountSopDetailedCritiqueMinor > 0;
   const checkoutConfigured =
     canCheckoutPlus ||
     canCheckoutPro ||
@@ -93,10 +84,14 @@ export const status = withAuth(async (_req, { userId }) => {
     canCheckoutSopCritique;
   const allowance = cfg.allowance[user.planTier];
 
+  const hasSubscription =
+    Boolean(user.paystackSubscriptionCode) ||
+    (user.planTier !== "FREE" &&
+      subscriptionActive(user.subscriptionStatus));
+
   return ok({
     billingEnabled,
     checkoutConfigured,
-    stripeEnabled,
     paystackEnabled,
     canCheckoutPlus,
     canCheckoutPro,
@@ -124,8 +119,7 @@ export const status = withAuth(async (_req, { userId }) => {
     creditsPackSize: cfg.creditsPackSize,
     subscriptionStatus: user.subscriptionStatus,
     currentPeriodEnd: user.currentPeriodEnd?.toISOString() ?? null,
-    hasStripeCustomer: Boolean(user.stripeCustomerId),
-    hasSubscription: Boolean(user.stripeSubscriptionId),
+    hasSubscription,
     hasPaystackCustomer: Boolean(user.paystackCustomerId),
     settingsEnabled: true,
     supportTabEnabled: true,
@@ -136,9 +130,8 @@ export const checkout = withAuth(async (req, { userId }) => {
   if (!isTrustedMutationOrigin(req)) return forbidden("Untrusted origin");
 
   const cfg = await getBillingAdminConfig();
-  const stripeEnabled = Boolean(cfg.stripeSecretKey);
   const paystackEnabled = Boolean(cfg.paystackSecretKey);
-  if (!stripeEnabled && !paystackEnabled)
+  if (!paystackEnabled)
     return bad("Billing is not configured on this server.", 503);
 
   const json = await req.json().catch(() => null);
@@ -159,7 +152,6 @@ export const checkout = withAuth(async (req, { userId }) => {
     where: { id: userId },
     select: {
       email: true,
-      stripeCustomerId: true,
       paystackCustomerId: true,
     },
   });
@@ -167,76 +159,6 @@ export const checkout = withAuth(async (req, { userId }) => {
   const session = await auth();
   const validEmail =
     normalizeEmail(user.email) ?? normalizeEmail(session?.user?.email);
-
-  const priceId =
-    tier === "plus"
-      ? renewal
-        ? (cfg.stripePricePlusRenewal ?? cfg.stripePricePlus)
-        : cfg.stripePricePlus
-      : tier === "pro"
-        ? renewal
-          ? (cfg.stripePriceProRenewal ?? cfg.stripePricePro)
-          : cfg.stripePricePro
-        : tier === "credits"
-          ? cfg.stripePriceCreditsPack
-          : tier === "cv_review"
-            ? cfg.stripePriceCvDeepReview
-            : cfg.stripePriceSopDetailedCritique;
-
-  const stripeReady =
-    stripeEnabled &&
-    ((tier === "plus" && Boolean(cfg.stripePricePlus)) ||
-      (tier === "pro" && Boolean(cfg.stripePricePro)) ||
-      (tier === "credits" && Boolean(cfg.stripePriceCreditsPack)) ||
-      (tier === "cv_review" && Boolean(cfg.stripePriceCvDeepReview)) ||
-      (tier === "sop_critique" &&
-        Boolean(cfg.stripePriceSopDetailedCritique)));
-
-  if (stripeReady && priceId) {
-    if (!user.stripeCustomerId && !validEmail) {
-      return bad("Add a valid email address to your account before checkout.");
-    }
-    const stripe = getStripe(cfg.stripeSecretKey);
-
-    if (tier === "credits" || tier === "cv_review" || tier === "sop_critique") {
-      const creditQty = tier === "credits" ? (creditsAmount ?? cfg.creditsPackSize) : 1;
-      const checkoutSession = await stripe.checkout.sessions.create({
-        mode: "payment",
-        ...(user.stripeCustomerId
-          ? { customer: user.stripeCustomerId }
-          : { customer_email: validEmail ?? undefined }),
-        line_items: [{ price: priceId, quantity: creditQty }],
-        metadata: {
-          userId,
-          checkoutKind:
-            tier === "credits"
-              ? "credits_pack"
-              : tier === "cv_review"
-                ? "cv_deep_review"
-                : "sop_detailed_critique",
-          tier,
-          ...(tier === "credits" ? { creditsAmount: String(creditQty) } : {}),
-        },
-        success_url: `${base}/settings?billing=success`,
-        cancel_url: `${base}/settings?billing=cancel`,
-      });
-      return ok({ url: checkoutSession.url });
-    }
-
-    const checkoutSession = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      ...(user.stripeCustomerId
-        ? { customer: user.stripeCustomerId }
-        : { customer_email: validEmail ?? undefined }),
-      line_items: [{ price: priceId, quantity: 1 }],
-      metadata: { userId },
-      subscription_data: { metadata: { userId } },
-      success_url: `${base}/settings?billing=success`,
-      cancel_url: `${base}/settings?billing=cancel`,
-    });
-
-    return ok({ url: checkoutSession.url });
-  }
 
   const paystackReady =
     paystackEnabled &&
@@ -249,7 +171,7 @@ export const checkout = withAuth(async (req, { userId }) => {
 
   if (!paystackReady) {
     return bad(
-      "No payment provider is configured for this plan. Add Stripe price IDs and/or Paystack plan codes (and PAYSTACK_AMOUNT_CREDITS_MINOR for credits) to the server environment.",
+      "No payment provider is configured for this plan. Add Paystack keys and pricing in the server environment or admin settings.",
       503,
     );
   }
@@ -356,36 +278,4 @@ export const checkout = withAuth(async (req, { userId }) => {
     }
     return bad(message);
   }
-});
-
-export const portal = withAuth(async (req, { userId }) => {
-  if (!isTrustedMutationOrigin(req)) return forbidden("Untrusted origin");
-
-  const cfg = await getBillingAdminConfig();
-  if (!cfg.stripeSecretKey && !cfg.paystackSecretKey)
-    return bad("Billing is not configured on this server.", 503);
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { stripeCustomerId: true },
-  });
-
-  if (!user?.stripeCustomerId)
-    return bad("No Stripe customer on file. Subscribe or buy credits first.");
-
-  const origin =
-    process.env.AUTH_URL?.trim() ||
-    process.env.NEXTAUTH_URL?.trim() ||
-    "http://localhost:3000";
-
-  if (!cfg.stripeSecretKey)
-    return bad("Stripe portal is not configured on this server.", 503);
-
-  const stripe = getStripe(cfg.stripeSecretKey);
-  const portalSession = await stripe.billingPortal.sessions.create({
-    customer: user.stripeCustomerId,
-    return_url: `${origin.replace(/\/$/, "")}/settings`,
-  });
-
-  return ok({ url: portalSession.url });
 });
