@@ -73,6 +73,7 @@ type ProfileRecommendation = {
   degree: string;
   country: string;
   whyFit: string;
+  funding?: string;
   notes: string;
   portalUrl: string;
 };
@@ -91,6 +92,10 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     [],
   );
   const [recIndex, setRecIndex] = useState(0);
+  /** Schools from earlier batches this modal session — excluded on refresh. */
+  const [sessionExclude, setSessionExclude] = useState<
+    { name: string; program: string }[]
+  >([]);
 
   useEffect(() => {
     setMounted(true);
@@ -109,6 +114,7 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     setRecError(null);
     setRecommendations([]);
     setRecIndex(0);
+    setSessionExclude([]);
   }, [open]);
 
   useEffect(() => {
@@ -230,7 +236,11 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     setRecLoading(true);
     setRecError(null);
     try {
-      const res = await fetch("/api/schools/recommend", { method: "POST" });
+      const res = await fetch("/api/schools/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionExclude }),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(
@@ -244,9 +254,18 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
         : [];
       setRecommendations(rows);
       setRecIndex(0);
+      setSessionExclude((prev) => [
+        ...prev,
+        ...rows
+          .filter((r) => r.name?.trim() && r.program?.trim())
+          .map((r) => ({
+            name: r.name.trim(),
+            program: r.program.trim(),
+          })),
+      ]);
       if (rows.length === 0) {
         setRecError(
-          "No recommendations right now. Update your profile and try again.",
+          "No new schools matched your profile and filters. Try refresh again or update your profile.",
         );
       }
     } catch (e) {
@@ -256,7 +275,7 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     } finally {
       setRecLoading(false);
     }
-  }, []);
+  }, [sessionExclude]);
 
   const skipRecommendation = useCallback(() => {
     setRecIndex((i) => i + 1);
@@ -275,6 +294,7 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
           program: currentRec.program,
           degree: currentRec.degree,
           country: currentRec.country || null,
+          funding: currentRec.funding?.trim() ? currentRec.funding.trim() : null,
           notes: [currentRec.whyFit, currentRec.notes]
             .filter(Boolean)
             .join("\n\n"),
@@ -662,9 +682,9 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
                       Profile-based suggestions
                     </p>
                     <p className="m-0 mt-1 text-xs leading-relaxed text-[var(--on-surface-variant)]">
-                      Generate schools from your profile, then swipe right
-                      (add) or left (skip). Added schools land in your
-                      planning list to work on later.
+                      Matches prioritize research fit and funded programs.
+                      Schools already on your list are excluded; refresh pulls
+                      a new batch.
                     </p>
                   </div>
                   <Button
@@ -710,8 +730,19 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
                   </div>
 
                   <p className="m-0 text-sm leading-relaxed text-[var(--on-surface)]">
+                    <span className="font-semibold text-[var(--on-surface)]">
+                      Fit:{" "}
+                    </span>
                     {currentRec.whyFit}
                   </p>
+                  {currentRec.funding ? (
+                    <p className="m-0 mt-2 text-sm leading-relaxed text-[var(--on-surface)]">
+                      <span className="font-semibold text-[var(--on-surface)]">
+                        Funding:{" "}
+                      </span>
+                      {currentRec.funding}
+                    </p>
+                  ) : null}
                   {currentRec.notes ? (
                     <p className="m-0 mt-3 rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-3 text-xs leading-relaxed text-[var(--on-surface-variant)]">
                       {currentRec.notes}

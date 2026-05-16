@@ -1,5 +1,6 @@
 import type { PlanTier } from "@prisma/client";
 
+import { resetPaidPlanPeriodAllowance } from "@/lib/billing-allowance";
 import { grantCreditsPackToUser } from "@/lib/billing-credits";
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import {
@@ -122,6 +123,7 @@ export async function processPaystackReference(reference: string): Promise<{
         planTier: tierFromMeta,
         subscriptionStatus: "active",
         currentPeriodEnd: periodEnd,
+        aiUsageUsed: 0,
         ...(tx.customer?.id != null
           ? { paystackCustomerId: String(tx.customer.id) }
           : {}),
@@ -129,6 +131,7 @@ export async function processPaystackReference(reference: string): Promise<{
         accessReadOnlySince: null,
       },
     });
+    await resetPaidPlanPeriodAllowance(userIdMeta, periodEnd);
     await prisma.billingPayment.create({
       data: {
         userId: userIdMeta,
@@ -217,4 +220,8 @@ export async function upsertPaystackSubscriptionUser(opts: {
       accessReadOnlySince: null,
     },
   });
+
+  if (next) {
+    await resetPaidPlanPeriodAllowance(opts.userId, next);
+  }
 }

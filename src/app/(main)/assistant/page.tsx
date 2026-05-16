@@ -127,7 +127,7 @@ function AssistantChat() {
   };
 
   const remaining = allowance
-    ? Math.max(0, allowance.cap - allowance.used) + allowance.credits
+    ? Math.max(0, allowance.cap - allowance.used) + allowance.purchasedCredits
     : null;
   const hint = HINTS[mode];
 

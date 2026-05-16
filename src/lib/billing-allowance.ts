@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { PlanTier } from "@prisma/client";
 
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import { prisma } from "@/lib/prisma";
@@ -6,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 export const AI_ACTION_COSTS = {
   cold_email: 1,
   sop_session: 5,
+  sop_review: 3,
+  fit_score: 1,
   grammar_check: 1,
   school_recommendation: 1,
   school_infer: 1,
@@ -18,60 +21,137 @@ export class AiBudgetExceededError extends Error {
   readonly status = 402 as const;
   readonly code = "AI_QUOTA_EXCEEDED" as const;
 
-  constructor(
-    message = "Monthly AI allowance exhausted. Upgrade your plan or purchase credits in Settings.",
-  ) {
+  constructor(message: string) {
     super(message);
     this.name = "AiBudgetExceededError";
   }
 }
 
+function quotaExceededMessage(planTier: PlanTier): string {
+  if (planTier === "FREE") {
+    return "Your free signup credits are used up. Upgrade to Plus or Pro to continue.";
+  }
+  return "Plan allowance for this billing period is used up. Purchase credits in Settings to continue.";
+}
+
 /**
- * Throws {@link AiBudgetExceededError} when the user has no credits and no monthly allowance left.
+ * Throws {@link AiBudgetExceededError} when plan allowance and purchased credits are insufficient.
  * No-op when Paystack billing is not configured.
  */
 export async function assertAiBudgetWithinLimit(userId: string): Promise<void> {
   await assertAiBudgetWithinLimitForAction(userId, "generic");
 }
 
-function monthToken(now = new Date()): string {
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+/** Stored in `aiUsageMonth` for paid users — keyed to subscription `currentPeriodEnd`. */
+export function billingPeriodTokenFromEnd(periodEnd: Date | null): string | null {
+  if (!periodEnd || Number.isNaN(periodEnd.getTime())) return null;
+  return `period:${periodEnd.toISOString()}`;
 }
 
-export function currentBillingMonthToken(now = new Date()): string {
-  return monthToken(now);
-}
+type BillingCfg = Awaited<ReturnType<typeof getBillingAdminConfig>>;
 
-async function maybeResetMonthlyUsage(userId: string): Promise<void> {
-  const cfg = await getBillingAdminConfig();
-  const token = monthToken();
-  await prisma.user.updateMany({
-    where: {
-      id: userId,
-      planTier: "FREE",
-      OR: [{ aiUsageMonth: null }, { aiUsageMonth: { not: token } }],
-    },
-    data: {
-      aiUsageUsed: 0,
-      aiUsageMonth: token,
-      aiCreditsBalance: { increment: cfg.freeMonthlyCreditsGrant },
-    },
+type Tx = Pick<typeof prisma, "user">;
+
+type UserBudgetRow = {
+  planTier: PlanTier;
+  aiCreditsBalance: number;
+  aiUsageUsed: number;
+  aiUsageMonth: string | null;
+  currentPeriodEnd: Date | null;
+};
+
+const userBudgetSelect = {
+  planTier: true,
+  aiCreditsBalance: true,
+  aiUsageUsed: true,
+  aiUsageMonth: true,
+  currentPeriodEnd: true,
+} as const;
+
+async function loadUserBudget(userId: string): Promise<UserBudgetRow | null> {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: userBudgetSelect,
   });
-  await prisma.user.updateMany({
+}
+
+async function loadUserBudgetTx(
+  tx: Tx,
+  userId: string,
+): Promise<UserBudgetRow | null> {
+  return tx.user.findUnique({
+    where: { id: userId },
+    select: userBudgetSelect,
+  });
+}
+
+/** Paid: reset plan allowance when subscription billing period changes (not each calendar month). */
+async function syncPaidBillingPeriod(
+  tx: Tx,
+  userId: string,
+  periodEnd: Date | null,
+): Promise<void> {
+  const token = billingPeriodTokenFromEnd(periodEnd);
+  if (!token) return;
+
+  await tx.user.updateMany({
     where: {
       id: userId,
       planTier: { not: "FREE" },
       OR: [{ aiUsageMonth: null }, { aiUsageMonth: { not: token } }],
     },
     data: {
+      aiUsageMonth: token,
+      aiUsageUsed: 0,
+    },
+  });
+}
+
+/**
+ * Call when a paid subscription period starts or renews (Paystack fulfillment).
+ * Resets plan allowance for the new period; purchased credits are untouched.
+ */
+export async function resetPaidPlanPeriodAllowance(
+  userId: string,
+  periodEnd: Date,
+): Promise<void> {
+  const token = billingPeriodTokenFromEnd(periodEnd);
+  if (!token) return;
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
       aiUsageUsed: 0,
       aiUsageMonth: token,
     },
   });
 }
 
+async function ensureBillingPeriodSynced(userId: string): Promise<void> {
+  const user = await loadUserBudget(userId);
+  if (!user || user.planTier === "FREE") return;
+
+  await prisma.$transaction((tx) =>
+    syncPaidBillingPeriod(tx, userId, user.currentPeriodEnd),
+  );
+}
+
 function resolveCost(action: AiActionCostKey): number {
   return AI_ACTION_COSTS[action] ?? 1;
+}
+
+function hasPlanAllowance(
+  user: UserBudgetRow,
+  allowance: number,
+  cost: number,
+): boolean {
+  if (user.planTier === "FREE") {
+    return user.aiCreditsBalance >= cost;
+  }
+  return user.aiUsageUsed + cost <= allowance;
+}
+
+function hasPurchasedCredits(user: UserBudgetRow, cost: number): boolean {
+  return user.aiCreditsBalance >= cost;
 }
 
 export async function assertAiBudgetWithinLimitForAction(
@@ -80,30 +160,24 @@ export async function assertAiBudgetWithinLimitForAction(
 ): Promise<void> {
   const cfg = await getBillingAdminConfig();
   if (!cfg.paystackSecretKey) return;
-  await maybeResetMonthlyUsage(userId);
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      planTier: true,
-      aiCreditsBalance: true,
-      aiUsageUsed: true,
-      aiUsageMonth: true,
-    },
-  });
+  await ensureBillingPeriodSynced(userId);
+
+  const user = await loadUserBudget(userId);
   if (!user) throw new Error("User not found");
 
   const cost = resolveCost(action);
   const allowance = cfg.allowance[user.planTier];
-  if (user.aiCreditsBalance >= cost) return;
-  if (user.aiUsageUsed + cost <= allowance) return;
 
-  throw new AiBudgetExceededError();
+  if (hasPlanAllowance(user, allowance, cost)) return;
+  if (user.planTier !== "FREE" && hasPurchasedCredits(user, cost)) return;
+
+  throw new AiBudgetExceededError(quotaExceededMessage(user.planTier));
 }
 
 /**
- * Consumes one AI credit: bonus pool first, then monthly allowance counter.
- * Call only after a successful LLM operation. No-op when billing is disabled.
+ * Consumes AI budget: plan allowance first (paid), then purchased credits.
+ * FREE tier spends from the one-time signup credit balance only.
  */
 export async function finalizeAiConsumption(userId: string): Promise<void> {
   await finalizeAiConsumptionForAction(userId, "generic");
@@ -115,66 +189,45 @@ export async function finalizeAiConsumptionForAction(
 ): Promise<void> {
   const cfg = await getBillingAdminConfig();
   if (!cfg.paystackSecretKey) return;
-  const token = monthToken();
   const cost = resolveCost(action);
 
   await prisma.$transaction(async (tx) => {
-    await tx.user.updateMany({
-      where: {
-        id: userId,
-        planTier: "FREE",
-        OR: [{ aiUsageMonth: null }, { aiUsageMonth: { not: token } }],
-      },
-      data: {
-        aiUsageUsed: 0,
-        aiUsageMonth: token,
-        aiCreditsBalance: { increment: cfg.freeMonthlyCreditsGrant },
-      },
-    });
-
-    await tx.user.updateMany({
-      where: {
-        id: userId,
-        planTier: { not: "FREE" },
-        OR: [{ aiUsageMonth: null }, { aiUsageMonth: { not: token } }],
-      },
-      data: {
-        aiUsageUsed: 0,
-        aiUsageMonth: token,
-      },
-    });
-
-    const user = await tx.user.findUnique({
-      where: { id: userId },
-      select: {
-        aiCreditsBalance: true,
-        aiUsageUsed: true,
-        planTier: true,
-        aiUsageMonth: true,
-      },
-    });
+    const user = await loadUserBudgetTx(tx, userId);
     if (!user) return;
 
-    if (user.aiCreditsBalance >= cost) {
+    if (user.planTier !== "FREE") {
+      await syncPaidBillingPeriod(tx, userId, user.currentPeriodEnd);
+    }
+
+    const fresh = await loadUserBudgetTx(tx, userId);
+    if (!fresh) return;
+
+    const allowance = cfg.allowance[fresh.planTier];
+
+    if (fresh.planTier === "FREE") {
+      if (fresh.aiCreditsBalance >= cost) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { aiCreditsBalance: { decrement: cost } },
+        });
+      }
+      return;
+    }
+
+    if (fresh.aiUsageUsed + cost <= allowance) {
       await tx.user.update({
         where: { id: userId },
-        data: { aiCreditsBalance: { decrement: cost } },
+        data: { aiUsageUsed: { increment: cost } },
       });
       return;
     }
 
-    const allowance = cfg.allowance[user.planTier];
-    if (user.aiUsageUsed + cost > allowance) {
-      return;
+    if (fresh.aiCreditsBalance >= cost) {
+      await tx.user.update({
+        where: { id: userId },
+        data: { aiCreditsBalance: { decrement: cost } },
+      });
     }
-
-    await tx.user.update({
-      where: { id: userId },
-      data: {
-        aiUsageUsed: { increment: cost },
-        aiUsageMonth: token,
-      },
-    });
   });
 }
 

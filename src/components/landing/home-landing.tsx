@@ -184,7 +184,7 @@ export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
                 tone="secondary"
                 icon="auto_awesome"
                 title="AI as a skilled editor"
-                body="Grammar, structure, and strategic feedback — not a replacement for your judgment. Bonus credits and monthly allowances keep usage predictable."
+                body="Grammar, structure, and strategic feedback — not a replacement for your judgment. Plan allowances and optional credit packs keep usage predictable."
                 cta={{ label: "Try AI editor", href: "/login" }}
               />
             </div>
@@ -319,7 +319,7 @@ export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
               <SectionHeading
                 eyebrow="Pricing"
                 title="Credits-first pricing, simple to understand"
-                body="Free is lifetime-limited. Pro and Plus run on 6-month billing with monthly credit grants, optional add-ons, and lower renewal pricing."
+                body="Free includes a one-time signup credit grant. Pro and Plus run on 6-month billing with plan allowances per period, optional credit packs, and lower renewal pricing."
               />
               <div className="mt-14 grid gap-6 lg:grid-cols-3 lg:items-stretch">
                 <PricingCard
@@ -330,6 +330,7 @@ export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
                   cta={{ href: "/login", label: "Get started" }}
                   variant="default"
                   bullets={[
+                    "10 AI credits at signup (lifetime, no renewal)",
                     "Up to 3 tracked schools",
                     "1 lifetime cold-email generation",
                     "1 lifetime SOP preview",
@@ -344,7 +345,7 @@ export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
                   cta={{ href: "/login", label: "Start with Pro" }}
                   variant="highlight"
                   bullets={[
-                    "80 monthly AI credits",
+                    "80 AI credits per billing period",
                     "Full SOP builder + grammar coach",
                     "Document parsing + email version history",
                     "No watermark exports",
@@ -358,7 +359,7 @@ export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
                   cta={{ href: "/login", label: "Start with Plus" }}
                   variant="default"
                   bullets={[
-                    "200 monthly AI credits",
+                    "200 AI credits per billing period",
                     "Everything in Pro",
                     "Priority generation + advanced SOP feedback",
                     "School-specific suggestion boosts",

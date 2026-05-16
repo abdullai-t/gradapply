@@ -19,7 +19,6 @@ type ConfigResponse = {
     allowancePlus: number;
     allowancePro: number;
     freeSignupCredits: number;
-    freeMonthlyCreditsGrant: number;
   };
 };
 
@@ -88,8 +87,7 @@ export function AdminPricingPanel() {
   const [allowanceFree, setAllowanceFree] = useState("35");
   const [allowancePlus, setAllowancePlus] = useState("200");
   const [allowancePro, setAllowancePro] = useState("600");
-  const [freeSignupCredits, setFreeSignupCredits] = useState("20");
-  const [freeMonthlyCreditsGrant, setFreeMonthlyCreditsGrant] = useState("10");
+  const [freeSignupCredits, setFreeSignupCredits] = useState("10");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,7 +115,6 @@ export function AdminPricingPanel() {
     setAllowancePlus(String(json.settings.allowancePlus));
     setAllowancePro(String(json.settings.allowancePro));
     setFreeSignupCredits(String(json.settings.freeSignupCredits));
-    setFreeMonthlyCreditsGrant(String(json.settings.freeMonthlyCreditsGrant));
     setLoading(false);
   }, []);
 
@@ -139,7 +136,6 @@ export function AdminPricingPanel() {
       allowancePlus: Number(allowancePlus || "0"),
       allowancePro: Number(allowancePro || "0"),
       freeSignupCredits: Number(freeSignupCredits || "0"),
-      freeMonthlyCreditsGrant: Number(freeMonthlyCreditsGrant || "0"),
     };
     if (paystackPlanCodePlus.trim()) {
       payload.paystackPlanCodePlus = paystackPlanCodePlus.trim();
@@ -266,7 +262,7 @@ export function AdminPricingPanel() {
       <div className="glass-panel space-y-4 p-5">
         <h2 className="font-display text-xl font-semibold">Plan allowances</h2>
         <p className="text-sm text-muted-foreground">
-          Monthly AI allowances for paid tiers, plus free-tier credit grants.
+          Plan allowances per billing period (paid tiers) and one-time free signup credits.
         </p>
         <div className="grid gap-3 md:grid-cols-4">
           <div className="space-y-2">
@@ -288,20 +284,13 @@ export function AdminPricingPanel() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="free-signup-credits">Free signup credits</Label>
+            <Label htmlFor="free-signup-credits">
+              Free signup credits (one-time, no renewal)
+            </Label>
             <Input
               id="free-signup-credits"
               value={freeSignupCredits}
               onChange={(e) => setFreeSignupCredits(e.target.value)}
-              placeholder="e.g. 20"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="free-monthly-grant">Free monthly credits grant</Label>
-            <Input
-              id="free-monthly-grant"
-              value={freeMonthlyCreditsGrant}
-              onChange={(e) => setFreeMonthlyCreditsGrant(e.target.value)}
               placeholder="e.g. 10"
             />
           </div>

@@ -33,6 +33,16 @@ export const updateSchoolSchema = z.object({
   portalUrl: z.string().nullable().optional(),
 });
 
+const schoolIdentitySchema = z.object({
+  name: z.string().min(1).max(500),
+  program: z.string().min(1).max(200).optional(),
+});
+
+export const recommendSchoolsSchema = z.object({
+  /** Schools already shown/skipped this modal session — exclude on refresh. */
+  sessionExclude: z.array(schoolIdentitySchema).max(80).optional(),
+});
+
 export const inferSchoolSchema = z
   .object({
     name: z.string().min(1).max(500).optional(),

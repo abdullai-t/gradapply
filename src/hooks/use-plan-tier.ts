@@ -5,7 +5,8 @@ import { useBillingStatus } from "@/features/billing/api";
 export interface PlanAllowance {
   used: number;
   cap: number;
-  credits: number;
+  /** Purchased top-up credits (paid plans only). */
+  purchasedCredits: number;
 }
 
 export interface UsePlanTierResult {
@@ -33,8 +34,9 @@ export function usePlanTier(): UsePlanTierResult {
     allowance: data
       ? {
           used: data.aiUsageUsed ?? 0,
-          cap: data.monthlyAllowance ?? 0,
-          credits: data.aiCreditsBalance ?? 0,
+          cap: data.periodAllowance ?? data.monthlyAllowance ?? 0,
+          purchasedCredits:
+            data.purchasedCredits ?? data.aiCreditsBalance ?? 0,
         }
       : null,
     loading: query.isLoading,

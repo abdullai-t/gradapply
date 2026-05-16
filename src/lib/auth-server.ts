@@ -5,6 +5,7 @@ import Nodemailer from "next-auth/providers/nodemailer";
 
 import { authConfig } from "@/auth.config";
 import { credentialsAuthorize } from "@/lib/credentials-authorize";
+import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import { getNodemailerProviderOptions } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 
@@ -45,6 +46,16 @@ function credentialsProvider() {
 export const { handlers, auth } = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
+  events: {
+    async createUser({ user }) {
+      if (!user.id) return;
+      const cfg = await getBillingAdminConfig();
+      await prisma.user.updateMany({
+        where: { id: user.id, planTier: "FREE", aiCreditsBalance: 0 },
+        data: { aiCreditsBalance: cfg.freeSignupCredits },
+      });
+    },
+  },
   providers: [
     credentialsProvider(),
     ...authConfig.providers,

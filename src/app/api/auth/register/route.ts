@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import { hashPassword } from "@/lib/password";
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";
-import { currentBillingMonthToken } from "@/lib/billing-allowance";
 import { sendEmailVerification } from "@/lib/email-verification";
 import { prisma } from "@/lib/prisma";
 import {
@@ -74,7 +73,6 @@ export async function POST(req: Request) {
       name: name ?? null,
       emailVerified: null,
       aiCreditsBalance: billingCfg.freeSignupCredits,
-      aiUsageMonth: currentBillingMonthToken(),
     },
   });
 

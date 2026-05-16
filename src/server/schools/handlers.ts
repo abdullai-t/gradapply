@@ -23,8 +23,16 @@ import { bad, notFound, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
 
 import {
+  filterRecommendSchoolRows,
+  shuffleWithSeed,
+  type RecommendSchoolRow,
+  type SchoolIdentity,
+} from "@/lib/school-recommend";
+
+import {
   createSchoolSchema,
   inferSchoolSchema,
+  recommendSchoolsSchema,
   updateSchoolSchema,
 } from "./schemas";
 
@@ -149,17 +157,27 @@ const RECOMMEND_TIERS = [
   { bucket: "safety", label: "safety" },
 ] as const;
 
-function buildTierRecommendPrompt(
-  tier: (typeof RECOMMEND_TIERS)[number],
-  countryHint: string,
-  retry: boolean,
-): string {
+function buildTierRecommendPrompt(opts: {
+  tier: (typeof RECOMMEND_TIERS)[number];
+  countryHint: string;
+  excludeBlock: string;
+  variationBlock: string;
+  retry: boolean;
+}): string {
+  const { tier, countryHint, excludeBlock, variationBlock, retry } = opts;
   const lines = [
-    `Recommend exactly 5 ${tier.label} graduate schools for my tracking list based on my profile.`,
+    `Recommend exactly 5 ${tier.label} graduate schools for my tracking list.`,
     `Set tierBucket to "${tier.bucket}" on every row.`,
-    "Prioritize strong funding fit. Keep whyFit <= 20 words and notes <= 12 words.",
+    "Selection criteria (in order): (1) research fit to my profile and interests, (2) realistic funding availability (RA/TA, stipend, tuition waiver, or competitive scholarships).",
+    "Deprioritize programs that are typically unfunded unless the research fit is exceptional.",
+    "whyFit: one sentence on research fit only (<= 22 words).",
+    "funding: one sentence on typical funding availability for this program (<= 22 words).",
+    "notes: optional deadline or GRE caveat (<= 12 words) or null.",
+    excludeBlock,
+    variationBlock,
     countryHint,
-    'Return ONLY minified JSON: {"schools":[{"name","program","degree","country","tierBucket","whyFit","notes","portalUrl":null}]}',
+    'Return ONLY minified JSON: {"schools":[{"name","program","degree","country","tierBucket","whyFit","funding","notes","portalUrl":null}]}',
+    "Never include a school on the exclusion list (same institution or same program).",
     "No markdown fences or prose before or after the JSON.",
   ];
   if (retry) {
@@ -168,15 +186,69 @@ function buildTierRecommendPrompt(
   return lines.join("\n");
 }
 
+function buildExcludeBlock(excludeFrom: SchoolIdentity[]): string {
+  if (excludeFrom.length === 0) {
+    return "Exclusion list: none (only avoid duplicates within this response).";
+  }
+  const lines = excludeFrom.slice(0, 60).map((s) => {
+    const program = s.program?.trim();
+    return program ? `- ${s.name.trim()} (${program})` : `- ${s.name.trim()}`;
+  });
+  return [
+    `Exclusion list — do NOT recommend these ${excludeFrom.length} school/program entries (already on my list or shown in a prior search):`,
+    ...lines,
+  ].join("\n");
+}
+
+function buildVariationBlock(searchSeed: string): string {
+  return [
+    `Search run id: ${searchSeed}.`,
+    "Pick different institutions than any prior search for this user; explore diverse departments and regions that still match profile and funding goals.",
+  ].join("\n");
+}
+
+function normalizeRecommendRow(row: RecommendSchoolRow): Record<string, unknown> {
+  return {
+    name: typeof row.name === "string" ? row.name.trim() : "",
+    program: typeof row.program === "string" ? row.program.trim() : "",
+    degree: typeof row.degree === "string" ? row.degree.trim() : "",
+    country: typeof row.country === "string" ? row.country.trim() : "",
+    tierBucket: typeof row.tierBucket === "string" ? row.tierBucket.trim() : "",
+    whyFit: typeof row.whyFit === "string" ? row.whyFit.trim() : "",
+    funding: typeof row.funding === "string" ? row.funding.trim() : "",
+    notes:
+      typeof row.notes === "string"
+        ? row.notes.trim()
+        : row.notes === null
+          ? ""
+          : "",
+    portalUrl:
+      typeof row.portalUrl === "string" ? row.portalUrl.trim() : null,
+  };
+}
+
 async function fetchTierSchools(
   userId: string,
   tier: (typeof RECOMMEND_TIERS)[number],
   countryHint: string,
+  excludeFrom: SchoolIdentity[],
+  searchSeed: string,
 ): Promise<unknown[]> {
+  const excludeBlock = buildExcludeBlock(excludeFrom);
+  const variationBlock = buildVariationBlock(searchSeed);
+
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const prompt = buildTierRecommendPrompt(tier, countryHint, attempt > 0);
+    const prompt = buildTierRecommendPrompt({
+      tier,
+      countryHint,
+      excludeBlock,
+      variationBlock,
+      retry: attempt > 0,
+    });
     try {
-      const result = await runTask("school-intel", prompt, userId);
+      const result = await runTask("school-intel", prompt, userId, {
+        recommendSearchSeed: searchSeed,
+      });
       const raw = result.reply.trim();
       try {
         const schools = parseRecommendSchoolsFromLlmText(raw);
@@ -211,16 +283,40 @@ async function fetchTierSchools(
   return [];
 }
 
-export const recommend = withAuth(async (_req, { userId }) => {
+export const recommend = withAuth(async (req, { userId }) => {
   const quota = await billingPrecheckResponse(userId, "school_recommendation");
   if (quota) return quota;
 
+  const json = await req.json().catch(() => ({}));
+  const parsedBody = recommendSchoolsSchema.safeParse(json);
+  const sessionExclude: SchoolIdentity[] = parsedBody.success
+    ? (parsedBody.data.sessionExclude ?? []).map((s) => ({
+        name: s.name,
+        program: s.program ?? null,
+      }))
+    : [];
+
   try {
     log.debug("schools/recommend.start", { userId });
-    const profile = await prisma.profile.findUnique({
-      where: { userId },
-      select: { countriesOfInterest: true },
-    });
+    const [profile, trackedSchools] = await Promise.all([
+      prisma.profile.findUnique({
+        where: { userId },
+        select: { countriesOfInterest: true },
+      }),
+      prisma.school.findMany({
+        where: { userId },
+        select: { name: true, program: true },
+      }),
+    ]);
+
+    const excludeFrom: SchoolIdentity[] = [
+      ...trackedSchools.map((s) => ({ name: s.name, program: s.program })),
+      ...sessionExclude,
+    ];
+
+    const searchSeed = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    const tierOrder = shuffleWithSeed(RECOMMEND_TIERS, searchSeed.length + userId.length);
+
     const countriesOfInterest = Array.isArray(profile?.countriesOfInterest)
       ? profile.countriesOfInterest.filter((c) => typeof c === "string" && c.trim())
       : [];
@@ -229,11 +325,21 @@ export const recommend = withAuth(async (_req, { userId }) => {
         ? `Only recommend schools in these countries of interest: ${countriesOfInterest.join(", ")}.`
         : "If no countries of interest are set, you may recommend across countries.";
 
-    const schools: unknown[] = [];
-    for (const tier of RECOMMEND_TIERS) {
-      const tierSchools = await fetchTierSchools(userId, tier, countryHint);
-      schools.push(...tierSchools);
+    const rawSchools: unknown[] = [];
+    for (const tier of tierOrder) {
+      const tierSchools = await fetchTierSchools(
+        userId,
+        tier,
+        countryHint,
+        excludeFrom,
+        searchSeed,
+      );
+      rawSchools.push(...tierSchools);
     }
+
+    let schools = filterRecommendSchoolRows(rawSchools, excludeFrom).map(
+      normalizeRecommendRow,
+    );
 
     if (schools.length === 0) {
       throw new SyntaxError("Could not parse JSON from model output");
@@ -242,24 +348,24 @@ export const recommend = withAuth(async (_req, { userId }) => {
     log.info("schools/recommend.ok", {
       userId,
       schoolCount: schools.length,
+      excludedTracked: trackedSchools.length,
+      excludedSession: sessionExclude.length,
+      searchSeed,
     });
 
     await finalizeAiConsumptionForAction(userId, "school_recommendation");
 
-    if (countriesOfInterest.length === 0) {
-      return ok({ schools });
+    if (countriesOfInterest.length > 0) {
+      const countrySet = new Set(countriesOfInterest.map((c) => c.toLowerCase()));
+      const countryMatched = schools.filter((row) => {
+        const country =
+          typeof row.country === "string" ? row.country.trim().toLowerCase() : "";
+        return country.length > 0 && countrySet.has(country);
+      });
+      if (countryMatched.length > 0) schools = countryMatched;
     }
 
-    const countrySet = new Set(countriesOfInterest.map((c) => c.toLowerCase()));
-    const countryMatched = schools.filter((row) => {
-      const country =
-        typeof (row as { country?: unknown }).country === "string"
-          ? (row as { country: string }).country.trim().toLowerCase()
-          : "";
-      return country.length > 0 && countrySet.has(country);
-    });
-
-    return ok({ schools: countryMatched.length > 0 ? countryMatched : schools });
+    return ok({ schools, searchSeed });
   } catch (e) {
     log.error("schools/recommend.failed", {
       userId,

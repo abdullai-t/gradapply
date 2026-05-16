@@ -155,7 +155,7 @@ export async function getBillingAdminConfig(): Promise<BillingAdminConfig> {
       PLUS: 200,
       PRO: 80,
     },
-    freeSignupCredits: parseNum(freeSignupCredits, 20),
+    freeSignupCredits: parseNum(freeSignupCredits, 10),
     freeMonthlyCreditsGrant: parseNum(freeMonthlyCreditsGrant, 10),
     creditsPackSize: parseNum(creditsPackSize, 50),
   };

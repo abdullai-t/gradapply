@@ -77,11 +77,11 @@ model User {
   /// Paystack customer id (numeric string from API) and subscription code for renewals.
   paystackCustomerId       String?           @unique
   paystackSubscriptionCode String?
-  /// Successful AI actions counted against monthly tier allowance this billing period.
+  /// AI actions consumed from the plan allowance this subscription period (PLUS/PRO).
   aiUsageUsed              Int               @default(0)
-  /// Bonus credits from one-time packs; consumed before monthly allowance.
+  /// Purchased top-up credits (Paystack packs). FREE tier: one-time signup credits (no renewal).
   aiCreditsBalance         Int               @default(0)
-  /// ISO month token (`YYYY-MM`) for monthly credit usage reset.
+  /// Paid: `period:<currentPeriodEnd ISO>` when plan allowance last reset.
   aiUsageMonth             String?
   /// Free-plan lifetime cold email generations consumed.
   freeEmailGenUsed         Int               @default(0)

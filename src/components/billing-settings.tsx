@@ -95,11 +95,20 @@ export function BillingSettings() {
   }
 
   const used = status.aiUsageUsed;
-  const cap = status.monthlyAllowance;
+  const cap = status.periodAllowance ?? status.monthlyAllowance;
+  const purchased = status.purchasedCredits ?? status.aiCreditsBalance;
   const pct = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
 
   const currentPlan = status.planTier.toUpperCase();
   const isFreePlan = currentPlan === "FREE";
+  const periodEndLabel =
+    status.currentPeriodEnd && !isFreePlan
+      ? new Date(status.currentPeriodEnd).toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : null;
   const plusIsCurrent = currentPlan === "PLUS";
   const proIsCurrent = currentPlan === "PRO";
   const isExpired =
@@ -129,16 +138,18 @@ export function BillingSettings() {
         <div className="mb-3 flex items-baseline justify-between">
           <div>
             <div className="text-sm font-bold text-[var(--on-surface)]">
-              Monthly credits
+              {isFreePlan ? "Signup credits" : "Plan allowance"}
             </div>
             <div className="text-xs text-[var(--on-surface-variant)]">
               {isFreePlan
-                ? "Free tier uses credit balance and monthly credit grants."
-                : "Monthly credits expire each month. Purchased bonus credits are consumed first."}
+                ? "Granted once at signup. They do not renew — upgrade for more AI usage."
+                : periodEndLabel
+                  ? `Included with your plan until ${periodEndLabel}. Buy more credits below when you run out.`
+                  : "Allowance is tied to your current billing period. Buy more credits when you run out."}
             </div>
           </div>
           <div className="t-numeric text-base text-[var(--on-surface)]">
-            {isFreePlan ? `${status.aiCreditsBalance} available` : `${used} / ${cap}`}
+            {isFreePlan ? `${purchased} available` : `${used} / ${cap}`}
           </div>
         </div>
         <Progress
@@ -147,17 +158,19 @@ export function BillingSettings() {
           size="default"
         />
         <div className="mt-3 flex items-center justify-between text-xs text-[var(--on-surface-variant)]">
-          <span className="inline-flex items-center gap-1.5">
-            <Icon
-              name="local_activity"
-              size={14}
-              className="text-[var(--secondary)]"
-            />
-            Bonus credits:{" "}
-            <strong className="text-[var(--on-surface)]">
-              {status.aiCreditsBalance}
-            </strong>
-          </span>
+          {!isFreePlan ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Icon
+                name="local_activity"
+                size={14}
+                className="text-[var(--secondary)]"
+              />
+              Purchased credits:{" "}
+              <strong className="text-[var(--on-surface)]">{purchased}</strong>
+            </span>
+          ) : (
+            <span />
+          )}
           <button
             type="button"
             onClick={() => void statusQuery.refetch()}
@@ -185,7 +198,7 @@ export function BillingSettings() {
         <PlanCard
           name="Pro"
           priceLabel={`GHS ${status.displayPriceProGhs}`}
-          creditLabel="80 credits/month"
+          creditLabel="80 credits per billing period"
           summary="Full core toolkit"
           icon="workspace_premium"
           highlighted={proIsCurrent}
@@ -210,7 +223,7 @@ export function BillingSettings() {
         <PlanCard
           name="Plus"
           priceLabel={`GHS ${status.displayPricePlusGhs}`}
-          creditLabel="200 credits/month"
+          creditLabel="200 credits per billing period"
           summary="Advanced guidance"
           icon="auto_awesome"
           highlighted={plusIsCurrent}

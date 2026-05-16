@@ -101,8 +101,10 @@ export const status = withAuth(async (_req, { userId }) => {
     planTier: user.planTier,
     monthlyCredits: allowance,
     monthlyAllowance: allowance,
+    periodAllowance: allowance,
     aiUsageUsed: user.aiUsageUsed,
     aiUsageMonth: user.aiUsageMonth,
+    purchasedCredits: user.aiCreditsBalance,
     aiCreditsBalance: user.aiCreditsBalance,
     freeEmailGenerationsRemaining:
       user.planTier === "FREE" ? Math.max(0, 1 - user.freeEmailGenUsed) : null,

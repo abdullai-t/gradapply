@@ -3,16 +3,20 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { applicantProfileForLlm } from "@/lib/features/applicant-profile";
 import { generateColdEmail } from "@/lib/features/coldEmailGen";
+import {
+  billingPrecheckResponse,
+  finalizeAiConsumptionForAction,
+} from "@/lib/billing-allowance";
 import { isWithinBudget } from "@/lib/llm/costGuard";
 import { prisma } from "@/lib/prisma";
-
-const CREDIT_COST = 2;
 
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const userId = session.user.id;
 
   const withinBudget = await isWithinBudget();
   if (!withinBudget) {
@@ -21,6 +25,9 @@ export async function POST(req: Request) {
       { status: 503 },
     );
   }
+
+  const quota = await billingPrecheckResponse(userId, "cold_email");
+  if (quota) return quota;
 
   const body = (await req.json()) as {
     professorId?: string;
@@ -37,8 +44,8 @@ export async function POST(req: Request) {
 
   const [user, professor, program] = await Promise.all([
     prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { id: true, aiCreditsBalance: true, profile: true, name: true },
+      where: { id: userId },
+      select: { id: true, profile: true, name: true },
     }),
     prisma.professor.findUnique({ where: { id: professorId } }),
     prisma.program.findUnique({ where: { id: programId } }),
@@ -46,9 +53,6 @@ export async function POST(req: Request) {
 
   if (!user || !professor || !program) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  if (user.aiCreditsBalance < CREDIT_COST) {
-    return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
 
   const userProfile = applicantProfileForLlm({ name: user.name }, user.profile);
@@ -70,10 +74,6 @@ export async function POST(req: Request) {
   } | null;
 
   await prisma.$transaction([
-    prisma.user.update({
-      where: { id: user.id },
-      data: { aiCreditsBalance: { decrement: CREDIT_COST } },
-    }),
     prisma.generatedEmail.create({
       data: {
         userId: user.id,
@@ -87,6 +87,8 @@ export async function POST(req: Request) {
       },
     }),
   ]);
+
+  await finalizeAiConsumptionForAction(userId, "cold_email");
 
   return NextResponse.json(result);
 }

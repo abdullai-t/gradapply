@@ -23,8 +23,10 @@ export type BillingStatus = {
   planTier: string;
   monthlyCredits: number;
   monthlyAllowance: number;
+  periodAllowance: number;
   aiUsageUsed: number;
   aiUsageMonth: string | null;
+  purchasedCredits: number;
   aiCreditsBalance: number;
   freeEmailGenerationsRemaining: number | null;
   freeSopPreviewRemaining: number | null;

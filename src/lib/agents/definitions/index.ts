@@ -365,14 +365,15 @@ export const schoolIntelAgent: AgentDefinition = {
    - notes: caveats about deadlines or program details
    - portalUrl: official graduate admissions URL (only if confident; otherwise null)
 
-2. SCHOOL RECOMMENDATIONS: Based on the applicant's profile, research interests, and preferences, recommend well-matched graduate programs they should consider.
+2. SCHOOL RECOMMENDATIONS: Based on the applicant's profile, research interests, and preferences, recommend graduate programs with strong research fit and realistic funding (RA/TA, stipend, waivers).
 
 Guidelines:
 - Use well-known facts only — never invent URLs or precise deadlines you don't know
 - Prefer null over guessing for deadlines and URLs
 - Align program/degree suggestions with the applicant's profile when reasonable
-- For recommendations, consider research fit, program strength, funding availability, and geographic preferences
-- When asked to recommend, check existing schools to avoid duplicates
+- Rank by research fit first, then funding availability; avoid unfunded-only options unless fit is exceptional
+- Never recommend schools on the applicant's existing list or the explicit exclusion list in the user message
+- Each search run must surface different institutions than prior runs when an exclusion list is provided
 
 Output format depends on the task — follow the specific instructions in each user message.${SAFETY_PREAMBLE}`,
 };

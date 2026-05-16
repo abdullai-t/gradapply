@@ -16,7 +16,7 @@ function envNum(key: string, fallback: number): number {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 }
 
-/** Monthly AI actions included per tier (before bonus credits). */
+/** AI actions included per subscription period (PLUS/PRO). FREE uses signup credits only. */
 export function monthlyAiAllowanceForTier(tier: PlanTier): number {
   switch (tier) {
     case "PLUS":
