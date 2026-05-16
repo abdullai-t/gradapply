@@ -1,3 +1,4 @@
+import { log } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 import { MODELS } from "./models";
@@ -82,25 +83,44 @@ export async function logCost({
   feature,
   model,
   usage,
+  qualityScore,
 }: {
   userId: string;
   feature: string;
   model: string;
   usage: { prompt_tokens: number; completion_tokens: number };
+  qualityScore?: number | null;
 }) {
   try {
     const tier = Object.values(MODELS).find((m) => m.id === model);
     if (!tier) return;
     const inputCost = (usage.prompt_tokens / 1e6) * tier.inputPer1M;
     const outputCost = (usage.completion_tokens / 1e6) * tier.outputPer1M;
+    const score =
+      qualityScore != null && Number.isFinite(qualityScore)
+        ? Math.min(1, Math.max(0, qualityScore))
+        : null;
 
     void prisma.llmCostLog
       .create({
-        data: { userId, feature, model, inputCost, outputCost },
+        data: {
+          userId,
+          feature,
+          model,
+          inputCost,
+          outputCost,
+          qualityScore: score,
+        },
       })
       .catch(() => {});
 
-    console.log(`[llm] ${feature} | ${model} | $${(inputCost + outputCost).toFixed(5)}`);
+    log.info("llm.cost", {
+      userId,
+      feature,
+      model,
+      costUsd: Number((inputCost + outputCost).toFixed(6)),
+      qualityScore: score,
+    });
   } catch {
     // never crash a user request over logging
   }

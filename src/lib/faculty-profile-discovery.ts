@@ -3,6 +3,7 @@ import {
   assertHttpUrlFetchAllowed,
   fetchProfilePagePlainText,
 } from "@/lib/profile-page-fetch";
+import { formatPageFetchError } from "@/lib/page-fetch-errors";
 
 function decodeDuckDuckGoRedirect(href: string): string | null {
   try {
@@ -48,7 +49,9 @@ async function duckDuckGoResultUrls(query: string): Promise<string[]> {
   });
 
   if (!res.ok) {
-    throw new Error("Web lookup for this professor failed (search HTTP error).");
+    throw new Error(
+      "We couldn't look up that professor online right now. Add a direct profile URL and try again.",
+    );
   }
 
   const html = await res.text();
@@ -108,8 +111,7 @@ export async function discoverAndFetchFacultyPage(
       });
       return out;
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      errors.push(msg);
+      errors.push(formatPageFetchError(e));
     }
   }
 

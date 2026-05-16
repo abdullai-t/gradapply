@@ -1,3 +1,5 @@
+import { httpStatusUserMessage } from "@/lib/page-fetch-errors";
+
 /**
  * Fetch a public faculty profile HTML and reduce to plain text for the LLM.
  * Basic SSRF hardening: only http(s), block obvious private hosts.
@@ -50,10 +52,12 @@ function isBlockedHost(hostname: string): boolean {
  */
 export function assertHttpUrlFetchAllowed(url: URL): void {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error("Only http and https URLs are allowed.");
+    throw new Error("Only web links starting with http:// or https:// are supported.");
   }
   if (isBlockedHost(url.hostname)) {
-    throw new Error("That host is not allowed.");
+    throw new Error(
+      "That link can't be loaded from here. Use a public university profile page.",
+    );
   }
 }
 
@@ -135,7 +139,7 @@ async function fetchProfileHtml(rawUrl: string): Promise<{ finalUrl: URL; html: 
   try {
     url = new URL(rawUrl.trim());
   } catch {
-    throw new Error("Invalid URL.");
+    throw new Error("That doesn't look like a valid web address. Check the link and try again.");
   }
 
   assertHttpUrlFetchAllowed(url);
@@ -144,36 +148,52 @@ async function fetchProfileHtml(rawUrl: string): Promise<{ finalUrl: URL; html: 
   const t = setTimeout(() => controller.abort(), 25_000);
 
   try {
-    const res = await fetch(url.toString(), {
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "User-Agent":
-          "GradApplyBot/1.0 (+https://gradapply.local; faculty profile summarization)",
-        Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-      },
-    });
+    let res: Response;
+    try {
+      res = await fetch(url.toString(), {
+        redirect: "follow",
+        signal: controller.signal,
+        headers: {
+          "User-Agent":
+            "GradApplyBot/1.0 (+https://gradapply.local; faculty profile summarization)",
+          Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+        },
+      });
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") {
+        throw new Error("The page took too long to load. Check the URL or try again.");
+      }
+      throw new Error(
+        "We couldn't reach that website. Check your connection and that the URL is correct.",
+      );
+    }
 
     let finalUrl: URL;
     try {
       finalUrl = new URL(res.url || url.toString());
     } catch {
-      throw new Error("Invalid redirect target.");
+      throw new Error(
+        "The link redirected to an invalid address. Try a direct faculty profile URL.",
+      );
     }
     assertHttpUrlFetchAllowed(finalUrl);
 
     if (!res.ok) {
-      throw new Error(`Page returned HTTP ${res.status}.`);
+      throw new Error(httpStatusUserMessage(res.status));
     }
 
     const ctype = res.headers.get("content-type") ?? "";
     if (!ctype.includes("text/html") && !ctype.includes("application/xhtml")) {
-      throw new Error("URL must point to an HTML page.");
+      throw new Error(
+        "That link doesn't point to a web page. Use a faculty profile or department page URL.",
+      );
     }
 
     const buf = await res.arrayBuffer();
     if (buf.byteLength > MAX_BYTES) {
-      throw new Error("Page is too large to process.");
+      throw new Error(
+        "That page is too large to process. Try a shorter faculty profile URL.",
+      );
     }
 
     const decoder = new TextDecoder("utf-8", { fatal: false });

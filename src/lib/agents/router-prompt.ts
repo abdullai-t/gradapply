@@ -10,6 +10,8 @@
 import type { AgentContext } from "./types";
 import { orchestratorAgent } from "./definitions";
 import { executeChatTurn } from "@/lib/llm-execute-chat";
+import { scheduleLlmOutputQuality } from "@/lib/llm/qualityGate";
+
 import { emitTrace } from "./trace";
 import {
   classifyLlmErrorClass,
@@ -129,6 +131,13 @@ export async function resolveAgent(
 
       const category = raw.trim().toLowerCase().replace(/[^a-z]/g, "");
       const agentId = CLASSIFICATION_TO_AGENT[category] ?? "navigator";
+
+      scheduleLlmOutputQuality({
+        userId: ctx.userId,
+        feature: "router:classify",
+        model: model ?? provider,
+        output: raw,
+      });
 
       emitTrace(ctx, "router", "llm_result", {
         strategy: "llm",

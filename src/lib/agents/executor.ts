@@ -23,6 +23,7 @@ import {
   classifyLlmErrorClass,
   shouldFallbackToAlternateProvider,
 } from "@/lib/llm-credits";
+import { scheduleLlmOutputQuality } from "@/lib/llm/qualityGate";
 import { log } from "@/lib/logger";
 import { emitTrace } from "./trace";
 import { getToolsForAgent } from "./tools";
@@ -227,6 +228,13 @@ async function executeWithChain(
         durationMs: Date.now() - start,
       });
 
+      scheduleLlmOutputQuality({
+        userId: ctx.userId,
+        feature: agent.id,
+        model: model ?? provider,
+        output: text,
+      });
+
       return { text, provider, model };
     } catch (error) {
       lastErr = error;
@@ -297,6 +305,13 @@ async function* executeWithChainStream(
       }
 
       const text = result.value;
+      scheduleLlmOutputQuality({
+        userId: ctx.userId,
+        feature: agent.id,
+        model: model ?? provider,
+        output: text,
+      });
+
       emitTrace(ctx, agent.id, "llm_result", {
         provider,
         model,

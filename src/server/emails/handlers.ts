@@ -8,10 +8,11 @@ import {
   markFreeLifetimeEmailGenerationUsed,
 } from "@/lib/billing-allowance";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
+import { formatPageFetchError } from "@/lib/page-fetch-errors";
 import { requireWritableAccount } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
 import { sanitizeField } from "@/lib/agents/sanitize";
-import { fetchProfilePagePlainText } from "@/lib/profile-page-fetch";
+import { resolveFacultyPage } from "@/lib/resolve-faculty-page";
 
 import { bad, notFound, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
@@ -179,14 +180,21 @@ export const draft = withAuth<{ id: string }>(
       if (quota) return quota;
     }
 
-    if (row.profileUrl?.trim()) {
+    const hasProfileUrl = Boolean(row.profileUrl?.trim());
+    const hasNameAndSchool = Boolean(
+      row.profName?.trim() && row.university?.trim(),
+    );
+
+    if (hasProfileUrl || hasNameAndSchool) {
       let fetched;
       try {
-        fetched = await fetchProfilePagePlainText(row.profileUrl.trim());
+        fetched = await resolveFacultyPage({
+          profileUrl: row.profileUrl,
+          profName: row.profName,
+          university: row.university,
+        });
       } catch (e) {
-        const msg =
-          e instanceof Error ? e.message : "Failed to load profile page";
-        return bad(msg, 422);
+        return bad(formatPageFetchError(e, "Failed to load profile page"), 422);
       }
 
       try {

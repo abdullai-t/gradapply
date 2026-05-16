@@ -130,6 +130,8 @@ export default function EmailsPage() {
 
   const [drafting, setDrafting] = useState<string | null>(null);
   const [profileUrlInput, setProfileUrlInput] = useState("");
+  const [analyzeProfName, setAnalyzeProfName] = useState("");
+  const [analyzeUniversity, setAnalyzeUniversity] = useState("");
   const [working, setWorking] = useState(false);
   const gmailConnected = useMemo(() => {
     const list = connectorsQuery.data?.connectors ?? [];
@@ -374,10 +376,15 @@ export default function EmailsPage() {
     if (!url) return;
     setWorking(true);
     try {
+      const name = analyzeProfName.trim();
+      const university = analyzeUniversity.trim();
       const res = await fetch("/api/prof-emails/from-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profileUrl: url }),
+        body: JSON.stringify({
+          profileUrl: url,
+          ...(name && university ? { profName: name, university } : {}),
+        }),
       });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: unknown };
@@ -1143,8 +1150,33 @@ export default function EmailsPage() {
                   className="border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] transition-colors"
                 />
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  We fetch the page and draft a cold email—no school selection needed.
+                  We fetch the page and draft a cold email. If the link fails, add the
+                  professor&apos;s name and university below and we&apos;ll look them up.
                 </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="analyze-prof-name">Professor name (optional)</Label>
+                    <Input
+                      id="analyze-prof-name"
+                      value={analyzeProfName}
+                      onChange={(e) => setAnalyzeProfName(e.target.value)}
+                      placeholder="e.g. Jane Smith"
+                      disabled={discovering || working}
+                      className="border-[var(--outline-variant)] bg-[var(--surface-container-lowest)]"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="analyze-university">University (optional)</Label>
+                    <Input
+                      id="analyze-university"
+                      value={analyzeUniversity}
+                      onChange={(e) => setAnalyzeUniversity(e.target.value)}
+                      placeholder="e.g. Stanford University"
+                      disabled={discovering || working}
+                      className="border-[var(--outline-variant)] bg-[var(--surface-container-lowest)]"
+                    />
+                  </div>
+                </div>
                 <form onSubmit={analyzeFromUrl}>
                   <Button
                     type="submit"
@@ -1501,7 +1533,32 @@ export default function EmailsPage() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Best sources: university faculty pages, lab pages, or Google Scholar profiles.
+                  If the link fails, add name and university below.
                 </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="analyze-prof-name-modal">Professor name (optional)</Label>
+                  <Input
+                    id="analyze-prof-name-modal"
+                    value={analyzeProfName}
+                    onChange={(e) => setAnalyzeProfName(e.target.value)}
+                    placeholder="e.g. Jane Smith"
+                    disabled={discovering || working}
+                    className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="analyze-university-modal">University (optional)</Label>
+                  <Input
+                    id="analyze-university-modal"
+                    value={analyzeUniversity}
+                    onChange={(e) => setAnalyzeUniversity(e.target.value)}
+                    placeholder="e.g. Stanford University"
+                    disabled={discovering || working}
+                    className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]"
+                  />
+                </div>
               </div>
               <Button type="submit" className="w-full" disabled={analyzeUrlBlocked}>
                 {working ? (

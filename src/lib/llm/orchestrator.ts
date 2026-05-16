@@ -97,15 +97,10 @@ export async function orchestrate({
   const raw = response.choices[0]?.message?.content ?? "";
   let parsed: unknown = parseJsonContent(raw);
 
-  await logCost({
-    userId,
-    feature: task,
-    model: model.id,
-    usage: response.usage ?? { prompt_tokens: 0, completion_tokens: 0 },
-  });
-
-  const score = await scoreOutput(task, raw);
+  const judged = await scoreOutput(task, raw, { userId });
+  const score = judged.score;
   let finalTier: ModelTier = tier;
+  let finalScore = score;
 
   if (score < config.qualityThreshold && tier !== config.escalateTo) {
     const escalateTo = config.escalateTo;
@@ -130,16 +125,27 @@ export async function orchestrate({
       const escalatedRaw = escalated.choices[0]?.message?.content ?? "";
       parsed = parseJsonContent(escalatedRaw);
       finalTier = escalateTo;
+      const escalatedJudged = await scoreOutput(task, escalatedRaw, { userId });
+      finalScore = escalatedJudged.score;
       await logCost({
         userId,
         feature: `${task}_escalated`,
         model: escalateModel.id,
         usage: escalated.usage ?? { prompt_tokens: 0, completion_tokens: 0 },
+        qualityScore: escalatedJudged.score,
       });
     }
   }
 
+  await logCost({
+    userId,
+    feature: task,
+    model: model.id,
+    usage: response.usage ?? { prompt_tokens: 0, completion_tokens: 0 },
+    qualityScore: finalTier === tier ? finalScore : score,
+  });
+
   await cacheSet(task, cacheKey, parsed);
 
-  return { result: parsed, source: "llm", score, tier: finalTier };
+  return { result: parsed, source: "llm", score: finalScore, tier: finalTier };
 }

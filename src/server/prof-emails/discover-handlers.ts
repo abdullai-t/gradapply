@@ -6,6 +6,7 @@ import {
   finalizeAiConsumption,
 } from "@/lib/billing-allowance";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
+import { formatPageFetchError } from "@/lib/page-fetch-errors";
 import {
   assertProfEmailLlmAllowed,
   markProfEmailLlmAttempt,
@@ -57,8 +58,7 @@ export const discover = withAuth(async (req, { userId }) => {
   try {
     page = await fetchProfilePageForDiscovery(rawUrl);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Failed to load faculty page.";
-    return bad(msg, 422);
+    return bad(formatPageFetchError(e, "Failed to load faculty page."), 422);
   }
 
   const uniqueIds = Array.from(new Set(parsed.data.schoolIds));

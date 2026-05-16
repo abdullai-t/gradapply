@@ -7,8 +7,9 @@ import {
   billingPrecheckResponse,
   finalizeAiConsumption,
 } from "@/lib/billing-allowance";
-import { discoverAndFetchFacultyPage } from "@/lib/faculty-profile-discovery";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
+import { formatPageFetchError } from "@/lib/page-fetch-errors";
+import { resolveFacultyPage } from "@/lib/resolve-faculty-page";
 import { classifyLlmErrorClass, stringifyLlmError } from "@/lib/llm-credits";
 import { log } from "@/lib/logger";
 import { requirePlusForFeature } from "@/lib/plan-gates";
@@ -20,7 +21,6 @@ import {
   markProfEmailLlmSuccess,
   type ProfEmailLlmDenial,
 } from "@/lib/prof-email-llm-rate-limit";
-import { fetchProfilePagePlainText } from "@/lib/profile-page-fetch";
 import { bad, notFound, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
 
@@ -30,42 +30,6 @@ type AuditResearch = {
   summary: string;
   evidence: string | null;
 };
-
-type ProfRow = {
-  profileUrl: string | null;
-  profName: string | null;
-  university: string | null;
-};
-
-async function resolveFacultyPageForAudit(row: ProfRow): Promise<{ url: string; text: string }> {
-  const name = row.profName?.trim();
-  const uni = row.university?.trim();
-  const profileUrl = row.profileUrl?.trim();
-
-  if (profileUrl) {
-    try {
-      return await fetchProfilePagePlainText(profileUrl);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (name && uni) {
-        log.warn("prof-emails/audit.stored-url-failed-try-discovery", {
-          profileUrl,
-          reason: msg,
-        });
-        return await discoverAndFetchFacultyPage(name, uni);
-      }
-      throw e instanceof Error ? e : new Error(String(e));
-    }
-  }
-
-  if (name && uni) {
-    return await discoverAndFetchFacultyPage(name, uni);
-  }
-
-  throw new Error(
-    "Add a professor profile URL, or add professor name and university so we can find a public faculty page.",
-  );
-}
 
 function parseAuditResearch(reply: string): AuditResearch[] {
   const raw = reply.trim();
@@ -124,15 +88,19 @@ export const audit = withAuth<{ id: string }>(async (_req, { userId, params }) =
 
   let fetched: { url: string; text: string };
   try {
-    fetched = await resolveFacultyPageForAudit(row);
+    fetched = await resolveFacultyPage({
+      profileUrl: row.profileUrl,
+      profName: row.profName,
+      university: row.university,
+    });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Failed to load profile page";
+    const msg = formatPageFetchError(e, "Failed to load profile page");
     log.warn("prof-emails/audit.page-resolve-error", {
       userId,
       profEmailId: id,
       profileUrl: row.profileUrl?.trim() ?? null,
       hasNameUni: Boolean(row.profName?.trim() && row.university?.trim()),
-      reason: msg,
+      reason: e instanceof Error ? e.message : String(e),
     });
     return bad(msg, 422);
   }

@@ -9,6 +9,7 @@ import {
   markFreeLifetimeEmailGenerationUsed,
 } from "@/lib/billing-allowance";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
+import { formatPageFetchError } from "@/lib/page-fetch-errors";
 import {
   assertProfEmailLlmAllowed,
   markProfEmailLlmAttempt,
@@ -17,7 +18,7 @@ import {
 } from "@/lib/prof-email-llm-rate-limit";
 import { prisma } from "@/lib/prisma";
 import { sanitizeField } from "@/lib/agents/sanitize";
-import { fetchProfilePagePlainText } from "@/lib/profile-page-fetch";
+import { resolveFacultyPage } from "@/lib/resolve-faculty-page";
 import { requireWritableAccount } from "@/lib/plan-gates";
 import { bad, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
@@ -55,14 +56,15 @@ export const fromUrl = withAuth(async (req, { userId }) => {
 
   await markProfEmailLlmAttempt(userId);
 
-  const rawUrl = parsed.data.profileUrl.trim();
-
   let fetchedPage: { url: string; text: string };
   try {
-    fetchedPage = await fetchProfilePagePlainText(rawUrl);
+    fetchedPage = await resolveFacultyPage({
+      profileUrl: parsed.data.profileUrl,
+      profName: parsed.data.profName ?? null,
+      university: parsed.data.university ?? null,
+    });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Could not load page";
-    return bad(msg, 422);
+    return bad(formatPageFetchError(e, "Could not load page"), 422);
   }
 
   try {

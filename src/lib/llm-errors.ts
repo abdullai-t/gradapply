@@ -1,4 +1,5 @@
 import { classifyLlmErrorClass, stringifyLlmError } from "@/lib/llm-credits";
+import { formatPageFetchError } from "@/lib/page-fetch-errors";
 
 /** Reduce accidental disclosure of server filesystem paths in API error JSON. */
 function scrubPathsForClient(s: string): string {
@@ -12,6 +13,13 @@ function scrubPathsForClient(s: string): string {
  */
 export function formatLlmFailureMessage(error: unknown): string {
   const raw = scrubPathsForClient(stringifyLlmError(error));
+  if (
+    /Page returned HTTP|profile URL|faculty page|Could not extract enough text|must point to an HTML|Invalid URL/i.test(
+      raw,
+    )
+  ) {
+    return formatPageFetchError(error);
+  }
   const errorClass = classifyLlmErrorClass(error);
 
   if (errorClass === "rate_limited") {

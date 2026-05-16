@@ -191,13 +191,15 @@ model SopReview {
 }
 
 model LlmCostLog {
-  id         String   @id @default(cuid())
-  userId     String
-  feature    String
-  model      String
-  inputCost  Float
-  outputCost Float
-  createdAt  DateTime @default(now())
+  id           String   @id @default(cuid())
+  userId       String
+  feature      String
+  model        String
+  inputCost    Float
+  outputCost   Float
+  /// Judge score 0–1 from quality gate (null for legacy rows).
+  qualityScore Float?
+  createdAt    DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

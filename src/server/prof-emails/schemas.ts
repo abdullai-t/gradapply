@@ -65,9 +65,23 @@ export const analyzeReplyBodySchema = z.object({
   replyText: z.string().min(20).max(80000),
 });
 
-export const fromUrlBodySchema = z.object({
-  profileUrl: z.string().url().max(2000),
-});
+export const fromUrlBodySchema = z
+  .object({
+    profileUrl: z.string().url().max(2000),
+    profName: z.string().min(1).max(200).optional(),
+    university: z.string().min(1).max(200).optional(),
+  })
+  .refine(
+    (data) => {
+      const hasName = Boolean(data.profName?.trim());
+      const hasUni = Boolean(data.university?.trim());
+      return (hasName && hasUni) || (!hasName && !hasUni);
+    },
+    {
+      message: "Provide both professor name and university, or leave both empty.",
+      path: ["profName"],
+    },
+  );
 
 export const sendViaGmailBodySchema = z.object({
   attachmentDocumentIds: z.array(z.string().min(1)).max(6).optional(),
