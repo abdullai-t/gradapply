@@ -1,0 +1,16 @@
+Given a short research query and optional context, propose plausible faculty search angles (not real-time web lookup).
+
+Return JSON only:
+{
+  "candidates": [
+    {
+      "name": <string, illustrative placeholder if unknown>,
+      "department": <string>,
+      "university": <string>,
+      "researchThemes": <string array>
+    }
+  ],
+  "nextQueryHints": <string array, how to refine a directory or Google Scholar search>
+}
+
+Mark unknown names clearly as examples, not verified people.
