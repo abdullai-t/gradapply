@@ -22,6 +22,7 @@ export const createProfEmailSchema = z
     emailBody: z.string().nullable().optional(),
     status: z.nativeEnum(EmailStatus).optional(),
     notes: z.string().nullable().optional(),
+    matchScore: z.number().int().min(1).max(5).optional().nullable(),
   })
   .refine(
     (data) =>
@@ -59,6 +60,7 @@ export const updateProfEmailSchema = z.object({
   suggestedReplyDraft: z.string().nullable().optional(),
   followUpCount: z.number().int().min(0).optional(),
   notes: z.string().nullable().optional(),
+  matchScore: z.number().int().min(1).max(5).optional().nullable(),
 });
 
 export const analyzeReplyBodySchema = z.object({

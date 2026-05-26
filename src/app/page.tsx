@@ -1,5 +1,7 @@
+import { auth } from "@/auth";
 import { HomeLanding } from "@/components/landing/home-landing";
 
 export default async function HomePage() {
-  return <HomeLanding showPricing />;
+  const session = await auth();
+  return <HomeLanding showPricing isSignedIn={Boolean(session?.user)} />;
 }

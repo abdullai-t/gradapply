@@ -34,6 +34,12 @@ export const getSopVariantTool: ToolDefinition<z.infer<typeof sopVariantInput>, 
 
     const variant = await prisma.sopVariant.findFirst({
       where: { schoolId: input.schoolId, userId: ctx.userId },
+      select: {
+        id: true,
+        title: true,
+        body: true,
+        masterText: true,
+      },
     });
 
     if (!variant) {
@@ -42,12 +48,15 @@ export const getSopVariantTool: ToolDefinition<z.infer<typeof sopVariantInput>, 
     }
 
     const MAX = 6000;
+    const master =
+      variant.masterText && variant.masterText.length > MAX
+        ? `${variant.masterText.slice(0, MAX)}…`
+        : variant.masterText;
     const result: SopVariantOutput = {
       id: variant.id,
       title: variant.title,
       body: variant.body.length > MAX ? `${variant.body.slice(0, MAX)}…` : variant.body,
-      // Some branches do not expose `masterText` in the generated Prisma client.
-      masterText: null,
+      masterText: master,
     };
 
     setCached(ctx, "getSopVariant", input, result);

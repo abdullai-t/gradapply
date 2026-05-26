@@ -11,7 +11,7 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { messageFromApiErrorPayload } from "@/lib/api-error-json";
 
@@ -48,6 +48,7 @@ import type { SchoolRow } from "@/features/schools/types";
 
 function SchoolsPageInner() {
   const qc = useQueryClient();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const schoolIdFromUrl = searchParams.get("schoolId");
 
@@ -78,8 +79,20 @@ function SchoolsPageInner() {
   );
 
   useEffect(() => {
-    setLinkedSchoolId(schoolIdFromUrl);
-  }, [schoolIdFromUrl]);
+    if (schoolIdFromUrl) {
+      router.replace(`/schools/${schoolIdFromUrl}`);
+      return;
+    }
+    const hashId =
+      typeof window !== "undefined"
+        ? window.location.hash.replace(/^#/, "").trim()
+        : "";
+    if (hashId) {
+      router.replace(`/schools/${hashId}`);
+      return;
+    }
+    setLinkedSchoolId(null);
+  }, [schoolIdFromUrl, router]);
 
   useEffect(() => {
     scrolledToDeepLinkRef.current = null;

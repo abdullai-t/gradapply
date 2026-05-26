@@ -174,6 +174,106 @@ function looksLikePdf(buf: Buffer): boolean {
   return buf.subarray(0, 5).toString("ascii") === "%PDF-";
 }
 
+function looksLikeZip(buf: Buffer): boolean {
+  return buf.length >= 4 && buf[0] === 0x50 && buf[1] === 0x4b;
+}
+
+type InferredDocFormat = "text" | "pdf" | "docx" | "unknown";
+
+function inferDocumentFormat(
+  buf: Buffer,
+  mime: string | null,
+  fileName?: string | null,
+): InferredDocFormat {
+  const m = (mime ?? "").toLowerCase();
+  const n = (fileName ?? "").toLowerCase();
+
+  if (m.includes("text/") || m === "application/json" || n.endsWith(".txt")) {
+    return "text";
+  }
+  if (m.includes("pdf") || looksLikePdf(buf) || n.endsWith(".pdf")) {
+    return "pdf";
+  }
+  if (
+    m.includes("wordprocessingml") ||
+    m.includes("msword") ||
+    n.endsWith(".docx") ||
+    (n.endsWith(".doc") && !n.endsWith(".pdf"))
+  ) {
+    return "docx";
+  }
+  if (looksLikePdf(buf)) return "pdf";
+  if (
+    looksLikeZip(buf) &&
+    (n.endsWith(".docx") || m.includes("officedocument") || m.includes("msword"))
+  ) {
+    return "docx";
+  }
+  return "unknown";
+}
+
+async function extractDocxPlainText(buf: Buffer): Promise<string | null> {
+  try {
+    const mammoth = await import("mammoth");
+    const result = await mammoth.extractRawText({ buffer: buf });
+    const text = (result.value ?? "").replace(/\s+/g, " ").trim();
+    return text.length >= 20 ? text.slice(0, MAX_PER_DOC_CHARS) : null;
+  } catch (e) {
+    log.warn("doc-extraction.docx", {
+      reason: e instanceof Error ? e.message : "unknown_error",
+    });
+    return null;
+  }
+}
+
+async function extractPdfPlainText(buf: Buffer): Promise<string | null> {
+  try {
+    const { CanvasFactory } = await import("pdf-parse/worker");
+    const { PDFParse } = await import("pdf-parse");
+    const parser = new PDFParse({
+      data: new Uint8Array(buf),
+      CanvasFactory,
+    });
+    try {
+      const textResult = await parser.getText();
+      const text = (textResult.text ?? "").replace(/\s+/g, " ").trim();
+      if (text.length >= 20) return text.slice(0, MAX_PER_DOC_CHARS);
+    } finally {
+      await parser.destroy().catch(() => {});
+    }
+  } catch (e) {
+    log.warn("doc-extraction.pdf-parse", {
+      path: "canvas-factory",
+      reason: e instanceof Error ? e.message : "unknown_error",
+    });
+  }
+
+  try {
+    const text = extractPdfTextFromRawBytes(buf);
+    log.debug("doc-extraction.raw-pdf", { extractedChars: text.length });
+    if (text.length >= 20) return text.slice(0, MAX_PER_DOC_CHARS);
+    log.warn("doc-extraction.raw-pdf", {
+      reason: "too_little_text",
+      extractedChars: text.length,
+    });
+  } catch (e) {
+    log.warn("doc-extraction.raw-pdf", {
+      reason: e instanceof Error ? e.message : "unknown_error",
+    });
+  }
+
+  try {
+    const text = await extractPdfTextViaPdftotext(buf);
+    if (text && text.length >= 20) return text;
+    log.warn("doc-extraction.pdftotext", { reason: "too_little_text" });
+  } catch (e) {
+    log.warn("doc-extraction.pdftotext", {
+      reason: e instanceof Error ? e.message : "unknown_error",
+    });
+  }
+  return null;
+}
+
 const FETCH_HEADER_SETS: Record<string, string>[] = [
   {
     Accept: "*/*",
@@ -254,78 +354,46 @@ async function fetchDocumentBufferForDoc(doc: {
   return { buffer: null, reason: fromUrl.reason ?? "url_fetch_failed" };
 }
 
-async function bufferToPlainText(buf: Buffer, mime: string | null): Promise<string | null> {
-  const m = (mime ?? "").toLowerCase();
+async function bufferToPlainText(
+  buf: Buffer,
+  mime: string | null,
+  fileName?: string | null,
+): Promise<string | null> {
+  const format = inferDocumentFormat(buf, mime, fileName);
 
-  if (m.includes("text/") || m === "application/json") {
+  if (format === "text") {
     const t = buf.toString("utf8");
-    return t.slice(0, MAX_PER_DOC_CHARS);
+    const text = t.replace(/\s+/g, " ").trim();
+    return text.length >= 20 ? text.slice(0, MAX_PER_DOC_CHARS) : null;
   }
 
-  if (m.includes("pdf") || looksLikePdf(buf)) {
-    try {
-      const { PDFParse } = await import("pdf-parse");
-      const parser = new PDFParse({ data: new Uint8Array(buf) });
-      try {
-        const textResult = await parser.getText();
-        const text = (textResult.text ?? "").replace(/\s+/g, " ").trim();
-        if (text.length >= 20) return text.slice(0, MAX_PER_DOC_CHARS);
-      } finally {
-        await parser.destroy().catch(() => {});
-      }
-    } catch (e) {
-      log.warn("doc-extraction.pdf-parse", {
-        path: "primary",
-        reason: e instanceof Error ? e.message : "unknown_error",
-      });
-    }
+  if (format === "docx") {
+    return extractDocxPlainText(buf);
+  }
 
-    try {
-      const mod = await import("pdf-parse");
-      const legacy = (
-        mod as unknown as {
-          default?: (data: Buffer) => Promise<{ text?: string }>;
-        }
-      ).default;
-      if (typeof legacy === "function") {
-        const parsed = await legacy(buf);
-        const text = (parsed.text ?? "").replace(/\s+/g, " ").trim();
-        if (text.length >= 20) return text.slice(0, MAX_PER_DOC_CHARS);
-      }
-    } catch (e) {
-      log.warn("doc-extraction.pdf-parse", {
-        path: "legacy",
-        reason: e instanceof Error ? e.message : "unknown_error",
-      });
-    }
-
-    try {
-      const text = extractPdfTextFromRawBytes(buf);
-      log.debug("doc-extraction.raw-pdf", { extractedChars: text.length });
-      if (text.length >= 20) return text.slice(0, MAX_PER_DOC_CHARS);
-      log.warn("doc-extraction.raw-pdf", {
-        reason: "too_little_text",
-        extractedChars: text.length,
-      });
-    } catch (e) {
-      log.warn("doc-extraction.raw-pdf", {
-        reason: e instanceof Error ? e.message : "unknown_error",
-      });
-    }
-
-    try {
-      const text = await extractPdfTextViaPdftotext(buf);
-      if (text && text.length >= 20) return text;
-      log.warn("doc-extraction.pdftotext", { reason: "too_little_text" });
-    } catch (e) {
-      log.warn("doc-extraction.pdftotext", {
-        reason: e instanceof Error ? e.message : "unknown_error",
-      });
-    }
-    return null;
+  if (format === "pdf") {
+    return extractPdfPlainText(buf);
   }
 
   return null;
+}
+
+/** User-facing hint when stored document text cannot be extracted. */
+export function extractionFailureMessage(
+  status: StoredDocumentExtractionStatus,
+  fileName?: string | null,
+): string {
+  if (status.status === "download_failed") {
+    return "Could not download that file (expired or private link). Re-upload it or paste your SOP as plain text.";
+  }
+  const n = (fileName ?? "").toLowerCase();
+  if (n.endsWith(".doc") && !n.endsWith(".docx")) {
+    return "Legacy .doc files are not supported. Save as .docx or export to a selectable-text PDF, or paste plain text.";
+  }
+  if (n.endsWith(".docx")) {
+    return "Could not read text from that Word file. Try “Save as PDF” with selectable text, or paste plain text.";
+  }
+  return "Could not read text from that file (scan-only PDF or image-based export). Paste plain text or upload a selectable-text PDF.";
 }
 
 export function formatExtendedProfileSection(
@@ -419,11 +487,15 @@ async function formatUploadedDocumentsSection(
       continue;
     }
 
-    const text = await bufferToPlainText(fetched.buffer, doc.mimeType);
+    const text = await bufferToPlainText(
+      fetched.buffer,
+      doc.mimeType,
+      doc.name,
+    );
     if (!text || text.length < 20) {
       stats.unsupported += 1;
       parts.push(
-        `${meta}\n  _(Format not text-extracted here — e.g. Word .docx or scanned image PDF. Use filename/type as a hint or ask for plain text/PDF with selectable text.)_`,
+        `${meta}\n  _(Format not text-extracted here — e.g. scanned image PDF. Use filename/type as a hint or ask for plain text/PDF with selectable text.)_`,
       );
       continue;
     }
@@ -485,7 +557,11 @@ export async function extractPlainTextFromStoredDocument(doc: {
 }): Promise<string | null> {
   const fetched = await fetchDocumentBufferForDoc(doc);
   if (!fetched.buffer) return null;
-  const text = await bufferToPlainText(fetched.buffer, doc.mimeType);
+  const text = await bufferToPlainText(
+    fetched.buffer,
+    doc.mimeType,
+    doc.name,
+  );
   return text && text.length >= 20 ? text : null;
 }
 
@@ -514,7 +590,11 @@ export async function getStoredDocumentExtractionStatus(doc: {
       detail: fetched.reason ?? "fetch_failed",
     };
   }
-  const text = await bufferToPlainText(fetched.buffer, doc.mimeType);
+  const text = await bufferToPlainText(
+    fetched.buffer,
+    doc.mimeType,
+    doc.name,
+  );
   if (!text || text.length < 20) {
     return {
       status: "unsupported",

@@ -79,7 +79,16 @@ const STUDIO_CSS = `
         margin: 0 0 0.7rem 0;
       }
       .prose-doc p {
-        margin: 0 0 1.1rem 0;
+        margin: 0 0 1.25rem 0;
+        padding: 0.1rem 0 0.1rem 0.65rem;
+        border-left: 2px solid transparent;
+        transition: border-color 0.15s ease;
+      }
+      .prose-doc p:last-child {
+        margin-bottom: 0;
+      }
+      .ProseMirror-focused .prose-doc p:hover {
+        border-left-color: color-mix(in srgb, var(--primary) 45%, transparent);
       }
       .prose-doc em {
         background: color-mix(in srgb, var(--primary) 15%, transparent);

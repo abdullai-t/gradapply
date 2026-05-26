@@ -7,7 +7,13 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ["@prisma/client", ".prisma/client"],
+  serverExternalPackages: [
+    "@prisma/client",
+    ".prisma/client",
+    "pdf-parse",
+    "@napi-rs/canvas",
+    "mammoth",
+  ],
   outputFileTracingIncludes: {
     "**/*": [
       "./node_modules/pg-cloudflare/dist/**",

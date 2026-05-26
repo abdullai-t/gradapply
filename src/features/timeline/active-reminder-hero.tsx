@@ -102,7 +102,7 @@ export function ActiveReminderHero({
 
         <div className="flex flex-wrap gap-2">
           <Link
-            href="/schools"
+            href={`/schools/${target.school.id}`}
             className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3.5 text-sm font-extrabold text-[var(--primary)] transition-transform duration-150 hover:-translate-y-0.5"
             style={{ boxShadow: "0 4px 0 0 rgba(0,0,0,0.18)" }}
           >

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
@@ -11,15 +11,16 @@ import {
   type SuggestionResolvedDetail,
 } from "./ai-suggestion-node";
 import {
+  bodyToEditorHtml,
   paragraphsToHtml,
   splitParagraphs,
+  stripHtmlToPlain,
   type SopVariantRow,
   useRewriteDocument,
   useRewriteSelection,
   useScoreSop,
   useUpdateVariant,
 } from "./api";
-import { DocumentReview } from "./document-review";
 import { StudioToast, type ToastSpec } from "./toast";
 import {
   type SopEditorHandle,
@@ -38,6 +39,10 @@ type Props = {
   onAskAI: (prompt: string) => void;
   /// Brief flash highlight used after an AI rewrite lands.
   flash: boolean;
+  /// Lets the chat tab trigger a whole-document rewrite on this editor.
+  registerDocumentRewrite?: (
+    fn: ((prompt: string) => Promise<void>) | null,
+  ) => void;
 };
 
 const DEFAULT_SCORE: SopScoreResponse = {
@@ -70,10 +75,13 @@ export function SopEditorPanel({
   variant,
   onAskAI,
   flash,
+  registerDocumentRewrite,
 }: Props) {
   const editorRef = useRef<SopEditorHandle>(null);
-  const [draftHtml, setDraftHtml] = useState(variant.body);
-  const [draftText, setDraftText] = useState(() => htmlToText(variant.body));
+  const [draftHtml, setDraftHtml] = useState(() => bodyToEditorHtml(variant.body));
+  const [draftText, setDraftText] = useState(() =>
+    stripHtmlToPlain(bodyToEditorHtml(variant.body)),
+  );
   const [showMaster, setShowMaster] = useState(false);
   const [score, setScore] = useState<SopScoreResponse>(DEFAULT_SCORE);
 
@@ -82,13 +90,6 @@ export function SopEditorPanel({
   const rewriteMutation = useRewriteSelection();
   const docRewriteMutation = useRewriteDocument();
 
-  // Whole-document rewrite review state. When set, the editor is hidden
-  // and the DocumentReview overlay is shown instead.
-  const [pendingRewrite, setPendingRewrite] = useState<{
-    prompt: string;
-    oldParagraphs: string[];
-    newParagraphs: string[];
-  } | null>(null);
   const [docRewriteError, setDocRewriteError] = useState<string | null>(null);
   // Pre-fill the bottom-bar prompt when the user clicks "Try again".
   const [retrySeed, setRetrySeed] = useState<string>("");
@@ -122,95 +123,94 @@ export function SopEditorPanel({
       scope: "selection",
     });
 
-  const beginDocRewrite = async (prompt: string) => {
-    setDocRewriteError(null);
-    const oldParagraphs = splitParagraphs(htmlToText(draftHtml));
-    if (oldParagraphs.length === 0) {
-      setDocRewriteError("Draft is empty.");
-      return;
-    }
-    try {
-      const res = await docRewriteMutation.mutateAsync({
-        originalText: oldParagraphs.join("\n\n"),
-        prompt,
-        schoolId,
-      });
-      if (res.unchanged) {
-        setDocRewriteError(
-          "AI returned the same draft — try a more specific instruction.",
-        );
+  const beginDocRewrite = useCallback(
+    async (prompt: string) => {
+      setDocRewriteError(null);
+      const oldParagraphs = splitParagraphs(stripHtmlToPlain(draftHtml));
+      if (oldParagraphs.length === 0) {
+        setDocRewriteError("Draft is empty.");
         return;
       }
-      const newParagraphs = splitParagraphs(res.newText);
-      if (newParagraphs.length === 0) {
-        setDocRewriteError(
-          "AI didn't return any text. Try rephrasing your prompt.",
-        );
-        return;
+      try {
+        const res = await docRewriteMutation.mutateAsync({
+          originalText: oldParagraphs.join("\n\n"),
+          prompt,
+          schoolId,
+        });
+        if (res.unchanged) {
+          setDocRewriteError(
+            "AI returned the same draft — try a more specific instruction.",
+          );
+          return;
+        }
+        const newParagraphs = splitParagraphs(res.newText);
+        if (newParagraphs.length === 0) {
+          setDocRewriteError(
+            "AI didn't return any text. Try rephrasing your prompt.",
+          );
+          return;
+        }
+        const previousHtml = editorRef.current?.getHtml() ?? draftHtml;
+        const newHtml = paragraphsToHtml(newParagraphs);
+        setDraftHtml(newHtml);
+        setDraftText(stripHtmlToPlain(newHtml));
+        editorRef.current?.setHtml(newHtml);
+        updateVariant.mutate({ id: variant.id, body: newHtml });
+        setRetrySeed("");
+        setToast({
+          id: `rewrite-doc-${Date.now()}`,
+          message: "Draft rewritten",
+          undo: () => {
+            editorRef.current?.setHtml(previousHtml);
+            setDraftHtml(previousHtml);
+            setDraftText(stripHtmlToPlain(previousHtml));
+            updateVariant.mutate({ id: variant.id, body: previousHtml });
+          },
+        });
+      } catch (e) {
+        setDocRewriteError(e instanceof Error ? e.message : "Rewrite failed");
+        throw e;
       }
-      setPendingRewrite({ prompt, oldParagraphs, newParagraphs });
-      setRetrySeed("");
-    } catch (e) {
-      setDocRewriteError(e instanceof Error ? e.message : "Rewrite failed");
-    }
-  };
+    },
+    [draftHtml, docRewriteMutation, schoolId, updateVariant, variant.id],
+  );
 
-  const acceptDocRewrite = (finalParagraphs: string[]) => {
-    // Snapshot the pre-accept body BEFORE we replace it — Tiptap's
-    // setContent may bypass undo history for whole-doc swaps, so we keep
-    // our own copy and restore from it on the toast's Undo.
-    const previousHtml = editorRef.current?.getHtml() ?? draftHtml;
-    const newHtml = paragraphsToHtml(finalParagraphs);
-    setDraftHtml(newHtml);
-    setDraftText(htmlToText(newHtml));
-    editorRef.current?.setHtml(newHtml);
-    // Auto-save kicks in via the existing debounce on draftHtml. We also
-    // fire an immediate PATCH so a hard reload right after Accept loses
-    // nothing, even if the user clicks before debounce expires.
-    updateVariant.mutate({ id: variant.id, body: newHtml });
-    setPendingRewrite(null);
+  useEffect(() => {
+    registerDocumentRewrite?.(beginDocRewrite);
+    return () => registerDocumentRewrite?.(null);
+  }, [beginDocRewrite, registerDocumentRewrite]);
+
+  const handleDirectRewriteApplied = ({
+    description,
+    undo,
+  }: {
+    description: string;
+    undo: () => void;
+  }) => {
+    const html = editorRef.current?.getHtml() ?? draftHtml;
+    setDraftHtml(html);
+    setDraftText(stripHtmlToPlain(html));
+    updateVariant.mutate({ id: variant.id, body: html });
     setToast({
-      id: `accept-doc-${Date.now()}`,
-      message: "Draft updated",
+      id: `rewrite-inline-${Date.now()}`,
+      message: description,
       undo: () => {
-        editorRef.current?.setHtml(previousHtml);
-        setDraftHtml(previousHtml);
-        setDraftText(htmlToText(previousHtml));
-        updateVariant.mutate({ id: variant.id, body: previousHtml });
+        undo();
+        const restored = editorRef.current?.getHtml() ?? draftHtml;
+        setDraftHtml(restored);
+        setDraftText(stripHtmlToPlain(restored));
+        updateVariant.mutate({ id: variant.id, body: restored });
       },
     });
   };
 
-  const rejectDocRewrite = () => setPendingRewrite(null);
-
-  const retryDocRewrite = (prompt: string) => {
-    setPendingRewrite(null);
-    setRetrySeed(prompt);
-  };
-
-  // Block hard-reload / tab close while a review is pending so the user
-  // doesn't lose the AI draft they were in the middle of evaluating.
-  // Soft Next.js navigations (in-app Links) bypass beforeunload — we
-  // accept that limitation; if the user clicks "Exit studio" we'll lose
-  // the pending review (intentional, since they explicitly chose to leave).
-  useEffect(() => {
-    if (!pendingRewrite) return;
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      // The custom string is ignored by modern browsers; presence of
-      // returnValue is what triggers the native confirm dialog.
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [pendingRewrite]);
-
   // When the parent loads a new variant (initial mount or AI rewrite), push
   // it into the editor without nuking cursor state on every keystroke.
   useEffect(() => {
-    setDraftHtml(variant.body);
-    setDraftText(htmlToText(variant.body));
-    editorRef.current?.setHtml(variant.body);
+    const html = bodyToEditorHtml(variant.body);
+    setDraftHtml(html);
+    setDraftText(stripHtmlToPlain(html));
+    editorRef.current?.setHtml(html);
   }, [variant.id, variant.body]);
 
   // Debounced save of manual edits.
@@ -237,25 +237,20 @@ export function SopEditorPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftText, schoolId]);
 
-  const dirty = draftHtml !== variant.body;
+  const dirty = draftHtml !== bodyToEditorHtml(variant.body);
   const saving = updateVariant.isPending;
 
   return (
     <section className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
       {/* Editor + bottom AI bar */}
       <div className="flex flex-col overflow-hidden rounded-3xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] shadow-sm">
-        {pendingRewrite ? (
-          <div className="p-3">
-            <DocumentReview
-              oldParagraphs={pendingRewrite.oldParagraphs}
-              newParagraphs={pendingRewrite.newParagraphs}
-              prompt={pendingRewrite.prompt}
-              onAccept={acceptDocRewrite}
-              onReject={rejectDocRewrite}
-              onRetry={retryDocRewrite}
-            />
-          </div>
-        ) : showMaster && variant.masterText ? (
+        <p className="border-b border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-4 py-2 text-xs text-[var(--on-surface-variant)]">
+          Highlight text or use{" "}
+          <span className="font-bold text-[var(--on-surface)]">Improve paragraph</span>{" "}
+          for a partial rewrite. Use the bar below (or Chat: “rewrite the whole
+          draft”) to replace the entire SOP at once.
+        </p>
+        {showMaster && variant.masterText ? (
           <div className="grid grid-cols-2 gap-0">
             <div className="border-r border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-4">
               <div className="mb-2 flex items-center justify-between">
@@ -285,6 +280,8 @@ export function SopEditorPanel({
                 }}
                 flash={flash}
                 onRewriteSelection={onRewriteSelection}
+                onRewriteParagraph={onRewriteSelection}
+                onDirectRewriteApplied={handleDirectRewriteApplied}
               />
             </div>
           </div>
@@ -309,16 +306,17 @@ export function SopEditorPanel({
               }}
               flash={flash}
               onRewriteSelection={onRewriteSelection}
+              onRewriteParagraph={onRewriteSelection}
+              onDirectRewriteApplied={handleDirectRewriteApplied}
             />
           </div>
         )}
 
-        {/* Bottom AI prompt bar — triggers a whole-document rewrite review.
-            Discussion lives in the Chat tab, intentionally separate. */}
+        {/* Bottom AI prompt bar — rewrites the full draft in place. */}
         <BottomAskBar
           onSubmit={beginDocRewrite}
           busy={docRewriteMutation.isPending}
-          disabled={pendingRewrite !== null}
+          disabled={false}
           error={docRewriteError}
           seed={retrySeed}
           onSeedConsumed={() => setRetrySeed("")}
@@ -597,27 +595,6 @@ function TonePill({
       {children}
     </span>
   );
-}
-
-/**
- * Strip HTML tags to plain text. Block elements (paragraphs, headings,
- * list items, blockquotes) are separated by a BLANK LINE so downstream
- * `splitParagraphs` sees them as distinct paragraphs.
- */
-function htmlToText(html: string): string {
-  if (!html) return "";
-  return html
-    .replace(/<\/(p|h[1-6]|li|blockquote)>/gi, "\n\n")
-    .replace(/<br\s*\/?>(?=\s*<)/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
 }
 
 function ChecklistItem({

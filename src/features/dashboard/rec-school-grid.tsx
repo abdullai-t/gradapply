@@ -113,7 +113,7 @@ function RecSchoolCard({ id, name, program, score, tone, tag, deadline }: RecSch
           <span className="t-label-lg">{deadline}</span>
         </div>
         <Button asChild size="sm">
-          <Link href={`/schools#${id}`}>Open</Link>
+          <Link href={`/schools/${id}`}>Open</Link>
         </Button>
       </div>
     </div>

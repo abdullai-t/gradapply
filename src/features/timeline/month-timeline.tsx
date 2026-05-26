@@ -138,7 +138,7 @@ function TimelineRow({ school }: { school: TimelineSchool }) {
 
   return (
     <Link
-      href={`/schools?schoolId=${encodeURIComponent(school.id)}`}
+      href={`/schools/${school.id}`}
       className={cn(
         "tactile-card group flex items-center justify-between gap-4 rounded-2xl border p-4 md:p-5",
         meta.isOverdue
@@ -193,7 +193,7 @@ function DashedRow({ school }: { school: TimelineSchool }) {
       <div className="text-sm text-[var(--on-surface-variant)]">
         {school.program} — add a date on{" "}
         <Link
-          href={`/schools?schoolId=${encodeURIComponent(school.id)}`}
+          href={`/schools/${school.id}`}
           className="font-bold text-[var(--primary)] underline-offset-4 hover:underline"
         >
           Schools

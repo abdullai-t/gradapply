@@ -86,6 +86,14 @@ export const create = withAuth(async (req, { userId }) => {
   return ok(school);
 });
 
+export const get = withAuth<{ id: string }>(async (_req, { userId, params }) => {
+  const school = await prisma.school.findFirst({
+    where: { id: params.id, userId },
+  });
+  if (!school) return notFound("School not found");
+  return ok(school);
+});
+
 export const update = withAuth<{ id: string }>(
   async (req, { userId, params }) => {
     const readOnly = await requireWritableAccount(userId);

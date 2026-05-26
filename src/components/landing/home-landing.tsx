@@ -11,7 +11,13 @@ import { WorkspaceShowcase } from "./workspace-showcase";
 
 /** Illustrative GHS amounts when Paystack checkout is enabled; exact
  * totals at checkout. Real prices are admin-configured in `BillingAdminConfig`. */
-export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
+export async function HomeLanding({
+  showPricing,
+  isSignedIn = false,
+}: {
+  showPricing: boolean;
+  isSignedIn?: boolean;
+}) {
   const [
     displayPriceProGhsRaw,
     displayPricePlusGhsRaw,
@@ -68,7 +74,7 @@ export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
       `}</style>
       <RevealOnScroll />
 
-      <LandingHeader showPricing={showPricing} />
+      <LandingHeader showPricing={showPricing} isSignedIn={isSignedIn} />
 
       <main className="relative">
         {/* ============== Hero ============== */}
@@ -100,12 +106,20 @@ export async function HomeLanding({ showPricing }: { showPricing: boolean }) {
                 CV, and use AI where it helps — without losing your voice.
               </p>
               <div className="mt-10 flex flex-wrap items-center gap-3">
-                <Button asChild size="lg" iconRight="arrow_forward">
-                  <Link href="/login">Start free</Link>
-                </Button>
-                <Button asChild size="lg" variant="secondary">
-                  <Link href="/login">I already have an account</Link>
-                </Button>
+                {isSignedIn ? (
+                  <Button asChild size="lg" iconRight="arrow_forward">
+                    <Link href="/dashboard">Go to dashboard</Link>
+                  </Button>
+                ) : (
+                  <>
+                    <Button asChild size="lg" iconRight="arrow_forward">
+                      <Link href="/login">Start free</Link>
+                    </Button>
+                    <Button asChild size="lg" variant="secondary">
+                      <Link href="/login">I already have an account</Link>
+                    </Button>
+                  </>
+                )}
               </div>
               <p className="mt-6 text-xs text-[var(--outline)]">
                 Optional Google connectors · Document storage · AI tuned for
@@ -461,22 +475,35 @@ a="Yes. Create a free account and start using the app right away. When you're re
                   one calm command center for every application.
                 </p>
                 <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-                  <Button
-                    asChild
-                    size="lg"
-                    className="border-2 border-white/80 bg-white text-[#034a74] shadow-[0_6px_0_0_rgba(2,49,78,0.35)] hover:bg-white"
-                    iconRight="arrow_forward"
-                  >
-                    <Link href="/login">Create your workspace</Link>
-                  </Button>
-                  <Button
-                    asChild
-                    size="lg"
-                    variant="ghost"
-                    className="border-2 border-white/60 bg-transparent text-white hover:bg-white/12"
-                  >
-                    <Link href="/login">Sign in</Link>
-                  </Button>
+                  {isSignedIn ? (
+                    <Button
+                      asChild
+                      size="lg"
+                      className="border-2 border-white/80 bg-white text-[#034a74] shadow-[0_6px_0_0_rgba(2,49,78,0.35)] hover:bg-white"
+                      iconRight="arrow_forward"
+                    >
+                      <Link href="/dashboard">Go to dashboard</Link>
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        asChild
+                        size="lg"
+                        className="border-2 border-white/80 bg-white text-[#034a74] shadow-[0_6px_0_0_rgba(2,49,78,0.35)] hover:bg-white"
+                        iconRight="arrow_forward"
+                      >
+                        <Link href="/login">Create your workspace</Link>
+                      </Button>
+                      <Button
+                        asChild
+                        size="lg"
+                        variant="ghost"
+                        className="border-2 border-white/60 bg-transparent text-white hover:bg-white/12"
+                      >
+                        <Link href="/login">Sign in</Link>
+                      </Button>
+                    </>
+                  )}
                 </div>
                 <p className="mt-6 text-xs text-white/78">
                   No credit card required · Free forever plan available
@@ -487,14 +514,20 @@ a="Yes. Create a free account and start using the app right away. When you're re
         </section>
       </main>
 
-      <Footer showPricing={showPricing} />
+      <Footer showPricing={showPricing} isSignedIn={isSignedIn} />
     </div>
   );
 }
 
 /* ====================== Header & Footer ====================== */
 
-function LandingHeader({ showPricing }: { showPricing: boolean }) {
+function LandingHeader({
+  showPricing,
+  isSignedIn,
+}: {
+  showPricing: boolean;
+  isSignedIn: boolean;
+}) {
   return (
     <header className="glass-header sticky top-0 z-50">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-4">
@@ -538,12 +571,20 @@ function LandingHeader({ showPricing }: { showPricing: boolean }) {
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
-          <Button asChild size="sm" variant="ghost">
-            <Link href="/login">Sign in</Link>
-          </Button>
-          <Button asChild size="sm" iconRight="arrow_forward">
-            <Link href="/login">Get started</Link>
-          </Button>
+          {isSignedIn ? (
+            <Button asChild size="sm" iconRight="arrow_forward">
+              <Link href="/dashboard">Dashboard</Link>
+            </Button>
+          ) : (
+            <>
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/login">Sign in</Link>
+              </Button>
+              <Button asChild size="sm" iconRight="arrow_forward">
+                <Link href="/login">Get started</Link>
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </header>
@@ -574,7 +615,13 @@ function BrandMark() {
   );
 }
 
-function Footer({ showPricing }: { showPricing: boolean }) {
+function Footer({
+  showPricing,
+  isSignedIn,
+}: {
+  showPricing: boolean;
+  isSignedIn: boolean;
+}) {
   return (
     <footer className="border-t border-[var(--outline-variant)] bg-[var(--surface-container-low)] py-5">
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-6 text-sm text-[var(--on-surface-variant)] md:flex-row">
@@ -594,9 +641,15 @@ function Footer({ showPricing }: { showPricing: boolean }) {
           <Link href="/terms" className="hover:text-[var(--primary)]">
             Terms
           </Link>
-          <Link href="/login" className="hover:text-[var(--primary)]">
-            Sign in
-          </Link>
+          {isSignedIn ? (
+            <Link href="/dashboard" className="hover:text-[var(--primary)]">
+              Dashboard
+            </Link>
+          ) : (
+            <Link href="/login" className="hover:text-[var(--primary)]">
+              Sign in
+            </Link>
+          )}
           <Link href="/support" className="hover:text-[var(--primary)]">
             Support
           </Link>

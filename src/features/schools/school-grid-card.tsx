@@ -71,9 +71,13 @@ export function SchoolGridCard({
       >
         <SealAvatar name={school.name} size={64} />
         <div className="min-w-0">
-          <h3 className="text-xl font-bold leading-tight tracking-tight text-[var(--on-surface)]">
+          <Link
+            href={`/schools/${school.id}`}
+            className="text-xl font-bold leading-tight tracking-tight text-[var(--on-surface)] hover:text-[var(--primary)]"
+            onClick={(e) => e.stopPropagation()}
+          >
             {school.name}
-          </h3>
+          </Link>
           <p className="mt-0.5 text-sm leading-relaxed text-[var(--on-surface-variant)]">
             {school.program} · {school.degree}
           </p>
@@ -139,7 +143,18 @@ export function SchoolGridCard({
                 <Icon name="auto_awesome" fill size={18} />
               )}
             </button>
-          ) : (
+          ) : null}
+          <Link
+            href={`/schools/${school.id}`}
+            prefetch={false}
+            className="grid h-9 w-9 place-items-center rounded-lg text-[var(--outline)] transition-colors hover:bg-[var(--surface-container)] hover:text-[var(--primary)]"
+            aria-label="Open school hub"
+            title="School hub — SOP, faculty, progress"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Icon name="dashboard" size={18} />
+          </Link>
+          {!onAiSuggestDetails ? (
             <Link
               href={`/assistant?mode=sop&schoolId=${school.id}`}
               prefetch={false}
@@ -150,7 +165,7 @@ export function SchoolGridCard({
             >
               <Icon name="auto_awesome" fill size={18} />
             </Link>
-          )}
+          ) : null}
           <button
             type="button"
             className="grid h-9 w-9 place-items-center rounded-lg text-[var(--outline)] transition-colors hover:bg-[var(--error-container)] hover:text-[var(--error)]"

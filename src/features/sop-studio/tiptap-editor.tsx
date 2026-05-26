@@ -13,6 +13,7 @@ import {
 
 import { Icon } from "@/components/icon";
 
+import { applyRewriteInRange } from "./apply-rewrite";
 import { AiSuggestion } from "./ai-suggestion-node";
 
 export type SopEditorHandle = {
@@ -45,6 +46,16 @@ type Props = {
     selectionText: string;
     prompt: string;
   }) => Promise<{ newText: string; unchanged: boolean }>;
+  /** Rewrite the whole paragraph under the cursor (collapsed selection). */
+  onRewriteParagraph?: (input: {
+    selectionText: string;
+    prompt: string;
+  }) => Promise<{ newText: string; unchanged: boolean }>;
+  /** Fired after a selection/paragraph rewrite is applied directly in the doc. */
+  onDirectRewriteApplied?: (meta: {
+    description: string;
+    undo: () => void;
+  }) => void;
 };
 
 /**
@@ -56,7 +67,15 @@ type Props = {
  */
 export const SopTiptapEditor = forwardRef<SopEditorHandle, Props>(
   function SopTiptapEditor(
-    { initialHtml, onChange, placeholder, flash, onRewriteSelection },
+    {
+      initialHtml,
+      onChange,
+      placeholder,
+      flash,
+      onRewriteSelection,
+      onRewriteParagraph,
+      onDirectRewriteApplied,
+    },
     ref,
   ) {
     const editor = useEditor({
@@ -115,24 +134,51 @@ export const SopTiptapEditor = forwardRef<SopEditorHandle, Props>(
           <EditorContent editor={editor} />
         </div>
         {editor && onRewriteSelection ? (
-          <SelectionBubble editor={editor} onRewrite={onRewriteSelection} />
+          <SelectionBubble
+            editor={editor}
+            onRewrite={onRewriteSelection}
+            onApplied={onDirectRewriteApplied}
+          />
+        ) : null}
+        {editor && onRewriteParagraph ? (
+          <ParagraphBubble
+            editor={editor}
+            onRewrite={onRewriteParagraph}
+            onApplied={onDirectRewriteApplied}
+          />
         ) : null}
       </div>
     );
   },
 );
 
+function getActiveParagraph(editor: Editor): {
+  from: number;
+  to: number;
+  text: string;
+} | null {
+  const { $from } = editor.state.selection;
+  if ($from.parent.type.name !== "paragraph") return null;
+  const from = $from.start();
+  const to = $from.end();
+  const text = editor.state.doc.textBetween(from, to, "\n");
+  if (text.trim().length < 12) return null;
+  return { from, to, text };
+}
+
 /* ============ BubbleMenu — "Ask AI" on selection ============ */
 
 function SelectionBubble({
   editor,
   onRewrite,
+  onApplied,
 }: {
   editor: Editor;
   onRewrite: (input: {
     selectionText: string;
     prompt: string;
   }) => Promise<{ newText: string; unchanged: boolean }>;
+  onApplied?: (meta: { description: string; undo: () => void }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -185,18 +231,15 @@ function SelectionBubble({
         );
         return;
       }
-      // Restore the snapshotted selection range, then wrap it in a
-      // pending suggestion node carrying both old and new text.
-      editor
-        .chain()
-        .focus()
-        .setTextSelection({ from, to })
-        .insertAiSuggestion({
-          oldText: selectionText,
-          newText: result.newText,
-          prompt: text,
-        })
-        .run();
+      const previousHtml = editor.getHTML();
+      editor.chain().focus().setTextSelection({ from, to }).run();
+      applyRewriteInRange(editor, from, to, result.newText);
+      onApplied?.({
+        description: "Selection updated",
+        undo: () => {
+          editor.commands.setContent(previousHtml, false);
+        },
+      });
       setOpen(false);
       setPrompt("");
     } catch (e) {
@@ -297,7 +340,153 @@ function SelectionBubble({
             </div>
           ) : (
             <div className="px-2 text-[11px] text-[var(--outline)]">
-              Enter to apply · Esc to cancel · suggestion appears in place
+              Enter to replace selection · Esc to cancel
+            </div>
+          )}
+        </div>
+      )}
+    </BubbleMenu>
+  );
+}
+
+/* ============ BubbleMenu — whole paragraph when cursor is inside ============ */
+
+function ParagraphBubble({
+  editor,
+  onRewrite,
+  onApplied,
+}: {
+  editor: Editor;
+  onRewrite: (input: {
+    selectionText: string;
+    prompt: string;
+  }) => Promise<{ newText: string; unchanged: boolean }>;
+  onApplied?: (meta: { description: string; undo: () => void }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [prompt, setPrompt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const submit = async () => {
+    const instruction = prompt.trim();
+    if (!instruction || busy) return;
+    const para = getActiveParagraph(editor);
+    if (!para) {
+      setError("Place the cursor inside a paragraph first.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await onRewrite({
+        selectionText: para.text,
+        prompt: instruction,
+      });
+      if (result.unchanged) {
+        setError(
+          "AI returned the same text — try a more specific instruction.",
+        );
+        return;
+      }
+      const previousHtml = editor.getHTML();
+      const { from, to } = para;
+      editor.chain().focus().setTextSelection({ from, to }).run();
+      applyRewriteInRange(editor, from, to, result.newText);
+      onApplied?.({
+        description: "Paragraph updated",
+        undo: () => {
+          editor.commands.setContent(previousHtml, false);
+        },
+      });
+      setOpen(false);
+      setPrompt("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Rewrite failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <BubbleMenu
+      editor={editor}
+      tippyOptions={{ duration: 120, placement: "top-start" }}
+      shouldShow={({ editor, from, to }) => {
+        if (from !== to) return false;
+        const para = getActiveParagraph(editor);
+        if (!para) return false;
+        let insideSuggestion = false;
+        editor.state.doc.nodesBetween(para.from, para.to, (n) => {
+          if (n.type.name === "aiSuggestion") insideSuggestion = true;
+        });
+        return !insideSuggestion;
+      }}
+    >
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(true);
+            setTimeout(() => inputRef.current?.focus(), 0);
+          }}
+          className="inline-flex items-center gap-1.5 rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] px-3 py-1.5 text-xs font-bold text-[var(--on-surface)] shadow-md hover:border-[var(--primary)]"
+        >
+          <Icon name="auto_awesome" size={14} className="text-[var(--primary)]" />
+          Improve paragraph
+        </button>
+      ) : (
+        <div className="flex w-[340px] flex-col gap-1.5 rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-2 shadow-xl">
+          <div className="flex items-center gap-1.5 rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-2.5 py-1.5">
+            <Icon
+              name="auto_fix_high"
+              size={16}
+              className="shrink-0 text-[var(--primary)]"
+            />
+            <input
+              ref={inputRef}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void submit();
+                } else if (e.key === "Escape") {
+                  setOpen(false);
+                  setPrompt("");
+                  setError(null);
+                }
+              }}
+              placeholder="Make this paragraph more specific…"
+              disabled={busy}
+              className="flex-1 border-0 bg-transparent text-[13px] outline-none placeholder:text-[var(--outline)]"
+            />
+            <button
+              type="button"
+              onClick={() => void submit()}
+              disabled={busy || !prompt.trim()}
+              aria-label="Send paragraph rewrite"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-white disabled:opacity-40"
+              style={{
+                background:
+                  "linear-gradient(135deg, var(--primary), var(--primary-fixed-dim))",
+              }}
+            >
+              {busy ? (
+                <Icon name="progress_activity" size={14} className="animate-spin" />
+              ) : (
+                <Icon name="send" fill size={14} />
+              )}
+            </button>
+          </div>
+          {error ? (
+            <div className="px-2 text-[11px] font-bold text-[var(--error)]">
+              {error}
+            </div>
+          ) : (
+            <div className="px-2 text-[11px] text-[var(--outline)]">
+              Enter to replace this paragraph · Esc to cancel
             </div>
           )}
         </div>

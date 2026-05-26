@@ -17,6 +17,7 @@ export const list = withAuth(async (_req, { userId }) => {
       profEmail: true,
       university: true,
       researchArea: true,
+      matchScore: true,
       status: true,
       updatedAt: true,
     },

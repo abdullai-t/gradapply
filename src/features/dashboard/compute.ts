@@ -53,7 +53,7 @@ export function pickDailyMission(args: {
       return {
         title: `Refine your application for ${next.name}`,
         body: `Deadline is in ${days === 0 ? "less than a day" : `${days} day${days === 1 ? "" : "s"}`}. Make today's edit your highest-leverage one.`,
-        href: `/schools#${next.id}`,
+        href: `/schools/${next.id}`,
         cta: "Open application",
       };
     }

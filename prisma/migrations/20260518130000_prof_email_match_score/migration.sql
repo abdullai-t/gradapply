@@ -1,0 +1,1 @@
+ALTER TABLE "ProfEmail" ADD COLUMN IF NOT EXISTS "matchScore" INTEGER;

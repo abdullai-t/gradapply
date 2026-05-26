@@ -386,6 +386,8 @@ model ProfEmail {
   /// Cached output of POST /prof-emails/:id/audit — { latestResearch, sourceUrl, auditedAt }
   researchAudit       Json?
   researchArea        String?
+  /// Faculty fit from discovery (1 = weak, 5 = strong research alignment).
+  matchScore          Int?
   emailSubject        String?
   emailBody           String?
   status              EmailStatus  @default(DRAFT)

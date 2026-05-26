@@ -28,6 +28,8 @@ const TERM_SELECT_NONE = "__term_none__";
 export interface SchoolDetailFormProps {
   school: SchoolRow;
   onPatch: (body: Partial<SchoolRow> & Record<string, unknown>) => void;
+  /** Hide SOP studio promo (e.g. in the school hub edit modal). */
+  showSopPromo?: boolean;
 }
 
 /**
@@ -38,6 +40,7 @@ export interface SchoolDetailFormProps {
 export function SchoolDetailForm({
   school,
   onPatch,
+  showSopPromo = true,
 }: SchoolDetailFormProps) {
   return (
     <div className="space-y-5">
@@ -140,6 +143,7 @@ export function SchoolDetailForm({
         />
       </Field>
 
+      {showSopPromo ? (
       <div className="rounded-2xl border border-[var(--primary-container)]/30 bg-[var(--primary-fixed)]/40 p-4 dark:border-[var(--primary-container)]/40 dark:bg-[var(--primary-container)]/10">
         <div className="text-sm font-bold text-[var(--on-surface)]">
           School-specific statement of purpose
@@ -157,6 +161,7 @@ export function SchoolDetailForm({
           Open SOP studio
         </Link>
       </div>
+      ) : null}
 
       <div className="rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-4">
         <div className="text-sm font-bold text-[var(--on-surface)]">Reminder</div>

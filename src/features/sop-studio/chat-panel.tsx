@@ -12,12 +12,17 @@ import {
   useChatHistory,
   useSendMessage,
 } from "@/features/assistant/api";
+import { isWholeDocumentRewriteRequest } from "@/lib/sop-rewrite-intent";
+import { cn } from "@/lib/utils";
 
+import { LibraryPickerDialog } from "./library-picker-dialog";
+import { SAMPLE_MASTER_SOP } from "./sample-master-sop";
 import type { SopVariantRow } from "./api";
 
 export type OnboardingSubmit =
   | { kind: "paste"; text: string }
-  | { kind: "upload"; file: File };
+  | { kind: "upload"; file: File }
+  | { kind: "library"; documentId: string };
 
 type Props = {
   schoolId: string;
@@ -32,6 +37,9 @@ type Props = {
   /// The current saved variant (when present) — surfaces a "Saved variant"
   /// strip at the top of the chat for context.
   variant: SopVariantRow | null;
+  /// When set, whole-draft rewrite requests update the editor instead of chat.
+  onDocumentRewrite?: (prompt: string) => Promise<void>;
+  onSwitchToEditor?: () => void;
 };
 
 const ONBOARD_MIN_PASTE_WORDS = 30;
@@ -43,8 +51,11 @@ export function SopChatPanel({
   onOnboardingSubmit,
   generating,
   variant,
+  onDocumentRewrite,
+  onSwitchToEditor,
 }: Props) {
   const [input, setInput] = useState("");
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollAnchor = useRef<HTMLDivElement>(null);
 
@@ -78,6 +89,20 @@ export function SopChatPanel({
     }
 
     setInput("");
+    if (
+      !onboarding &&
+      variant &&
+      onDocumentRewrite &&
+      isWholeDocumentRewriteRequest(text)
+    ) {
+      onSwitchToEditor?.();
+      try {
+        await onDocumentRewrite(text);
+      } catch (e) {
+        console.error("[sop-studio] document rewrite failed", e);
+      }
+      return;
+    }
     try {
       await sendMutation.mutateAsync({ message: text, mode: "sop", schoolId });
     } catch (e) {
@@ -98,6 +123,19 @@ export function SopChatPanel({
    */
   const sendQuickPrompt = async (prompt: string) => {
     if (sending || generating) return;
+    if (
+      variant &&
+      onDocumentRewrite &&
+      isWholeDocumentRewriteRequest(prompt)
+    ) {
+      onSwitchToEditor?.();
+      try {
+        await onDocumentRewrite(prompt);
+      } catch (e) {
+        console.error("[sop-studio] document rewrite failed", e);
+      }
+      return;
+    }
     try {
       await sendMutation.mutateAsync({
         message: prompt,
@@ -110,13 +148,15 @@ export function SopChatPanel({
   };
 
   return (
-    <section className="flex flex-col overflow-hidden rounded-3xl border border-[var(--outline-variant)] bg-[var(--surface-container-low)] shadow-sm">
+    <section className="flex flex-col overflow-hidden rounded-3xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] shadow-sm">
+      {onboarding ? <OnboardingStepsBanner generating={generating} /> : null}
+
       <ScrollArea
-        className="h-[480px] p-6"
+        className="h-[min(56vh,520px)] p-6 md:h-[min(62vh,560px)]"
         style={{
           backgroundImage:
-            "radial-gradient(circle, color-mix(in srgb, var(--primary-fixed) 50%, transparent) 1px, transparent 1px)",
-          backgroundSize: "22px 22px",
+            "radial-gradient(circle, color-mix(in srgb, var(--primary-fixed) 45%, transparent) 1px, transparent 1px)",
+          backgroundSize: "20px 20px",
         }}
       >
         <div className="flex flex-col gap-5">
@@ -139,6 +179,16 @@ export function SopChatPanel({
         </div>
       </ScrollArea>
 
+      <LibraryPickerDialog
+        open={libraryOpen}
+        onOpenChange={setLibraryOpen}
+        selecting={generating}
+        onSelect={async (documentId) => {
+          setLibraryOpen(false);
+          await onOnboardingSubmit({ kind: "library", documentId });
+        }}
+      />
+
       <ComposeBox
         value={input}
         onChange={setInput}
@@ -154,8 +204,20 @@ export function SopChatPanel({
         hint={
           onboarding ? (
             <>
-              <HintChip icon="folder_open">Pick from your library</HintChip>
-              <HintChip icon="lightbulb">Use a sample SOP</HintChip>
+              <HintChip
+                icon="folder_open"
+                disabled={generating}
+                onClick={() => setLibraryOpen(true)}
+              >
+                Pick from your library
+              </HintChip>
+              <HintChip
+                icon="lightbulb"
+                disabled={generating}
+                onClick={() => void onOnboardingSubmit({ kind: "paste", text: SAMPLE_MASTER_SOP })}
+              >
+                Use a sample SOP
+              </HintChip>
             </>
           ) : (
             <>
@@ -196,6 +258,46 @@ export function SopChatPanel({
   );
 }
 
+function OnboardingStepsBanner({ generating }: { generating: boolean }) {
+  const steps = [
+    { n: 1, label: "Add your master SOP" },
+    { n: 2, label: "We draft for this school" },
+    { n: 3, label: "Refine in chat or editor" },
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b border-[var(--outline-variant)] bg-[var(--surface-container-low)] px-4 py-3">
+      {steps.map((step, i) => (
+        <span key={step.n} className="inline-flex items-center gap-2">
+          <span
+            className={cn(
+              "grid h-6 w-6 place-items-center rounded-full text-[11px] font-extrabold",
+              i === 0
+                ? "bg-[var(--primary)] text-white"
+                : "border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] text-[var(--on-surface-variant)]",
+            )}
+          >
+            {step.n}
+          </span>
+          <span
+            className={cn(
+              "text-xs font-semibold",
+              i === 0 ? "text-[var(--on-surface)]" : "text-[var(--on-surface-variant)]",
+            )}
+          >
+            {step.label}
+          </span>
+          {i < steps.length - 1 ? (
+            <Icon name="chevron_right" size={14} className="text-[var(--outline)]" />
+          ) : null}
+        </span>
+      ))}
+      {generating ? (
+        <span className="ml-auto text-xs font-bold text-[var(--primary)]">Drafting…</span>
+      ) : null}
+    </div>
+  );
+}
+
 function WelcomeBubble({
   schoolName,
   onboarding,
@@ -211,17 +313,26 @@ function WelcomeBubble({
           <strong className="text-[var(--primary)]">{schoolName}</strong>.
         </p>
         {onboarding ? (
-          <p className="m-0 text-[14px] leading-relaxed text-[var(--on-surface-variant)]">
-            Drop your existing SOP into the box below — paste the text, or hit
-            the{" "}
-            <Icon
-              name="attach_file"
-              size={14}
-              className="inline align-text-bottom"
-            />{" "}
-            to upload a PDF or DOCX. I&apos;ll generate a first draft and we&apos;ll
-            refine it together.
-          </p>
+          <>
+            <p className="m-0 text-[14px] leading-relaxed text-[var(--on-surface-variant)]">
+              Start with a master SOP you already have. Paste below, upload a file, pick
+              from your library, or try the sample to see how tailoring works.
+            </p>
+            <ul className="m-0 grid gap-2 pl-0 text-[13px] text-[var(--on-surface-variant)]">
+              <li className="flex items-start gap-2">
+                <Icon name="edit" size={16} className="mt-0.5 shrink-0 text-[var(--primary)]" />
+                <span>Paste at least ~30 words in the box and press Enter</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Icon name="attach_file" size={16} className="mt-0.5 shrink-0 text-[var(--primary)]" />
+                <span>Upload PDF or DOCX with the attach button</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Icon name="folder_open" size={16} className="mt-0.5 shrink-0 text-[var(--primary)]" />
+                <span>Use &quot;Pick from your library&quot; for saved SOP drafts</span>
+              </li>
+            </ul>
+          </>
         ) : (
           <p className="m-0 text-[14px] leading-relaxed text-[var(--on-surface-variant)]">
             Your tailored variant is loaded in the editor. Tell me what to

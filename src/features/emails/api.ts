@@ -9,6 +9,7 @@ import {
 export const profEmailsKeys = {
   all: ["prof-emails"] as const,
   list: () => ["prof-emails", "list"] as const,
+  detail: (id: string) => [...profEmailsKeys.all, "detail", id] as const,
 };
 
 export const contentVersionsKeys = {

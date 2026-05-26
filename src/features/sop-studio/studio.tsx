@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 
@@ -44,6 +44,9 @@ export function SopStudio({ schoolId }: Props) {
   const [hydratedView, setHydratedView] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
+  const docRewriteRef = useRef<((prompt: string) => Promise<void>) | null>(
+    null,
+  );
 
   // Hydrate view preference from localStorage once the schoolId is known.
   useEffect(() => {
@@ -85,6 +88,8 @@ export function SopStudio({ schoolId }: Props) {
     try {
       if (input.kind === "paste") {
         await generateMutation.mutateAsync({ masterText: input.text });
+      } else if (input.kind === "library") {
+        await generateMutation.mutateAsync({ masterDocumentId: input.documentId });
       } else {
         const docId = await uploadMasterAsLibraryDoc(input.file);
         await generateMutation.mutateAsync({ masterDocumentId: docId });
@@ -114,6 +119,22 @@ export function SopStudio({ schoolId }: Props) {
     );
   };
 
+  const handleDocumentRewriteFromChat = async (prompt: string) => {
+    setError(null);
+    setView("editor");
+    if (!docRewriteRef.current) {
+      setError("Editor is still loading — try again in a moment.");
+      return;
+    }
+    try {
+      await docRewriteRef.current(prompt);
+      setFlash(true);
+      setTimeout(() => setFlash(false), 900);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Rewrite failed");
+    }
+  };
+
   if (loading) {
     return <PageLoader label="Loading SOP studio…" />;
   }
@@ -141,29 +162,45 @@ export function SopStudio({ schoolId }: Props) {
     <div className="slide-in space-y-5 pb-8">
       <StudioStyles />
 
-      <header className="flex flex-wrap items-center gap-2 rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] px-3 py-1.5 text-sm shadow-sm">
-        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--primary)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.1em] text-white">
-          <Icon name="target" size={10} fill />
-          Working on
-        </span>
-        <Link
-          href="/schools"
-          className="font-bold text-[var(--on-surface)] hover:text-[var(--primary)] hover:underline"
-        >
-          {school.name}
-        </Link>
-        {school.program ? (
-          <>
-            <span className="text-[var(--outline)]">·</span>
-            <span className="text-[var(--on-surface-variant)]">
-              {school.program}
-              {school.degree ? ` · ${school.degree}` : ""}
-            </span>
-          </>
-        ) : null}
+      <nav className="flex flex-wrap items-center gap-2 text-sm">
         <Link
           href="/assistant"
-          className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-[var(--outline)] hover:text-[var(--on-surface)]"
+          className="font-semibold text-[var(--on-surface-variant)] transition-colors hover:text-[var(--primary)]"
+        >
+          Assistant
+        </Link>
+        <Icon name="chevron_right" size={16} className="text-[var(--outline)]" />
+        <span className="font-bold text-[var(--on-surface)]">SOP studio</span>
+      </nav>
+
+      <header
+        className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--outline-variant)] px-4 py-3 shadow-sm"
+        style={{
+          background:
+            "linear-gradient(135deg, var(--surface-container-lowest) 0%, var(--surface-container-low) 70%, var(--primary-fixed) 180%)",
+        }}
+      >
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--primary)] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.1em] text-white shadow-sm">
+          <Icon name="auto_awesome" size={12} fill />
+          {onboarding ? "New draft" : "SOP studio"}
+        </span>
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/schools/${school.id}`}
+            className="line-clamp-1 font-bold text-[var(--on-surface)] hover:text-[var(--primary)] hover:underline"
+          >
+            {school.name}
+          </Link>
+          {school.program ? (
+            <p className="line-clamp-1 text-xs text-[var(--on-surface-variant)]">
+              {school.program}
+              {school.degree ? ` · ${school.degree}` : ""}
+            </p>
+          ) : null}
+        </div>
+        <Link
+          href="/assistant"
+          className="inline-flex items-center gap-1 rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] px-3 py-1.5 text-xs font-bold text-[var(--on-surface-variant)] transition hover:border-[var(--outline)] hover:text-[var(--on-surface)]"
         >
           <Icon name="close" size={14} />
           Exit studio
@@ -182,28 +219,54 @@ export function SopStudio({ schoolId }: Props) {
         </div>
       ) : null}
 
-      {onboarding || view === "chat" ? (
-        <div className={onboarding ? "mx-auto max-w-[760px]" : "mx-auto max-w-[860px]"}>
+      {onboarding ? (
+        <div className="mx-auto max-w-[760px]">
           <SopChatPanel
             schoolId={schoolId}
             schoolName={school.name}
-            onboarding={onboarding}
+            onboarding
             onOnboardingSubmit={handleOnboardingSubmit}
             generating={generating}
-            variant={variant}
+            variant={null}
           />
         </div>
       ) : (
-        <SopEditorPanel
-          schoolId={schoolId}
-          schoolName={school.name}
-          schoolProgram={school.program}
-          schoolDegree={school.degree}
-          schoolCountry={school.country}
-          variant={variant!}
-          onAskAI={handleAskAI}
-          flash={flash}
-        />
+        <>
+          <div
+            className={
+              view === "chat"
+                ? "mx-auto max-w-[860px]"
+                : "pointer-events-none fixed -left-[9999px] top-0 h-0 w-0 overflow-hidden opacity-0"
+            }
+            aria-hidden={view !== "chat"}
+          >
+            <SopChatPanel
+              schoolId={schoolId}
+              schoolName={school.name}
+              onboarding={false}
+              onOnboardingSubmit={handleOnboardingSubmit}
+              generating={generating}
+              variant={variant}
+              onDocumentRewrite={handleDocumentRewriteFromChat}
+              onSwitchToEditor={() => setView("editor")}
+            />
+          </div>
+          <div className={view === "editor" ? undefined : "hidden"}>
+            <SopEditorPanel
+              schoolId={schoolId}
+              schoolName={school.name}
+              schoolProgram={school.program}
+              schoolDegree={school.degree}
+              schoolCountry={school.country}
+              variant={variant!}
+              onAskAI={handleAskAI}
+              flash={flash}
+              registerDocumentRewrite={(fn) => {
+                docRewriteRef.current = fn;
+              }}
+            />
+          </div>
+        </>
       )}
 
       {/* Greeting initials are unused but the session lookup keeps the

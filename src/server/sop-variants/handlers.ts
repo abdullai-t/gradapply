@@ -8,7 +8,11 @@ import {
   markFreeLifetimeSopPreviewUsed,
 } from "@/lib/billing-allowance";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
-import { extractPlainTextFromStoredDocument } from "@/lib/llm-user-context";
+import {
+  extractPlainTextFromStoredDocument,
+  extractionFailureMessage,
+  getStoredDocumentExtractionStatus,
+} from "@/lib/llm-user-context";
 import { prisma } from "@/lib/prisma";
 import {
   assertSopGenerateAllowed,
@@ -16,6 +20,7 @@ import {
   markSopGenerateSuccess,
 } from "@/lib/sop-generate-rate-limit";
 import { sanitizeField, wrapUserContent } from "@/lib/agents/sanitize";
+import { bodyToEditorHtml } from "@/lib/sop-paragraphs";
 import { requireWritableAccount } from "@/lib/plan-gates";
 import { bad, notFound, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
@@ -94,10 +99,10 @@ export const POST = withAuth(async (req, { userId }) => {
         "Master document not found or is not a statement-of-purpose draft.",
       );
     masterSopText = await extractPlainTextFromStoredDocument(doc);
-    if (!masterSopText)
-      return bad(
-        "Could not read text from that file (scan-only PDF, expired URL, or unsupported format). Paste plain text or upload a selectable PDF.",
-      );
+    if (!masterSopText) {
+      const status = await getStoredDocumentExtractionStatus(doc);
+      return bad(extractionFailureMessage(status, doc.name));
+    }
     sourceMasterId = doc.id;
   } else if (parsed.data.masterText?.trim()) {
     masterSopText = parsed.data.masterText.trim();
@@ -116,6 +121,7 @@ export const POST = withAuth(async (req, { userId }) => {
       school.country ? `Country: ${sanitizeField(school.country)}` : "",
       "",
       "Return ONLY the tailored SOP text — no preamble, no markdown fences.",
+      "Use clear paragraphs: put a blank line between each paragraph (4–6 paragraphs total).",
       "",
       wrapUserContent("master SOP", masterSopText),
     ].filter(Boolean).join("\n");
@@ -129,6 +135,7 @@ export const POST = withAuth(async (req, { userId }) => {
   }
 
   const title = parsed.data.title?.trim() || `${school.name} — tailored SOP`;
+  const bodyHtml = bodyToEditorHtml(bodyText.trim());
 
   const variant = await prisma.sopVariant.upsert({
     where: { schoolId: school.id },
@@ -136,12 +143,14 @@ export const POST = withAuth(async (req, { userId }) => {
       userId,
       schoolId: school.id,
       title,
-      body: bodyText.trim(),
+      body: bodyHtml,
       sourceMasterId,
+      masterText: masterSopText,
     },
     update: {
-      body: bodyText.trim(),
+      body: bodyHtml,
       sourceMasterId,
+      masterText: masterSopText,
       ...(parsed.data.title?.trim()
         ? { title: parsed.data.title.trim() }
         : {}),

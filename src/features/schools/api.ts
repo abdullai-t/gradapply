@@ -11,6 +11,7 @@ import type { SchoolRow } from "@/features/schools/types";
 export const schoolsKeys = {
   all: ["schools"] as const,
   list: (sort?: string) => ["schools", { sort }] as const,
+  detail: (id: string) => ["schools", "detail", id] as const,
 };
 
 async function jsonOrThrow<T>(res: Response): Promise<T> {
@@ -21,6 +22,17 @@ async function jsonOrThrow<T>(res: Response): Promise<T> {
     throw new Error(body?.error ?? `Request failed (${res.status})`);
   }
   return (await res.json()) as T;
+}
+
+export function useSchool(id: string) {
+  return useQuery({
+    queryKey: schoolsKeys.detail(id),
+    enabled: Boolean(id),
+    queryFn: async () =>
+      jsonOrThrow<SchoolRow>(await fetch(`/api/schools/${encodeURIComponent(id)}`)),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
 }
 
 export function useSchools(opts?: { sort?: string }) {
@@ -64,8 +76,11 @@ export function useUpdateSchool() {
           body: JSON.stringify(input.data),
         }),
       ),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       void qc.invalidateQueries({ queryKey: schoolsKeys.all });
+      void qc.invalidateQueries({
+        queryKey: schoolsKeys.detail(variables.id),
+      });
     },
   });
 }

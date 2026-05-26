@@ -1,9 +1,10 @@
-import { redirect } from "next/navigation";
+import { ProfEmailDetailPage } from "@/features/emails/prof-email-detail-page";
 
-export default async function EmailThreadPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  redirect(`/emails?thread=${encodeURIComponent(params.id)}`);
+type Props = {
+  params: Promise<{ id: string }>;
+};
+
+export default async function ProfEmailPage({ params }: Props) {
+  const { id } = await params;
+  return <ProfEmailDetailPage emailId={id} />;
 }

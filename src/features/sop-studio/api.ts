@@ -149,36 +149,12 @@ export function useRewriteDocument() {
   });
 }
 
-/**
- * Splits a raw text body into trimmed paragraphs (one per blank-line
- * separator). Used to align old-vs-new paragraphs for the review surface.
- */
-export function splitParagraphs(text: string): string[] {
-  return text
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0);
-}
-
-/**
- * Wraps an array of plain-text paragraphs into the minimal HTML the editor
- * accepts on `setContent`. Headings and other formatting from the original
- * draft are intentionally lost — full-doc rewrites reset the structure to
- * paragraphs only, which matches how the LLM responds.
- */
-export function paragraphsToHtml(paragraphs: string[]): string {
-  if (paragraphs.length === 0) return "";
-  return paragraphs
-    .map(
-      (p) =>
-        `<p>${p
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/\n/g, "<br/>")}</p>`,
-    )
-    .join("");
-}
+export {
+  bodyToEditorHtml,
+  paragraphsToHtml,
+  splitParagraphs,
+  stripHtmlToPlain,
+} from "@/lib/sop-paragraphs";
 
 /**
  * POST /api/sop/score — debounce-driven LLM scoring for the Insights
