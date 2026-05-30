@@ -1,5 +1,7 @@
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
 
+import { sendViaResendApi, verifyResendApi } from "@/lib/mail-resend";
+
 export type MailTransportMode =
   | "email_server"
   | "smtp"
@@ -50,6 +52,24 @@ export function isMailConfigured(): boolean {
   return getMailTransportMode() !== "none";
 }
 
+function resendSmtpOptions(): SMTPTransport.Options {
+  const port = Number(process.env.RESEND_SMTP_PORT ?? "465");
+  const secure =
+    process.env.RESEND_SMTP_SECURE?.trim() === "false" ? false : port === 465;
+  return {
+    host: "smtp.resend.com",
+    port,
+    secure,
+    auth: {
+      user: "resend",
+      pass: process.env.RESEND_API_KEY!.trim(),
+    },
+    connectionTimeout: 15_000,
+    greetingTimeout: 15_000,
+    requireTLS: !secure,
+  };
+}
+
 /** Options for Auth.js `Nodemailer` provider (magic link sign-in). */
 export function getNodemailerProviderOptions(): {
   server: NodemailerServer;
@@ -63,18 +83,7 @@ export function getNodemailerProviderOptions(): {
     return { server: process.env.EMAIL_SERVER!.trim(), from };
   }
   if (mode === "resend") {
-    return {
-      server: {
-        host: "smtp.resend.com",
-        port: 587,
-        secure: false,
-        auth: {
-          user: "resend",
-          pass: process.env.RESEND_API_KEY!.trim(),
-        },
-      },
-      from,
-    };
+    return { server: resendSmtpOptions(), from };
   }
   if (mode === "smtp") {
     return {
@@ -118,15 +127,7 @@ export async function createMailTransporter() {
   }
 
   if (mode === "resend") {
-    return nodemailer.createTransport({
-      host: "smtp.resend.com",
-      port: 587,
-      secure: false,
-      auth: {
-        user: "resend",
-        pass: process.env.RESEND_API_KEY!.trim(),
-      },
-    });
+    return nodemailer.createTransport(resendSmtpOptions());
   }
 
   if (mode === "smtp") {
@@ -170,6 +171,14 @@ export async function verifyMailTransport(): Promise<{
   }
 
   try {
+    if (mode === "resend") {
+      const api = await verifyResendApi();
+      if (!api.ok) {
+        return { ok: false, mode, error: api.error };
+      }
+      return { ok: true, mode, preview: api.preview ?? "Resend HTTP API" };
+    }
+
     const transporter = await createMailTransporter();
     if (!transporter) {
       return { ok: false, mode, error: "Could not create mail transporter." };
@@ -207,6 +216,10 @@ export async function sendMail(args: {
   }
 
   try {
+    if (mode === "resend") {
+      return sendViaResendApi(args);
+    }
+
     const transporter = await createMailTransporter();
     if (!transporter) {
       return { sent: false, error: "Could not create mail transporter." };

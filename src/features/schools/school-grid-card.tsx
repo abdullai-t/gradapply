@@ -9,6 +9,7 @@ import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { SealAvatar } from "@/components/seal-avatar";
+import { materialsProgress } from "@/lib/school-tracker-defaults";
 import { progressFromStatus } from "@/lib/school-progress";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +48,7 @@ export function SchoolGridCard({
 }: SchoolGridCardProps) {
   const tag = STATUS_TAG[school.status];
   const progress = progressFromStatus(school.status);
+  const matProg = materialsProgress(school.requiredMaterials ?? []);
   const deadlineLabel = school.deadline
     ? deadlineCopy(school.deadline)
     : "No deadline";
@@ -81,8 +83,18 @@ export function SchoolGridCard({
           <p className="mt-0.5 text-sm leading-relaxed text-[var(--on-surface-variant)]">
             {school.program} · {school.degree}
           </p>
+          {school.department || school.college ? (
+            <p className="mt-0.5 text-xs text-[var(--outline)]">
+              {[school.department, school.college].filter(Boolean).join(" · ")}
+            </p>
+          ) : null}
           {school.country ? (
             <p className="mt-1 text-xs text-[var(--outline)]">{school.country}</p>
+          ) : null}
+          {matProg.total > 0 ? (
+            <p className="mt-1 text-xs font-semibold text-[var(--primary)]">
+              Materials {matProg.done}/{matProg.total}
+            </p>
           ) : null}
         </div>
       </button>
@@ -130,8 +142,8 @@ export function SchoolGridCard({
               type="button"
               disabled={aiSuggestDetailsLoading}
               className="grid h-9 w-9 place-items-center rounded-lg text-[var(--outline)] transition-colors hover:bg-[var(--surface-container)] hover:text-[var(--primary)] disabled:pointer-events-none disabled:opacity-45"
-              aria-label="Suggest deadline, intake term, funding, notes, and application portal with AI"
-              title="Suggest details with AI"
+              aria-label="Suggest deadline, application fee, funding, notes, and application portal with AI"
+              title="Fetch program requirements, fee, and details with AI"
               onClick={(e) => {
                 e.stopPropagation();
                 void onAiSuggestDetails();

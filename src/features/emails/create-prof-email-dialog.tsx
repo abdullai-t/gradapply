@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,8 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   existingProfessorEmails: Set<string>;
   onCreated: (row: EmailRow) => void;
+  initialProfName?: string;
+  initialUniversity?: string;
 };
 
 export function CreateProfEmailDialog({
@@ -34,6 +36,8 @@ export function CreateProfEmailDialog({
   onOpenChange,
   existingProfessorEmails,
   onCreated,
+  initialProfName,
+  initialUniversity,
 }: Props) {
   const qc = useQueryClient();
   const schoolsQuery = useSchools();
@@ -64,6 +68,15 @@ export function CreateProfEmailDialog({
       degree: s.degree,
     }));
   }, [schoolsQuery.data]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (initialProfName?.trim()) setAnalyzeProfName(initialProfName.trim());
+    if (initialUniversity?.trim()) setAnalyzeUniversity(initialUniversity.trim());
+    if (initialProfName?.trim() || initialUniversity?.trim()) {
+      setCreateDraftTab("url");
+    }
+  }, [open, initialProfName, initialUniversity]);
 
   const resetForm = useCallback(() => {
     setProfileUrlInput("");

@@ -24,6 +24,10 @@ import {
 } from "@/lib/grad-options";
 import { COUNTRY_OPTIONS } from "@/lib/country-options";
 import { ADMISSION_TERM_OPTIONS } from "@/lib/admission-term";
+import {
+  buildSchoolPatchFromInfer,
+  fetchSchoolInfer,
+} from "@/lib/school-infer-patch";
 import type { AdmissionTerm } from "@prisma/client";
 
 const COUNTRY_SELECT_NONE = "__country_none__";
@@ -56,8 +60,13 @@ const initialForm = {
   reminderAt: "",
   reminderNote: "",
   funding: "",
+  applicationFee: "",
   notes: "",
   portalUrl: "",
+  programUrl: "",
+  department: "",
+  college: "",
+  primaryProfessor: "",
   status: "PLANNING" as SchoolStatus,
 };
 
@@ -146,40 +155,50 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
     setAiLoading(true);
     setAiError(null);
     try {
-      const res = await fetch("/api/schools/infer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          ...(form.term ? { term: form.term } : {}),
-        }),
+      const data = await fetchSchoolInfer({
+        name,
+        ...(form.term ? { term: form.term } : {}),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(
-          typeof data.error === "string"
-            ? data.error
-            : "Could not suggest details",
-        );
-      }
+      const patch = buildSchoolPatchFromInfer(data);
       setForm((prev) => ({
         ...prev,
         name,
-        program: typeof data.program === "string" ? data.program : prev.program,
-        degree: typeof data.degree === "string" ? data.degree : prev.degree,
-        country: typeof data.country === "string" ? data.country : prev.country,
+        program:
+          typeof patch.program === "string" ? patch.program : prev.program,
+        degree: typeof patch.degree === "string" ? patch.degree : prev.degree,
+        country:
+          typeof patch.country === "string" ? patch.country : prev.country,
         term:
-          data.term === "FALL" ||
-          data.term === "SPRING" ||
-          data.term === "SUMMER"
-            ? data.term
+          patch.term === "FALL" ||
+          patch.term === "SPRING" ||
+          patch.term === "SUMMER"
+            ? patch.term
             : prev.term,
         deadline:
-          typeof data.deadline === "string" ? data.deadline : prev.deadline,
-        funding: typeof data.funding === "string" ? data.funding : prev.funding,
-        notes: typeof data.notes === "string" ? data.notes : prev.notes,
+          typeof patch.deadline === "string" ? patch.deadline : prev.deadline,
+        funding:
+          typeof patch.funding === "string" ? patch.funding : prev.funding,
+        applicationFee:
+          typeof patch.applicationFee === "string"
+            ? patch.applicationFee
+            : prev.applicationFee,
+        notes: typeof patch.notes === "string" ? patch.notes : prev.notes,
         portalUrl:
-          typeof data.portalUrl === "string" ? data.portalUrl : prev.portalUrl,
+          typeof patch.portalUrl === "string" ? patch.portalUrl : prev.portalUrl,
+        programUrl:
+          typeof patch.programUrl === "string"
+            ? patch.programUrl
+            : prev.programUrl,
+        department:
+          typeof patch.department === "string"
+            ? patch.department
+            : prev.department,
+        college:
+          typeof patch.college === "string" ? patch.college : prev.college,
+        primaryProfessor:
+          typeof patch.primaryProfessor === "string"
+            ? patch.primaryProfessor
+            : prev.primaryProfessor,
       }));
     } catch (e) {
       setAiError(e instanceof Error ? e.message : "Suggest failed");
@@ -210,8 +229,13 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
           reminderAt: form.reminderAt ? form.reminderAt : null,
           reminderNote: form.reminderNote?.trim() ? form.reminderNote : null,
           funding: form.funding || null,
+          applicationFee: form.applicationFee || null,
           notes: form.notes || null,
           portalUrl: form.portalUrl || null,
+          programUrl: form.programUrl || null,
+          department: form.department || null,
+          college: form.college || null,
+          primaryProfessor: form.primaryProfessor || null,
           status: form.status,
         }),
       });
@@ -636,24 +660,84 @@ export function AddSchoolModal({ open, onClose, onSaved }: Props) {
                   description="Optional metadata to keep your tracker complete."
                   icon="more_horiz"
                 >
-                  <ModalField htmlFor="modal-funding" label="Funding notes">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <ModalField htmlFor="modal-fee" label="Application fee">
+                      <Input
+                        id="modal-fee"
+                        value={form.applicationFee}
+                        onChange={(e) =>
+                          setForm({ ...form, applicationFee: e.target.value })
+                        }
+                        disabled={saving}
+                        placeholder="e.g. $85"
+                      />
+                    </ModalField>
+                    <ModalField htmlFor="modal-funding" label="Funding notes">
+                      <Input
+                        id="modal-funding"
+                        value={form.funding}
+                        onChange={(e) =>
+                          setForm({ ...form, funding: e.target.value })
+                        }
+                        disabled={saving}
+                        placeholder="e.g. RA/TA preference, scholarship notes"
+                      />
+                    </ModalField>
+                  </div>
+                  <ModalField htmlFor="modal-program-url" label="Program link">
                     <Input
-                      id="modal-funding"
-                      value={form.funding}
+                      id="modal-program-url"
+                      type="url"
+                      placeholder="https://..."
+                      value={form.programUrl}
                       onChange={(e) =>
-                        setForm({ ...form, funding: e.target.value })
+                        setForm({ ...form, programUrl: e.target.value })
                       }
                       disabled={saving}
-                      placeholder="e.g. RA/TA preference, scholarship notes"
                     />
                   </ModalField>
-                  <ModalField htmlFor="modal-portal" label="Portal URL">
+                  <ModalField htmlFor="modal-portal" label="Application link">
                     <Input
                       id="modal-portal"
                       placeholder="https://..."
                       value={form.portalUrl}
                       onChange={(e) =>
                         setForm({ ...form, portalUrl: e.target.value })
+                      }
+                      disabled={saving}
+                    />
+                  </ModalField>
+                  <ModalField htmlFor="modal-dept" label="Department">
+                    <Input
+                      id="modal-dept"
+                      value={form.department}
+                      onChange={(e) =>
+                        setForm({ ...form, department: e.target.value })
+                      }
+                      disabled={saving}
+                      placeholder="e.g. Sociology"
+                    />
+                  </ModalField>
+                  <ModalField htmlFor="modal-college" label="College">
+                    <Input
+                      id="modal-college"
+                      value={form.college}
+                      onChange={(e) =>
+                        setForm({ ...form, college: e.target.value })
+                      }
+                      disabled={saving}
+                      placeholder="e.g. Social & Behavioral Sciences"
+                    />
+                  </ModalField>
+                  <ModalField
+                    htmlFor="modal-primary-prof"
+                    label="Primary professor / contact"
+                  >
+                    <Input
+                      id="modal-primary-prof"
+                      value={form.primaryProfessor}
+                      onChange={(e) =>
+                        setForm({ ...form, primaryProfessor: e.target.value })
                       }
                       disabled={saving}
                     />

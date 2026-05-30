@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { differenceInCalendarDays, format } from "date-fns";
 
 import { Icon } from "@/components/icon";
@@ -28,10 +28,16 @@ import { FitScoreBadge, FitScoreMeter } from "@/components/fit-score-badge";
 import { cn } from "@/lib/utils";
 
 import {
+  materialsProgress,
+  syncPersonalStatementFromSop,
+} from "@/lib/school-tracker-defaults";
+
+import {
   buildApplicationChecklist,
   checklistCompletionPercent,
   type ChecklistItem,
 } from "./application-checklist";
+import { ApplicationTracker } from "./application-tracker";
 import { SchoolEditDialog } from "./school-edit-dialog";
 
 type ProfEmailRow = {
@@ -86,6 +92,30 @@ export function SchoolDetailPage({ schoolId }: Props) {
   );
 
   const checklistPct = checklistCompletionPercent(checklist);
+  const matProg = school
+    ? materialsProgress(school.requiredMaterials ?? [])
+    : { done: 0, total: 0 };
+
+  const sopSyncRef = useRef(false);
+  useEffect(() => {
+    if (!school || !variant?.body?.trim()) return;
+    const len = variant.body.trim().length;
+    if (len < 80) return;
+    const next = syncPersonalStatementFromSop(
+      school.requiredMaterials ?? [],
+      len,
+    );
+    const prev = school.requiredMaterials ?? [];
+    const changed =
+      JSON.stringify(next) !== JSON.stringify(prev);
+    if (!changed || sopSyncRef.current) return;
+    sopSyncRef.current = true;
+    void updateSchool
+      .mutateAsync({ id: school.id, data: { requiredMaterials: next } })
+      .finally(() => {
+        sopSyncRef.current = false;
+      });
+  }, [school, variant?.body, updateSchool]);
 
   if (schoolQuery.isLoading) {
     return <PageLoader label="Loading school…" />;
@@ -160,12 +190,20 @@ export function SchoolDetailPage({ schoolId }: Props) {
         onPatch={patchSchool}
       />
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <StatTile
           icon="percent"
           value={`${checklistPct}%`}
-          label="Checklist done"
+          label="Pipeline done"
           tone="primary"
+        />
+        <StatTile
+          icon="inventory_2"
+          value={
+            matProg.total > 0 ? `${matProg.done}/${matProg.total}` : "—"
+          }
+          label="Materials"
+          tone={matProg.done === matProg.total && matProg.total > 0 ? "tertiary" : "neutral"}
         />
         <StatTile
           icon="description"
@@ -193,6 +231,7 @@ export function SchoolDetailPage({ schoolId }: Props) {
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-8">
+          <ApplicationTracker school={school} onPatch={patchSchool} />
           <SopDraftSection
             school={school}
             variant={variant}
@@ -254,6 +293,11 @@ function SchoolHero({
               {school.program}
               {school.degree ? ` · ${school.degree}` : ""}
             </p>
+            {school.department || school.college ? (
+              <p className="mt-0.5 text-xs text-[var(--outline)]">
+                {[school.department, school.college].filter(Boolean).join(" · ")}
+              </p>
+            ) : null}
             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold text-[var(--outline)]">
               {school.country ? <span>{school.country}</span> : null}
               {term ? <span>{term} intake</span> : null}
@@ -593,12 +637,34 @@ function FactsCard({ school }: { school: SchoolRow }) {
         .join(" — "),
     });
   }
+  if (school.department?.trim() || school.college?.trim()) {
+    rows.push({
+      icon: "account_balance",
+      label: "Department",
+      value: [school.department, school.college].filter(Boolean).join(" · "),
+    });
+  }
+  if (school.programUrl?.trim()) {
+    rows.push({
+      icon: "link",
+      label: "Program page",
+      value: "Open program site",
+      href: school.programUrl,
+    });
+  }
   if (school.portalUrl?.trim()) {
     rows.push({
       icon: "link",
       label: "Portal",
       value: "Open application site",
       href: school.portalUrl,
+    });
+  }
+  if (school.primaryProfessor?.trim()) {
+    rows.push({
+      icon: "person",
+      label: "Primary contact",
+      value: school.primaryProfessor.trim(),
     });
   }
   if (school.funding?.trim()) {

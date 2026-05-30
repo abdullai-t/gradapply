@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { useProfEmails } from "@/features/emails/api";
 import { cn } from "@/lib/utils";
 
+import { PROF_EMAIL_PREFILL_KEY } from "@/lib/prof-email-prefill";
+
 import { CreateProfEmailDialog } from "./create-prof-email-dialog";
 import { profEmailPath } from "./paths";
 import { ProfEmailStatusPill } from "./prof-email-status-pill";
@@ -30,6 +32,10 @@ export function ProfEmailsListPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | EmailStatus>("ALL");
   const [createOpen, setCreateOpen] = useState(false);
+  const [createPrefill, setCreatePrefill] = useState<{
+    profName?: string;
+    university?: string;
+  } | null>(null);
 
   const rows = useMemo(
     () => (profEmailsQuery.data ?? []) as EmailRow[],
@@ -41,6 +47,25 @@ export function ProfEmailsListPage() {
     if (thread) {
       router.replace(profEmailPath(thread));
     }
+  }, [searchParams, router]);
+
+  useEffect(() => {
+    if (searchParams.get("create") !== "1") return;
+    try {
+      const raw = sessionStorage.getItem(PROF_EMAIL_PREFILL_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as {
+          profName?: string;
+          university?: string;
+        };
+        setCreatePrefill(parsed);
+        sessionStorage.removeItem(PROF_EMAIL_PREFILL_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+    setCreateOpen(true);
+    router.replace("/emails");
   }, [searchParams, router]);
 
   const filteredRows = useMemo(() => {
@@ -176,8 +201,13 @@ export function ProfEmailsListPage() {
 
       <CreateProfEmailDialog
         open={createOpen}
-        onOpenChange={setCreateOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) setCreatePrefill(null);
+        }}
         existingProfessorEmails={existingProfessorEmails}
+        initialProfName={createPrefill?.profName}
+        initialUniversity={createPrefill?.university}
         onCreated={(created) => router.push(profEmailPath(created.id))}
       />
     </div>

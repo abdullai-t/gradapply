@@ -1,6 +1,8 @@
 import { randomBytes, createHash } from "node:crypto";
 
 import { appOrigin } from "@/lib/app-origin";
+import { buildEmailLayout, paragraphHtml } from "@/lib/email/layout";
+import { log } from "@/lib/logger";
 import { sendMail } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 
@@ -30,16 +32,33 @@ export async function sendEmailVerification(email: string): Promise<boolean> {
   const normalized = email.trim().toLowerCase();
   const token = await issueEmailVerificationToken(normalized);
   const verifyUrl = `${appOrigin()}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
-  const body =
+  const text =
     `Confirm your GradApply email address.\n\n` +
     `Open this link to verify your account:\n${verifyUrl}\n\n` +
     `If you didn't create this account, you can ignore this email.`;
 
+  const html = buildEmailLayout({
+    preheader: "Confirm your email to secure your account.",
+    title: "Verify your email",
+    bodyHtml: paragraphHtml(
+      "Please confirm your email address to finish setting up your GradApply account.",
+    ),
+    cta: { label: "Verify email", href: verifyUrl },
+  });
+
   const result = await sendMail({
     to: normalized,
     subject: "Verify your GradApply email",
-    text: body,
+    text,
+    html,
   });
+
+  if (!result.sent) {
+    log.warn("email.verification_send_failed", {
+      to: normalized,
+      error: result.error ?? "unknown",
+    });
+  }
 
   if (result.previewUrl && process.env.NODE_ENV === "development") {
     console.info("[mail] verification preview:", result.previewUrl);

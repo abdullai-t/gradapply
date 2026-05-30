@@ -1,5 +1,12 @@
 import type { AdmissionTerm } from "@prisma/client";
 
+import type {
+  LetterRecommenderItem,
+  RequiredMaterialItem,
+} from "@/lib/school-tracker-defaults";
+
+export type { LetterRecommenderItem, RequiredMaterialItem };
+
 export type SchoolStatus =
   | "PLANNING"
   | "APPLIED"
@@ -18,8 +25,16 @@ export type SchoolRow = {
   deadline: string | null;
   status: SchoolStatus;
   funding: string | null;
+  applicationFee: string | null;
   notes: string | null;
   portalUrl: string | null;
+  programUrl: string | null;
+  department: string | null;
+  college: string | null;
+  primaryProfessor: string | null;
+  backupProfessors: string | null;
+  requiredMaterials: RequiredMaterialItem[];
+  letterRecommenders: LetterRecommenderItem[];
   progress: number;
   reminderAt: string | null;
   reminderNote: string | null;

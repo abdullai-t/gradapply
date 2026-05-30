@@ -129,6 +129,45 @@ When `PAYSTACK_SECRET_KEY` is set, the app enforces **per-user monthly AI allowa
 
 Optional: `PAYSTACK_CREDITS_PACK_SIZE` or `CREDITS_PACK_SIZE` — credits granted per successful credit-pack checkout (default `50`).
 
+### Transactional email (recommended for production)
+
+Outbound mail uses [`src/lib/mail.ts`](src/lib/mail.ts) (Nodemailer). Configure **one** transport:
+
+| Variable | Purpose |
+| --- | --- |
+| `RESEND_API_KEY` | Resend HTTP API for app mail (recommended; avoids blocked SMTP port 587) |
+| `EMAIL_FROM` | Sender address (e.g. `GradApply <hello@yourdomain.com>`) |
+| `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD` | Alternative SMTP |
+| `EMAIL_SERVER` | Full Nodemailer connection URL |
+
+**Emails sent:**
+
+- Welcome (registration / first OAuth sign-up)
+- Email verification (HTML layout)
+- Plus / Pro subscription confirmation (Paystack fulfillment)
+- AI credits pack purchase confirmation
+- School deadline (**30 days before**, per user time zone on Profile)
+- Custom **Remind me on** date (same cron)
+
+**User time zone:** Profile → **Notifications** → Time zone (IANA). Defaults to browser time zone on first load.
+
+**Scheduled job:** `GET` or `POST` `/api/cron/notifications` with header `Authorization: Bearer <CRON_SECRET>`.
+
+| Variable | Purpose |
+| --- | --- |
+| `CRON_SECRET` | Shared secret for the cron route (generate with `openssl rand -base64 32`) |
+
+Run **hourly** (recommended) so deadline/reminder emails align with each user’s local calendar day:
+
+```bash
+curl -sS -H "Authorization: Bearer $CRON_SECRET" \
+  "https://<your-domain>/api/cron/notifications"
+```
+
+**Cloudflare Workers:** add a [Cron Trigger](https://developers.cloudflare.com/workers/configuration/cron-triggers/) that `fetch`es the URL above, or use an external scheduler (GitHub Actions, cron-job.org).
+
+**Test transport:** `pnpm mail:test you@example.com` (see `scripts/test-email.ts`).
+
 ### Distributed rate limiting (recommended for production)
 
 For a **public** deployment on Vercel with multiple regions or instances, configure **Upstash Redis** so API rate limits are **shared across all lambdas**. Create a Redis database in the [Upstash console](https://console.upstash.com/) and add the REST credentials to the project environment.

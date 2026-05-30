@@ -22,6 +22,10 @@ import {
   optionsWithFallback,
 } from "@/lib/grad-options";
 import { COUNTRY_OPTIONS } from "@/lib/country-options";
+import {
+  detectBrowserTimezone,
+  TIMEZONE_OPTIONS,
+} from "@/lib/timezone-options";
 
 const SELECT_NONE = "__none__";
 
@@ -39,6 +43,7 @@ type ProfileForm = {
   researchInterests: string;
   countriesOfInterest: string[];
   bio: string;
+  timezone: string;
 };
 
 const empty: ProfileForm = {
@@ -55,6 +60,7 @@ const empty: ProfileForm = {
   researchInterests: "",
   countriesOfInterest: [],
   bio: "",
+  timezone: "UTC",
 };
 
 export default function ProfilePage() {
@@ -101,6 +107,10 @@ export default function ProfilePage() {
         ? (p.countriesOfInterest as string[])
         : [],
       bio: (p.bio as string) ?? "",
+      timezone:
+        typeof p.timezone === "string" && p.timezone.trim()
+          ? (p.timezone as string)
+          : detectBrowserTimezone(),
     });
     setHydrated(true);
   }, [hydrated, profileQuery.data]);
@@ -124,6 +134,7 @@ export default function ProfilePage() {
       researchInterests: form.researchInterests || null,
       countriesOfInterest: form.countriesOfInterest,
       bio: form.bio || null,
+      timezone: form.timezone || null,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 4000);
@@ -226,6 +237,41 @@ export default function ProfilePage() {
         </div>
       ) : (
         <>
+          <Section
+            title="Notifications"
+            description="Deadline and reminder emails use your local calendar date."
+            icon="notifications"
+          >
+            <div className="max-w-md">
+              <Label className="text-sm font-bold text-[var(--on-surface)]">
+                Time zone
+              </Label>
+              <Select
+                value={form.timezone || "UTC"}
+                onValueChange={(v) => setForm({ ...form, timezone: v })}
+              >
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Select time zone" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIMEZONE_OPTIONS.map((tz) => (
+                    <SelectItem key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </SelectItem>
+                  ))}
+                  {form.timezone &&
+                  !TIMEZONE_OPTIONS.some((o) => o.value === form.timezone) ? (
+                    <SelectItem value={form.timezone}>{form.timezone}</SelectItem>
+                  ) : null}
+                </SelectContent>
+              </Select>
+              <p className="mt-2 text-xs text-[var(--on-surface-variant)]">
+                We email you 30 days before a school deadline and on dates you
+                set under &quot;Remind me on&quot; in the application tracker.
+              </p>
+            </div>
+          </Section>
+
           {/* Section: Basics */}
           <Section
             title="Basics"

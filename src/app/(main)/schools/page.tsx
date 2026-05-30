@@ -13,7 +13,10 @@ import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { messageFromApiErrorPayload } from "@/lib/api-error-json";
+import {
+  buildSchoolPatchFromInfer,
+  fetchSchoolInfer,
+} from "@/lib/school-infer-patch";
 
 import { Button } from "@/components/ui/button";
 import { PageLoader } from "@/components/page-loader";
@@ -33,6 +36,7 @@ const AddSchoolModal = dynamic(
   { ssr: false },
 );
 
+import { SchoolImportExport } from "@/features/schools/school-import-export";
 import { SchoolsStats } from "@/features/schools/schools-stats";
 import { SchoolGridCard } from "@/features/schools/school-grid-card";
 import { SchoolDetailForm } from "@/features/schools/school-detail-form";
@@ -142,42 +146,8 @@ function SchoolsPageInner() {
     async (school: SchoolRow) => {
       setSuggestingSchoolId(school.id);
       try {
-        const res = await fetch("/api/schools/infer", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ schoolId: school.id }),
-        });
-        const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-        if (!res.ok) {
-          throw new Error(messageFromApiErrorPayload(data));
-        }
-
-        const patch: Partial<SchoolRow> & Record<string, unknown> = {};
-        if (typeof data.program === "string" && data.program.trim()) {
-          patch.program = data.program.trim();
-        }
-        if (typeof data.degree === "string" && data.degree.trim()) {
-          patch.degree = data.degree.trim();
-        }
-        if (typeof data.country === "string" && data.country.trim()) {
-          patch.country = data.country.trim();
-        }
-        const term = data.term;
-        if (term === "FALL" || term === "SPRING" || term === "SUMMER") {
-          patch.term = term;
-        }
-        if (typeof data.deadline === "string" && data.deadline.trim()) {
-          patch.deadline = data.deadline.trim();
-        }
-        if (typeof data.funding === "string" && data.funding.trim()) {
-          patch.funding = data.funding.trim();
-        }
-        if (typeof data.notes === "string" && data.notes.trim()) {
-          patch.notes = data.notes.trim();
-        }
-        if (typeof data.portalUrl === "string" && data.portalUrl.trim()) {
-          patch.portalUrl = data.portalUrl.trim();
-        }
+        const data = await fetchSchoolInfer({ schoolId: school.id });
+        const patch = buildSchoolPatchFromInfer(data, school);
 
         if (Object.keys(patch).length === 0) {
           alert(
@@ -218,18 +188,41 @@ function SchoolsPageInner() {
             Track your journey and manage deadlines across every program.
           </p>
         </div>
-        <Button icon="add" size="lg" onClick={() => setAddOpen(true)}>
-          Add school
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <SchoolImportExport onImported={invalidateSchools} />
+          <Button icon="add" size="lg" onClick={() => setAddOpen(true)}>
+            Add school
+          </Button>
+        </div>
       </header>
 
       {/* Stats bento */}
       <SchoolsStats schools={schools} />
 
+      {!isLoading && schools.length === 0 ? (
+        <section className="tactile-card rounded-3xl border-2 border-dashed border-[var(--outline-variant)] p-8 text-center md:p-12">
+          <h2 className="m-0 text-xl font-bold text-[var(--on-surface)]">
+            Build your school list
+          </h2>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[var(--on-surface-variant)]">
+            Add programs manually or let AI suggest reach, match, and safety
+            schools based on your profile.
+          </p>
+          <Button
+            className="mt-6"
+            size="lg"
+            icon="auto_awesome"
+            onClick={() => setAddOpen(true)}
+          >
+            Get recommendations
+          </Button>
+        </section>
+      ) : null}
+
       {/* Grid */}
       {isLoading ? (
         <PageLoader label="Loading schools…" />
-      ) : (
+      ) : schools.length > 0 ? (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {sorted.map((school) => (
             <SchoolGridCard
@@ -249,7 +242,7 @@ function SchoolsPageInner() {
           ))}
           <AddSchoolCard onClick={() => setAddOpen(true)} />
         </div>
-      )}
+      ) : null}
 
       {/* AI insight */}
       {!isLoading && schools.length > 0 ? (

@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SchoolDetailForm } from "@/features/schools/school-detail-form";
+import { ApplicationTracker } from "./application-tracker";
 import type { SchoolRow } from "@/features/schools/types";
 
 type Props = {
@@ -29,7 +30,7 @@ export function SchoolEditDialog({
 }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[min(90vh,820px)] max-w-2xl gap-0 overflow-y-auto p-0">
+      <DialogContent className="max-h-[min(90vh,900px)] max-w-3xl gap-0 overflow-y-auto p-0">
         <DialogHeader className="border-b border-[var(--outline-variant)] px-6 py-5 text-left">
           <DialogTitle className="text-lg font-bold text-[var(--on-surface)]">
             Update school details
@@ -39,12 +40,20 @@ export function SchoolEditDialog({
             option. {school.name}
           </DialogDescription>
         </DialogHeader>
-        <div className="px-6 py-5">
-          <SchoolDetailForm
-            school={school}
-            onPatch={onPatch}
-            showSopPromo={false}
-          />
+        <div className="space-y-8 px-6 py-5">
+          <ApplicationTracker school={school} onPatch={onPatch} />
+          <div className="border-t border-[var(--outline-variant)] pt-6">
+            <p className="mb-4 text-xs font-bold uppercase tracking-[0.08em] text-[var(--outline)]">
+              Timeline & reminders
+            </p>
+            <SchoolDetailForm
+              school={school}
+              onPatch={onPatch}
+              showSopPromo={false}
+              hideTrackerFields
+              hideTimelineFields
+            />
+          </div>
         </div>
       </DialogContent>
     </Dialog>

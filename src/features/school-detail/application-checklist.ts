@@ -56,10 +56,10 @@ export function buildApplicationChecklist(
     },
     {
       id: "sop",
-      label: "Tailored SOP",
+      label: "SOP studio draft",
       detail: hasSop
-        ? variant?.title ?? "Draft saved in SOP studio"
-        : "Generate a school-specific statement",
+        ? variant?.title ?? "Draft saved — mark Personal Statement in tracker when ready"
+        : "Generate a school-specific statement in SOP studio",
       done: hasSop,
       href: `/assistant?mode=sop&schoolId=${school.id}`,
       icon: "description",

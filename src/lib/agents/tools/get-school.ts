@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import {
+  normalizeLetterRecommenders,
+  normalizeRequiredMaterials,
+} from "@/lib/school-tracker-defaults";
 
 import type { ToolDefinition } from "../types";
 import { getCached, setCached } from "../cache";
@@ -20,11 +24,44 @@ const schoolShape = z.object({
   deadline: z.string().nullable(),
   status: z.string(),
   funding: z.string().nullable(),
+  applicationFee: z.string().nullable(),
   notes: z.string().nullable(),
   portalUrl: z.string().nullable(),
+  programUrl: z.string().nullable(),
+  department: z.string().nullable(),
+  college: z.string().nullable(),
+  primaryProfessor: z.string().nullable(),
+  requiredMaterialLabels: z.array(z.string()),
+  lettersRequired: z.number().nullable(),
 }).nullable();
 
 type SchoolOutput = z.infer<typeof schoolShape>;
+
+function schoolToToolOutput(
+  school: NonNullable<Awaited<ReturnType<typeof prisma.school.findFirst>>>,
+): SchoolOutput {
+  const materials = normalizeRequiredMaterials(school.requiredMaterials);
+  const letters = normalizeLetterRecommenders(school.letterRecommenders);
+  return {
+    id: school.id,
+    name: school.name,
+    program: school.program,
+    degree: school.degree,
+    country: school.country,
+    deadline: school.deadline?.toISOString().slice(0, 10) ?? null,
+    status: school.status,
+    funding: school.funding,
+    applicationFee: school.applicationFee,
+    notes: school.notes,
+    portalUrl: school.portalUrl,
+    programUrl: school.programUrl,
+    department: school.department,
+    college: school.college,
+    primaryProfessor: school.primaryProfessor,
+    requiredMaterialLabels: materials.map((m) => m.label),
+    lettersRequired: letters.length > 0 ? letters.length : null,
+  };
+}
 
 export const getSchoolTool: ToolDefinition<z.infer<typeof getSchoolInput>, SchoolOutput> = {
   name: "getSchool",
@@ -46,18 +83,7 @@ export const getSchoolTool: ToolDefinition<z.infer<typeof getSchoolInput>, Schoo
       return null;
     }
 
-    const result: SchoolOutput = {
-      id: school.id,
-      name: school.name,
-      program: school.program,
-      degree: school.degree,
-      country: school.country,
-      deadline: school.deadline?.toISOString().slice(0, 10) ?? null,
-      status: school.status,
-      funding: school.funding,
-      notes: school.notes,
-      portalUrl: school.portalUrl,
-    };
+    const result = schoolToToolOutput(school);
 
     setCached(ctx, "getSchool", input, result);
     return result;
@@ -93,18 +119,7 @@ export const getSchoolByNameTool: ToolDefinition<z.infer<typeof getSchoolByNameI
       return null;
     }
 
-    const result: SchoolOutput = {
-      id: match.id,
-      name: match.name,
-      program: match.program,
-      degree: match.degree,
-      country: match.country,
-      deadline: match.deadline?.toISOString().slice(0, 10) ?? null,
-      status: match.status,
-      funding: match.funding,
-      notes: match.notes,
-      portalUrl: match.portalUrl,
-    };
+    const result = schoolToToolOutput(match);
 
     setCached(ctx, "getSchoolByName", input, result);
     return result;

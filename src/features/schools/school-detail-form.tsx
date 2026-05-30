@@ -30,6 +30,10 @@ export interface SchoolDetailFormProps {
   onPatch: (body: Partial<SchoolRow> & Record<string, unknown>) => void;
   /** Hide SOP studio promo (e.g. in the school hub edit modal). */
   showSopPromo?: boolean;
+  /** Hide portal/notes when ApplicationTracker is shown in the same dialog. */
+  hideTrackerFields?: boolean;
+  /** Hide deadline/reminder when ApplicationTracker shows them. */
+  hideTimelineFields?: boolean;
 }
 
 /**
@@ -41,6 +45,8 @@ export function SchoolDetailForm({
   school,
   onPatch,
   showSopPromo = true,
+  hideTrackerFields = false,
+  hideTimelineFields = false,
 }: SchoolDetailFormProps) {
   return (
     <div className="space-y-5">
@@ -99,49 +105,68 @@ export function SchoolDetailForm({
           />
         </Field>
 
-        <Field label="Deadline">
+        {!hideTimelineFields ? (
+          <Field label="Deadline">
+            <Input
+              type="date"
+              key={`${school.id}-d-${school.deadline ?? "none"}`}
+              defaultValue={formatDeadlineDateInput(school.deadline)}
+              onBlur={(e) =>
+                onPatch({ deadline: e.target.value || null })
+              }
+            />
+          </Field>
+        ) : null}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Application fee">
           <Input
-            type="date"
-            key={`${school.id}-d-${school.deadline ?? "none"}`}
-            defaultValue={formatDeadlineDateInput(school.deadline)}
+            defaultValue={school.applicationFee ?? ""}
+            placeholder="e.g. $85"
+            key={`${school.id}-fee-${school.applicationFee ?? ""}`}
             onBlur={(e) =>
-              onPatch({ deadline: e.target.value || null })
+              onPatch({ applicationFee: e.target.value.trim() || null })
+            }
+          />
+        </Field>
+
+        <Field label="Funding notes">
+          <Input
+            defaultValue={school.funding ?? ""}
+            placeholder="Funded? Stipend? Tuition waiver?"
+            key={`${school.id}-f-${school.funding ?? ""}`}
+            onBlur={(e) =>
+              onPatch({ funding: e.target.value.trim() || null })
             }
           />
         </Field>
       </div>
 
-      <Field label="Funding notes">
-        <Input
-          defaultValue={school.funding ?? ""}
-          placeholder="Funded? Stipend? Tuition waiver?"
-          key={`${school.id}-f-${school.funding ?? ""}`}
-          onBlur={(e) =>
-            onPatch({ funding: e.target.value.trim() || null })
-          }
-        />
-      </Field>
+      {!hideTrackerFields ? (
+        <>
+          <Field label="Portal URL">
+            <Input
+              type="url"
+              defaultValue={school.portalUrl ?? ""}
+              placeholder="https://..."
+              key={`${school.id}-p-${school.portalUrl ?? ""}`}
+              onBlur={(e) =>
+                onPatch({ portalUrl: e.target.value.trim() || null })
+              }
+            />
+          </Field>
 
-      <Field label="Portal URL">
-        <Input
-          type="url"
-          defaultValue={school.portalUrl ?? ""}
-          placeholder="https://..."
-          key={`${school.id}-p-${school.portalUrl ?? ""}`}
-          onBlur={(e) =>
-            onPatch({ portalUrl: e.target.value.trim() || null })
-          }
-        />
-      </Field>
-
-      <Field label="Notes">
-        <Textarea
-          defaultValue={school.notes ?? ""}
-          placeholder="Anything you want to remember about this school."
-          key={`${school.id}-n-${school.notes ?? ""}`}
-          onBlur={(e) => onPatch({ notes: e.target.value })}
-        />
-      </Field>
+          <Field label="Notes">
+            <Textarea
+              defaultValue={school.notes ?? ""}
+              placeholder="Anything you want to remember about this school."
+              key={`${school.id}-n-${school.notes ?? ""}`}
+              onBlur={(e) => onPatch({ notes: e.target.value })}
+            />
+          </Field>
+        </>
+      ) : null}
 
       {showSopPromo ? (
       <div className="rounded-2xl border border-[var(--primary-container)]/30 bg-[var(--primary-fixed)]/40 p-4 dark:border-[var(--primary-container)]/40 dark:bg-[var(--primary-container)]/10">
@@ -163,50 +188,52 @@ export function SchoolDetailForm({
       </div>
       ) : null}
 
-      <div className="rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-4">
-        <div className="text-sm font-bold text-[var(--on-surface)]">Reminder</div>
-        <p className="mt-1 text-xs leading-relaxed text-[var(--on-surface-variant)]">
-          Optional follow-up date — appears on Timeline and in the dashboard
-          banner.
-        </p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <Field label="Remind me on">
-            <Input
-              type="date"
-              key={`${school.id}-ra-${school.reminderAt ?? "none"}`}
-              defaultValue={formatDeadlineDateInput(school.reminderAt)}
-              onBlur={(e) =>
-                onPatch({ reminderAt: e.target.value || null })
-              }
-            />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label="Reminder note">
-              <Textarea
-                key={`${school.id}-rn-${school.reminderNote ?? ""}`}
-                defaultValue={school.reminderNote ?? ""}
-                placeholder="e.g. Submit GRE scores"
+      {!hideTimelineFields ? (
+        <div className="rounded-2xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-4">
+          <div className="text-sm font-bold text-[var(--on-surface)]">Reminder</div>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--on-surface-variant)]">
+            Optional follow-up date — appears on Timeline and in the dashboard
+            banner.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <Field label="Remind me on">
+              <Input
+                type="date"
+                key={`${school.id}-ra-${school.reminderAt ?? "none"}`}
+                defaultValue={formatDeadlineDateInput(school.reminderAt)}
                 onBlur={(e) =>
-                  onPatch({ reminderNote: e.target.value || null })
+                  onPatch({ reminderAt: e.target.value || null })
                 }
               />
             </Field>
+            <div className="sm:col-span-2">
+              <Field label="Reminder note">
+                <Textarea
+                  key={`${school.id}-rn-${school.reminderNote ?? ""}`}
+                  defaultValue={school.reminderNote ?? ""}
+                  placeholder="e.g. Submit GRE scores"
+                  onBlur={(e) =>
+                    onPatch({ reminderNote: e.target.value || null })
+                  }
+                />
+              </Field>
+            </div>
           </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="mt-3 border border-dashed border-[var(--outline-variant)]"
+            icon="notifications_off"
+            disabled={!school.reminderAt && !school.reminderNote?.trim()}
+            onClick={() =>
+              onPatch({ reminderAt: null, reminderNote: null })
+            }
+          >
+            Clear reminder
+          </Button>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="mt-3 border border-dashed border-[var(--outline-variant)]"
-          icon="notifications_off"
-          disabled={!school.reminderAt && !school.reminderNote?.trim()}
-          onClick={() =>
-            onPatch({ reminderAt: null, reminderNote: null })
-          }
-        >
-          Clear reminder
-        </Button>
-      </div>
+      ) : null}
 
       {school.term ? (
         <p className="text-xs text-[var(--outline)]">

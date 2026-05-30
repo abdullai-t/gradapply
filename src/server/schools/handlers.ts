@@ -10,16 +10,29 @@ import { log } from "@/lib/logger";
 import {
   requireSchoolTrackingCapacity,
   requireWritableAccount,
+  schoolTrackingLimitForUser,
 } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
 import {
   parseJsonFromLlmText,
   parseRecommendSchoolsFromLlmText,
 } from "@/lib/parse-llm-json";
+import { pickInferApplicationFee } from "@/lib/school-infer-application-fee";
 import { parseDeadlineBody, coerceSchoolInferDeadlineToFuture } from "@/lib/school-deadline";
 import { progressFromStatus } from "@/lib/school-progress";
+import {
+  defaultLetterRecommenders,
+  defaultRequiredMaterials,
+  materialsFromInferLabels,
+  normalizeLetterRecommenders,
+  normalizeRequiredMaterials,
+  parseInferLettersRequired,
+  parseInferMaterialLabels,
+  recommendersFromInferCount,
+} from "@/lib/school-tracker-defaults";
 
 import { bad, notFound, ok } from "../_responses";
+import { serializeSchool, serializeSchools } from "./serialize";
 import { withAuth } from "../_with-auth";
 
 import {
@@ -30,6 +43,7 @@ import {
 } from "@/lib/school-recommend";
 
 import {
+  bulkCreateSchoolsSchema,
   createSchoolSchema,
   inferSchoolSchema,
   recommendSchoolsSchema,
@@ -46,7 +60,7 @@ export const list = withAuth(async (req, { userId }) => {
         : [{ updatedAt: "desc" }],
   });
 
-  return ok(schools);
+  return ok(serializeSchools(schools));
 });
 
 export const create = withAuth(async (req, { userId }) => {
@@ -59,7 +73,8 @@ export const create = withAuth(async (req, { userId }) => {
   const parsed = createSchoolSchema.safeParse(json);
   if (!parsed.success) return bad({ error: parsed.error.flatten() });
 
-  const { deadline, reminderAt, ...rest } = parsed.data;
+  const { deadline, reminderAt, requiredMaterials, letterRecommenders, ...rest } =
+    parsed.data;
   const status = rest.status ?? SchoolStatus.PLANNING;
 
   const school = await prisma.school.create({
@@ -67,6 +82,10 @@ export const create = withAuth(async (req, { userId }) => {
       ...rest,
       status,
       progress: progressFromStatus(status),
+      requiredMaterials:
+        requiredMaterials ?? defaultRequiredMaterials(),
+      letterRecommenders:
+        letterRecommenders ?? defaultLetterRecommenders(),
       userId,
       deadline:
         deadline === undefined
@@ -83,7 +102,62 @@ export const create = withAuth(async (req, { userId }) => {
     },
   });
 
-  return ok(school);
+  return ok(serializeSchool(school));
+});
+
+export const bulkCreate = withAuth(async (req, { userId }) => {
+  const readOnly = await requireWritableAccount(userId);
+  if (readOnly) return readOnly;
+
+  const json = await req.json().catch(() => null);
+  const parsed = bulkCreateSchoolsSchema.safeParse(json);
+  if (!parsed.success) return bad({ error: parsed.error.flatten() });
+
+  const limit = await schoolTrackingLimitForUser(userId);
+  const current = await prisma.school.count({ where: { userId } });
+  if (current + parsed.data.schools.length > limit) {
+    return bad(
+      {
+        error: `You can track up to ${limit} schools on your plan. Remove some schools or upgrade to add more.`,
+        code: "SCHOOL_LIMIT",
+      },
+      402,
+    );
+  }
+
+  const created = await prisma.$transaction(
+    parsed.data.schools.map((row) => {
+      const { deadline, reminderAt, requiredMaterials, letterRecommenders, ...rest } =
+        row;
+      const status = rest.status ?? SchoolStatus.PLANNING;
+      return prisma.school.create({
+        data: {
+          ...rest,
+          status,
+          progress: progressFromStatus(status),
+          requiredMaterials:
+            requiredMaterials ?? defaultRequiredMaterials(),
+          letterRecommenders:
+            letterRecommenders ?? defaultLetterRecommenders(),
+          userId,
+          deadline:
+            deadline === undefined
+              ? undefined
+              : deadline === null || deadline === ""
+                ? null
+                : parseDeadlineBody(deadline),
+          reminderAt:
+            reminderAt === undefined
+              ? undefined
+              : reminderAt === null || reminderAt === ""
+                ? null
+                : parseDeadlineBody(reminderAt),
+        },
+      });
+    }),
+  );
+
+  return ok(serializeSchools(created));
 });
 
 export const get = withAuth<{ id: string }>(async (_req, { userId, params }) => {
@@ -91,7 +165,7 @@ export const get = withAuth<{ id: string }>(async (_req, { userId, params }) => 
     where: { id: params.id, userId },
   });
   if (!school) return notFound("School not found");
-  return ok(school);
+  return ok(serializeSchool(school));
 });
 
 export const update = withAuth<{ id: string }>(
@@ -137,7 +211,7 @@ export const update = withAuth<{ id: string }>(
       },
     });
 
-    return ok(school);
+    return ok(serializeSchool(school));
   },
 );
 
@@ -165,14 +239,45 @@ const RECOMMEND_TIERS = [
   { bucket: "safety", label: "safety" },
 ] as const;
 
+function buildProfileContextBlock(profile: {
+  targetDegree: string | null;
+  focusArea: string | null;
+  researchInterests: string | null;
+  bio: string | null;
+  countriesOfInterest: string[];
+} | null): string {
+  if (!profile) return "";
+  const lines: string[] = ["Applicant profile for fit:"];
+  if (profile.targetDegree?.trim()) {
+    lines.push(`- Target degree: ${profile.targetDegree.trim()}`);
+  }
+  if (profile.focusArea?.trim()) {
+    lines.push(`- Program focus: ${profile.focusArea.trim()}`);
+  }
+  if (profile.researchInterests?.trim()) {
+    lines.push(`- Research interests: ${profile.researchInterests.trim()}`);
+  }
+  if (profile.bio?.trim()) {
+    lines.push(`- Bio: ${profile.bio.trim().slice(0, 400)}`);
+  }
+  if (profile.countriesOfInterest.length > 0) {
+    lines.push(
+      `- Countries of interest: ${profile.countriesOfInterest.join(", ")}`,
+    );
+  }
+  return lines.length > 1 ? lines.join("\n") : "";
+}
+
 function buildTierRecommendPrompt(opts: {
   tier: (typeof RECOMMEND_TIERS)[number];
   countryHint: string;
+  profileContext: string;
   excludeBlock: string;
   variationBlock: string;
   retry: boolean;
 }): string {
-  const { tier, countryHint, excludeBlock, variationBlock, retry } = opts;
+  const { tier, countryHint, profileContext, excludeBlock, variationBlock, retry } =
+    opts;
   const lines = [
     `Recommend exactly 5 ${tier.label} graduate schools for my tracking list.`,
     `Set tierBucket to "${tier.bucket}" on every row.`,
@@ -184,6 +289,7 @@ function buildTierRecommendPrompt(opts: {
     excludeBlock,
     variationBlock,
     countryHint,
+    profileContext,
     'Return ONLY minified JSON: {"schools":[{"name","program","degree","country","tierBucket","whyFit","funding","notes","portalUrl":null}]}',
     "Never include a school on the exclusion list (same institution or same program).",
     "No markdown fences or prose before or after the JSON.",
@@ -239,6 +345,7 @@ async function fetchTierSchools(
   userId: string,
   tier: (typeof RECOMMEND_TIERS)[number],
   countryHint: string,
+  profileContext: string,
   excludeFrom: SchoolIdentity[],
   searchSeed: string,
 ): Promise<unknown[]> {
@@ -249,6 +356,7 @@ async function fetchTierSchools(
     const prompt = buildTierRecommendPrompt({
       tier,
       countryHint,
+      profileContext,
       excludeBlock,
       variationBlock,
       retry: attempt > 0,
@@ -292,24 +400,43 @@ async function fetchTierSchools(
 }
 
 export const recommend = withAuth(async (req, { userId }) => {
-  const quota = await billingPrecheckResponse(userId, "school_recommendation");
-  if (quota) return quota;
-
   const json = await req.json().catch(() => ({}));
   const parsedBody = recommendSchoolsSchema.safeParse(json);
-  const sessionExclude: SchoolIdentity[] = parsedBody.success
-    ? (parsedBody.data.sessionExclude ?? []).map((s) => ({
-        name: s.name,
-        program: s.program ?? null,
-      }))
-    : [];
+  const isOnboardingRequest =
+    parsedBody.success && parsedBody.data.onboarding === true;
+  const sessionExclude: SchoolIdentity[] =
+    parsedBody.success && !isOnboardingRequest
+      ? (parsedBody.data.sessionExclude ?? []).map((s) => ({
+          name: s.name,
+          program: s.program ?? null,
+        }))
+      : [];
+
+  const profileForBilling = await prisma.profile.findUnique({
+    where: { userId },
+    select: { onboardingRecommendSeenAt: true },
+  });
+  const freeOnboardingRecommend =
+    isOnboardingRequest && !profileForBilling?.onboardingRecommendSeenAt;
+
+  if (!freeOnboardingRecommend) {
+    const quota = await billingPrecheckResponse(userId, "school_recommendation");
+    if (quota) return quota;
+  }
 
   try {
-    log.debug("schools/recommend.start", { userId });
+    log.debug("schools/recommend.start", { userId, isOnboardingRequest });
     const [profile, trackedSchools] = await Promise.all([
       prisma.profile.findUnique({
         where: { userId },
-        select: { countriesOfInterest: true },
+        select: {
+          countriesOfInterest: true,
+          targetDegree: true,
+          focusArea: true,
+          researchInterests: true,
+          bio: true,
+          onboardingRecommendSeenAt: true,
+        },
       }),
       prisma.school.findMany({
         where: { userId },
@@ -317,10 +444,28 @@ export const recommend = withAuth(async (req, { userId }) => {
       }),
     ]);
 
-    const excludeFrom: SchoolIdentity[] = [
-      ...trackedSchools.map((s) => ({ name: s.name, program: s.program })),
-      ...sessionExclude,
-    ];
+    const profileContext = buildProfileContextBlock(
+      profile
+        ? {
+            targetDegree: profile.targetDegree,
+            focusArea: profile.focusArea,
+            researchInterests: profile.researchInterests,
+            bio: profile.bio,
+            countriesOfInterest: Array.isArray(profile.countriesOfInterest)
+              ? profile.countriesOfInterest.filter(
+                  (c) => typeof c === "string" && c.trim(),
+                )
+              : [],
+          }
+        : null,
+    );
+
+    const excludeFrom: SchoolIdentity[] = isOnboardingRequest
+      ? trackedSchools.map((s) => ({ name: s.name, program: s.program }))
+      : [
+          ...trackedSchools.map((s) => ({ name: s.name, program: s.program })),
+          ...sessionExclude,
+        ];
 
     const searchSeed = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     const tierOrder = shuffleWithSeed(RECOMMEND_TIERS, searchSeed.length + userId.length);
@@ -339,6 +484,7 @@ export const recommend = withAuth(async (req, { userId }) => {
         userId,
         tier,
         countryHint,
+        profileContext,
         excludeFrom,
         searchSeed,
       );
@@ -361,7 +507,15 @@ export const recommend = withAuth(async (req, { userId }) => {
       searchSeed,
     });
 
-    await finalizeAiConsumptionForAction(userId, "school_recommendation");
+    if (freeOnboardingRecommend) {
+      await prisma.profile.upsert({
+        where: { userId },
+        create: { userId, onboardingRecommendSeenAt: new Date() },
+        update: { onboardingRecommendSeenAt: new Date() },
+      });
+    } else {
+      await finalizeAiConsumptionForAction(userId, "school_recommendation");
+    }
 
     if (countriesOfInterest.length > 0) {
       const countrySet = new Set(countriesOfInterest.map((c) => c.toLowerCase()));
@@ -424,17 +578,25 @@ export const infer = withAuth(async (req, { userId }) => {
     let program = "";
     let degree = "";
     let country: string | null = null;
+    let department = "";
+    let college = "";
     let termHint: AdmissionTerm | null | undefined = parsed.data.term;
+    let existingRow: Awaited<
+      ReturnType<typeof prisma.school.findFirst>
+    > = null;
 
     if (parsed.data.schoolId) {
       const row = await prisma.school.findFirst({
         where: { id: parsed.data.schoolId, userId },
       });
       if (!row) return notFound();
+      existingRow = row;
       contextName = row.name;
       program = row.program;
       degree = row.degree;
       country = row.country;
+      department = row.department ?? "";
+      college = row.college ?? "";
       if (termHint === undefined) termHint = row.term ?? undefined;
     } else {
       contextName = parsed.data.name!.trim();
@@ -443,12 +605,18 @@ export const infer = withAuth(async (req, { userId }) => {
     const todayUtc = new Date().toISOString().slice(0, 10);
 
     const message = [
-      "Infer application-tracking fields for this saved graduate-program entry.",
+      "Research official graduate application requirements for this program and return structured tracking fields.",
       `School / institution: "${contextName}"`,
       program ? `Program (from user record): ${program}` : "",
       degree ? `Degree (from user record): ${degree}` : "",
       country ? `Country (from user record): ${country}` : "",
+      department ? `Department (from user record): ${department}` : "",
+      college ? `College / school (from user record): ${college}` : "",
       termHint ? `Preferred intake term hint: ${termHint}` : "",
+      "",
+      "Use the applicant's program + department to look up the correct department-level requirements (not a generic university page).",
+      "List each distinct required application component the program officially asks for (documents, tests, forms).",
+      "Look up the published graduate application fee on the official admissions or graduate college site (fee schedule, how to apply, or FAQ) and return it in applicationFee.",
       "",
       `Today's calendar date (UTC) is ${todayUtc}.`,
       `The application deadline MUST be ${todayUtc} or a later date for an upcoming admissions cycle — never a year that is already in the past relative to today.`,
@@ -459,11 +627,20 @@ export const infer = withAuth(async (req, { userId }) => {
       '- term: one of \"FALL\" | \"SPRING\" | \"SUMMER\" or null (primary admission intake term)',
       `- deadline: primary application deadline as \"YYYY-MM-DD\" on or after ${todayUtc} (UTC), or null`,
       '- funding: short string (funding / stipend / tuition typical for this program), or null',
-      '- notes: short neutral note (e.g. GRE, fee waiver) under 220 chars, or null',
+      '- applicationFee: REQUIRED to attempt — official graduate application fee as published (e.g. "$85", "USD 75", "$0", "waived for domestic applicants"); null only if no fee is published online',
+      '- notes: brief note on tests/portfolio (GRE, TOEFL, etc.) under 280 chars — do not repeat the application fee here, or null',
+      '- applicationRequirementsSummary: 2–4 sentences summarizing official requirements (deadlines window, test policy, interview, portfolio), or null',
       '- portalUrl: official https application or graduate admissions portal URL, or null',
+      '- programUrl: official https program or department page URL, or null',
+      '- department: academic department name, or null',
+      '- college: college or school within the university (e.g. College of Engineering), or null',
+      '- primaryProfessor: suggested faculty contact name only if clearly public on the program site, or null',
+      '- backupProfessors: free-text backup faculty contacts if listed publicly, or null',
+      "- requiredMaterialLabels: JSON array of strings — each official required item (e.g. Resume/CV, Statement of purpose, Writing sample, Transcripts, GRE scores, Letters of recommendation). Use official program wording when known. Empty array if unknown.",
+      '- lettersRequired: integer count of recommendation letters required (e.g. 3), or null if unknown',
       "",
-      "Ground answers in well-known public information; prefer official university domains for portalUrl.",
-      "Never invent a precise deadline or URL if uncertain — use null.",
+      "Ground answers in well-known public information; prefer official university domains for portalUrl and programUrl.",
+      "Never invent a precise deadline, URL, fee amount, or material you cannot verify — use null or an empty array.",
     ]
       .filter(Boolean)
       .join("\n");
@@ -504,6 +681,17 @@ export const infer = withAuth(async (req, { userId }) => {
       });
     }
     const portalUrl = normalizeInferPortalUrl(fields.portalUrl);
+    const programUrl = normalizeInferPortalUrl(fields.programUrl);
+
+    const materialLabels = parseInferMaterialLabels(fields.requiredMaterialLabels);
+    const lettersRequired = parseInferLettersRequired(fields.lettersRequired);
+
+    const existingMaterials = existingRow
+      ? normalizeRequiredMaterials(existingRow.requiredMaterials)
+      : [];
+    const existingLetters = existingRow
+      ? normalizeLetterRecommenders(existingRow.letterRecommenders)
+      : [];
 
     const out: Record<string, unknown> = {
       program: typeof fields.program === "string" ? fields.program.trim() || null : null,
@@ -512,8 +700,46 @@ export const infer = withAuth(async (req, { userId }) => {
       term,
       deadline,
       funding: typeof fields.funding === "string" ? fields.funding.trim() || null : null,
+      applicationFee: pickInferApplicationFee(fields),
       notes: typeof fields.notes === "string" ? fields.notes.trim() || null : null,
+      applicationRequirementsSummary:
+        typeof fields.applicationRequirementsSummary === "string"
+          ? fields.applicationRequirementsSummary.trim() || null
+          : null,
       portalUrl,
+      programUrl,
+      department:
+        typeof fields.department === "string"
+          ? fields.department.trim() || null
+          : null,
+      college:
+        typeof fields.college === "string" ? fields.college.trim() || null : null,
+      primaryProfessor:
+        typeof fields.primaryProfessor === "string"
+          ? fields.primaryProfessor.trim() || null
+          : null,
+      backupProfessors:
+        typeof fields.backupProfessors === "string"
+          ? fields.backupProfessors.trim() || null
+          : null,
+      requiredMaterialLabels: materialLabels,
+      lettersRequired,
+      ...(materialLabels.length > 0
+        ? {
+            requiredMaterials: materialsFromInferLabels(
+              materialLabels,
+              existingMaterials,
+            ),
+          }
+        : {}),
+      ...(lettersRequired != null && lettersRequired > 0
+        ? {
+            letterRecommenders: recommendersFromInferCount(
+              lettersRequired,
+              existingLetters,
+            ),
+          }
+        : {}),
     };
 
     await finalizeAiConsumptionForAction(userId, "school_infer");

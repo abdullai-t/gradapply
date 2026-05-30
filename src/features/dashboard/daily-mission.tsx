@@ -27,7 +27,7 @@ export function DailyMission({
 }: DailyMissionProps) {
   return (
     <div
-      className="aura shine-sweep tactile-card relative flex min-h-[280px] flex-col justify-between overflow-hidden rounded-3xl p-8 text-white"
+      className="aura shine-sweep tactile-card relative flex h-full min-h-[min(100%,280px)] flex-col justify-between overflow-hidden rounded-3xl p-6 text-white md:min-h-[280px] md:p-8"
       style={{
         background: "linear-gradient(135deg, var(--primary), #004a77)",
         borderBottom: "8px solid #003354",

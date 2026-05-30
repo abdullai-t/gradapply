@@ -3,12 +3,15 @@ import { TopBar } from "@/features/shell/topbar";
 import { FAB } from "@/features/shell/fab";
 import { MobileNav } from "@/features/shell/mobile-nav";
 import { ReminderBanner } from "@/components/reminder-banner";
+import { requireOnboardingCompleteOrRedirect } from "@/lib/onboarding-server";
 
-export default function MainLayout({
+export default async function MainLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  await requireOnboardingCompleteOrRedirect();
+
   return (
     <div className="relative min-h-screen md:flex bg-[var(--background)] text-[var(--on-background)]">
       <Sidebar />

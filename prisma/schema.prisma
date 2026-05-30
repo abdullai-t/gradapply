@@ -36,6 +36,16 @@ enum BillingPaymentKind {
   SOP_DETAILED_CRITIQUE
 }
 
+enum NotificationType {
+  WELCOME
+  DEADLINE_30D
+  REMINDER
+  SCHOOL_COMBINED
+  PLAN_PLUS
+  PLAN_PRO
+  CREDITS_PURCHASE
+}
+
 /// Dedupe Paystack fulfillment (callback + webhook) per transaction reference.
 model PaystackEventLog {
   reference String   @id
@@ -109,7 +119,8 @@ model User {
   userPrograms    UserProgram[]
   generatedEmails GeneratedEmail[]
   sopReviews      SopReview[]
-  llmCostLogs     LlmCostLog[]
+  llmCostLogs         LlmCostLog[]
+  notificationLogs    NotificationLog[]
 }
 
 model Program {
@@ -325,7 +336,23 @@ model Profile {
   researchInterests   String?
   countriesOfInterest String[] @default([])
   bio                 String?
+  onboardingCompletedAt   DateTime?
+  onboardingRecommendSeenAt DateTime?
+  /// IANA timezone for deadline/reminder notification scheduling (e.g. America/New_York).
+  timezone            String?
   updatedAt           DateTime @updatedAt
+}
+
+/// Idempotent log of transactional emails sent to users.
+model NotificationLog {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  dedupeKey String           @unique
+  sentAt    DateTime         @default(now())
+
+  @@index([userId, type, sentAt])
 }
 
 model School {
@@ -341,8 +368,19 @@ model School {
   deadline     DateTime?
   status       SchoolStatus   @default(PLANNING)
   funding      String?
+  /// Typical application fee (e.g. "$85", "USD 75"); from user or AI infer.
+  applicationFee String?
   notes        String?
   portalUrl    String?
+  programUrl   String?
+  department   String?
+  college      String?
+  primaryProfessor String?    @db.Text
+  backupProfessors String?    @db.Text
+  /// [{ id, label, done }] — URSP required materials checklist
+  requiredMaterials Json?
+  /// [{ id, name, done }] — letters of recommendation slots
+  letterRecommenders Json?
   progress     Int            @default(0)
   /// Optional nudge before/on the application deadline (email-style reminder in data model only).
   reminderAt   DateTime?

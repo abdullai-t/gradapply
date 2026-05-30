@@ -16,7 +16,7 @@ import {
   GoogleButtonContent,
 } from "@/features/auth/auth-shell";
 
-const DEFAULT_CALLBACK = "/dashboard";
+const DEFAULT_CALLBACK = "/onboarding";
 
 const errorMessages: Record<string, string> = {
   Configuration:
@@ -130,6 +130,7 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
   const verifyError = searchParams.get("verify_error") === "1";
   const registered = searchParams.get("registered") === "1";
   const verifyEmail = searchParams.get("verify_email") === "1";
+  const mailFailed = searchParams.get("mail_failed") === "1";
   const errorKey = rawError && errorMessages[rawError] ? rawError : null;
   const errorText = errorKey
     ? errorMessages[errorKey]
@@ -200,7 +201,15 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
       </AuthNotice>
     );
   }
-  if (registered) {
+  if (registered && mailFailed) {
+    notices.push(
+      <AuthNotice key="mail-failed" tone="error" title="Account created — email not sent">
+        We could not send signup email from this server. Check that RESEND_API_KEY and
+        EMAIL_FROM (verified domain) are set, then use Resend verification or contact
+        support. You can request a new verification link after signing in is enabled.
+      </AuthNotice>
+    );
+  } else if (registered) {
     notices.push(
       <AuthNotice
         key="registered"
@@ -208,7 +217,7 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
         title={verifyEmail ? "Account created" : "You are all set"}
       >
         {verifyEmail
-          ? "Confirm your email from the message we sent, then sign in below."
+          ? "Check your inbox for a verification email (and welcome note). Confirm your email, then sign in below."
           : "Sign in below to open your dashboard."}
       </AuthNotice>
     );

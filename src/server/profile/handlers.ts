@@ -28,10 +28,33 @@ export const PATCH = withAuth(async (req, { userId }) => {
   const parsed = updateProfileSchema.safeParse(json);
   if (!parsed.success) return bad({ error: parsed.error.flatten() });
 
+  const { onboardingCompletedAt, onboardingRecommendSeenAt, ...rest } =
+    parsed.data;
+  const data = {
+    ...rest,
+    ...(onboardingCompletedAt !== undefined
+      ? {
+          onboardingCompletedAt:
+            onboardingCompletedAt === null || onboardingCompletedAt === ""
+              ? null
+              : new Date(onboardingCompletedAt),
+        }
+      : {}),
+    ...(onboardingRecommendSeenAt !== undefined
+      ? {
+          onboardingRecommendSeenAt:
+            onboardingRecommendSeenAt === null ||
+            onboardingRecommendSeenAt === ""
+              ? null
+              : new Date(onboardingRecommendSeenAt),
+        }
+      : {}),
+  };
+
   const profile = await prisma.profile.upsert({
     where: { userId },
-    create: { userId, ...parsed.data },
-    update: parsed.data,
+    create: { userId, ...data },
+    update: data,
   });
 
   return ok(profile);

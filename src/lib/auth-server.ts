@@ -7,6 +7,8 @@ import { authConfig } from "@/auth.config";
 import { credentialsAuthorize } from "@/lib/credentials-authorize";
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import { getNodemailerProviderOptions } from "@/lib/mail";
+import { log } from "@/lib/logger";
+import { sendWelcomeEmail } from "@/lib/notifications/send";
 import { prisma } from "@/lib/prisma";
 
 function nodemailerProviders() {
@@ -54,6 +56,22 @@ export const { handlers, auth } = NextAuth({
         where: { id: user.id, planTier: "FREE", aiCreditsBalance: 0 },
         data: { aiCreditsBalance: cfg.freeSignupCredits },
       });
+      const welcome = await sendWelcomeEmail({
+        id: user.id!,
+        email: user.email ?? null,
+        name: user.name ?? null,
+      });
+      if (welcome.status === "failed") {
+        log.warn("auth.create_user.welcome_failed", {
+          userId: user.id,
+          error: welcome.error,
+        });
+      } else if (welcome.status === "skipped") {
+        log.warn("auth.create_user.welcome_skipped", {
+          userId: user.id,
+          reason: welcome.reason,
+        });
+      }
     },
   },
   providers: [

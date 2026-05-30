@@ -61,7 +61,7 @@ export interface DocStatus {
 export function DocStatusGrid({ items }: { items: DocStatus[] }) {
   return (
     <section>
-      <h2 className="t-headline-md rise-in m-0 mb-4 text-[var(--on-surface)]">
+      <h2 className="t-headline-md m-0 mb-4 text-[var(--on-surface)]">
         Application Documents
       </h2>
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">

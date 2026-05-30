@@ -19,4 +19,7 @@ export const updateProfileSchema = z.object({
     .max(5)
     .optional(),
   bio: z.string().nullable().optional(),
+  timezone: z.string().max(64).nullable().optional(),
+  onboardingCompletedAt: z.union([z.string(), z.null()]).optional(),
+  onboardingRecommendSeenAt: z.union([z.string(), z.null()]).optional(),
 });

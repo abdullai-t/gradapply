@@ -14,6 +14,8 @@ export interface StreakCardProps {
   weekActivity?: boolean[];
   /** Index of "today" within `weekActivity` (Date.getDay()). */
   todayIndex?: number;
+  /** Compact single-row layout for below-the-fold placement. */
+  compact?: boolean;
 }
 
 /**
@@ -26,34 +28,60 @@ export function StreakCard({
   goalDays = 15,
   weekActivity,
   todayIndex,
+  compact = false,
 }: StreakCardProps) {
   const today = todayIndex ?? new Date().getDay();
   const week = Array.from({ length: 7 }, (_, i) => weekActivity?.[i] ?? false);
+  const hasWeekActivity = week.some(Boolean);
+
+  if (!compact && streakDays === 0 && !hasWeekActivity) {
+    return null;
+  }
 
   return (
-    <div className="tactile-card flex flex-col gap-7 rounded-3xl border-2 border-[var(--outline-variant)] p-6">
+    <div
+      className={cn(
+        "tactile-card flex flex-col rounded-3xl border-2 border-[var(--outline-variant)]",
+        compact ? "gap-4 p-4" : "gap-7 p-6",
+      )}
+    >
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-5">
-          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border-2 border-[#fed7aa] bg-[var(--streak-orange-soft)] dark:border-[#5c4a2a]">
+          <div
+            className={cn(
+              "grid shrink-0 place-items-center rounded-2xl border-2 border-[#fed7aa] bg-[var(--streak-orange-soft)] dark:border-[#5c4a2a]",
+              compact ? "h-12 w-12" : "h-16 w-16",
+            )}
+          >
             <Icon
               name="local_fire_department"
               fill
               className="flame"
-              size={34}
+              size={compact ? 26 : 34}
             />
           </div>
           <div className="flex flex-col justify-center gap-1.5">
-            <div className="text-2xl font-extrabold leading-none tracking-tight text-[var(--on-surface)]">
-              {streakDays} {streakDays === 1 ? "Day" : "Days"} Streak
+            <div
+              className={cn(
+                "font-extrabold leading-none tracking-tight text-[var(--on-surface)]",
+                compact ? "text-lg" : "text-2xl",
+              )}
+            >
+              {streakDays} {streakDays === 1 ? "Day" : "Days"} streak
             </div>
             <div className="text-[11px] font-extrabold uppercase leading-none tracking-[0.1em] text-[var(--outline)]">
-              Goal: {goalDays} Days
+              Activity this week · goal {goalDays} days
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-3 rounded-3xl border border-[var(--surface-container)] bg-[color-mix(in_srgb,var(--surface-container-low)_50%,transparent)] p-4">
+      <div
+        className={cn(
+          "grid grid-cols-7 gap-3 rounded-3xl border border-[var(--surface-container)] bg-[color-mix(in_srgb,var(--surface-container-low)_50%,transparent)]",
+          compact ? "p-3" : "p-4",
+        )}
+      >
         {DAY_LABELS.map((label, i) => (
           <StreakDay
             key={label}

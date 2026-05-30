@@ -7,7 +7,26 @@ import {
   paystackVerifyTransaction,
   type PaystackSubscriptionData,
 } from "@/lib/paystack-api";
+import {
+  notifyInBackground,
+  sendCreditsPurchasedEmail,
+  sendPlanSubscriptionEmail,
+} from "@/lib/notifications/send";
 import { prisma } from "@/lib/prisma";
+
+async function loadBillingRecipient(userId: string) {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      aiCreditsBalance: true,
+      currentPeriodEnd: true,
+      profile: { select: { timezone: true } },
+    },
+  });
+}
 
 /**
  * Fulfill a completed Paystack transaction once (callback + webhook share this).
@@ -49,11 +68,13 @@ export async function processPaystackReference(reference: string): Promise<{
         : String(meta.creditsAmount ?? ""),
       10,
     );
+    const creditsAdded =
+      Number.isFinite(creditsFromMeta) && creditsFromMeta > 0
+        ? creditsFromMeta
+        : cfg.creditsPackSize;
+
     await prisma.paystackEventLog.create({ data: { reference } });
-    await grantCreditsPackToUser(
-      userIdMeta,
-      Number.isFinite(creditsFromMeta) ? creditsFromMeta : undefined,
-    );
+    await grantCreditsPackToUser(userIdMeta, creditsAdded);
     await prisma.billingPayment.create({
       data: {
         userId: userIdMeta,
@@ -73,6 +94,17 @@ export async function processPaystackReference(reference: string): Promise<{
           paystackCustomerId: String(tx.customer.id),
         },
       });
+    }
+    const recipient = await loadBillingRecipient(userIdMeta);
+    if (recipient) {
+      notifyInBackground("credits", () =>
+        sendCreditsPurchasedEmail({
+          user: recipient,
+          paystackReference: reference,
+          creditsAdded,
+          balanceAfter: recipient.aiCreditsBalance,
+        }),
+      );
     }
     return { duplicate: false, applied: true, kind: "credits" };
   }
@@ -145,6 +177,18 @@ export async function processPaystackReference(reference: string): Promise<{
         paidAt: now,
       },
     });
+    const recipient = await loadBillingRecipient(userIdMeta);
+    if (recipient) {
+      notifyInBackground("plan", () =>
+        sendPlanSubscriptionEmail({
+          user: recipient,
+          tier: tierFromMeta,
+          paystackReference: reference,
+          periodEnd,
+          timezone: recipient.profile?.timezone,
+        }),
+      );
+    }
     return { duplicate: false, applied: true, kind: "subscription" };
   }
 
@@ -189,6 +233,18 @@ export async function processPaystackReference(reference: string): Promise<{
           paidAt: tx.paidAt ? new Date(tx.paidAt) : new Date(),
         },
       });
+      const recipient = await loadBillingRecipient(user.id);
+      if (recipient) {
+        notifyInBackground("plan", () =>
+          sendPlanSubscriptionEmail({
+            user: recipient,
+            tier,
+            paystackReference: reference,
+            periodEnd: recipient.currentPeriodEnd,
+            timezone: recipient.profile?.timezone,
+          }),
+        );
+      }
       return { duplicate: false, applied: true, kind: "subscription" };
     }
   }

@@ -4,6 +4,9 @@ import { z } from "zod";
 import { hashPassword } from "@/lib/password";
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import { sendEmailVerification } from "@/lib/email-verification";
+import { log } from "@/lib/logger";
+import { isMailConfigured } from "@/lib/mail";
+import { sendWelcomeEmail } from "@/lib/notifications/send";
 import { prisma } from "@/lib/prisma";
 import {
   assertRegisterAllowedByIp,
@@ -66,7 +69,7 @@ export async function POST(req: Request) {
   const passwordHash = await hashPassword(password);
   const billingCfg = await getBillingAdminConfig();
 
-  await prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       email,
       passwordHash,
@@ -76,7 +79,36 @@ export async function POST(req: Request) {
     },
   });
 
-  const verificationSent = await sendEmailVerification(email);
+  const recipient = { id: user.id, email: user.email, name: user.name };
+  const [welcomeResult, verificationSent] = await Promise.all([
+    sendWelcomeEmail(recipient),
+    sendEmailVerification(email),
+  ]);
 
-  return NextResponse.json({ ok: true, verificationSent });
+  if (welcomeResult.status === "failed") {
+    log.warn("register.welcome_failed", {
+      userId: user.id,
+      error: welcomeResult.error,
+    });
+  } else if (welcomeResult.status === "skipped") {
+    log.warn("register.welcome_skipped", {
+      userId: user.id,
+      reason: welcomeResult.reason,
+    });
+  }
+
+  if (!verificationSent) {
+    log.warn("register.verification_failed", { userId: user.id });
+  }
+
+  const welcomeSent = welcomeResult.status === "sent";
+  const mailConfigured = isMailConfigured();
+
+  return NextResponse.json({
+    ok: true,
+    verificationSent,
+    welcomeSent,
+    mailConfigured,
+    mailDelivered: verificationSent || welcomeSent,
+  });
 }

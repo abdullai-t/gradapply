@@ -41,16 +41,21 @@ export function RegisterForm() {
       const data = (await res.json()) as {
         error?: string;
         verificationSent?: boolean;
+        welcomeSent?: boolean;
+        mailConfigured?: boolean;
+        mailDelivered?: boolean;
       };
       if (!res.ok) {
         setError(data.error ?? "Could not create account.");
         return;
       }
-      router.push(
-        data.verificationSent
-          ? "/login?registered=1&verify_email=1"
-          : "/login?registered=1",
-      );
+      const params = new URLSearchParams({ registered: "1" });
+      if (data.verificationSent) params.set("verify_email", "1");
+      if (data.welcomeSent) params.set("welcome_sent", "1");
+      if (data.mailConfigured && data.mailDelivered === false) {
+        params.set("mail_failed", "1");
+      }
+      router.push(`/login?${params.toString()}`);
       router.refresh();
     } catch {
       setError("Something went wrong. Try again.");
@@ -169,7 +174,7 @@ export function RegisterForm() {
           onClick={async () => {
             setError(null);
             setGoogleBusy(true);
-            await signIn("google", { callbackUrl: "/dashboard" });
+            await signIn("google", { callbackUrl: "/onboarding" });
             setGoogleBusy(false);
           }}
         >

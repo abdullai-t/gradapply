@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/icon";
@@ -48,6 +49,8 @@ export interface StatTileProps extends React.HTMLAttributes<HTMLDivElement> {
   label: string;
   tone?: Tone;
   delay?: number;
+  /** When set, the tile navigates on click. */
+  href?: string;
 }
 
 /**
@@ -60,25 +63,14 @@ export function StatTile({
   label,
   tone = "primary",
   delay = 0,
+  href,
   className,
   style,
   ...rest
 }: StatTileProps) {
   const t = TONE[tone];
-  return (
-    <div
-      className={cn(
-        "stat-tile pop-number rounded-2xl border-2 border-[var(--surface-container)] bg-[var(--surface-container-low)] p-4",
-        className,
-      )}
-      style={{
-        borderBottomWidth: 4,
-        borderBottomColor: t.accent,
-        animationDelay: `${delay}s`,
-        ...style,
-      }}
-      {...rest}
-    >
+  const inner = (
+    <>
       <div
         className="mb-2 grid h-9 w-9 place-items-center rounded-xl"
         style={{ background: t.tint, color: t.fg }}
@@ -89,6 +81,34 @@ export function StatTile({
         {value}
       </div>
       <div className="t-label-lg mt-1">{label}</div>
+    </>
+  );
+
+  const classes = cn(
+    "stat-tile pop-number rounded-2xl border-2 border-[var(--surface-container)] bg-[var(--surface-container-low)] p-4",
+    href &&
+      "block transition-transform duration-150 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-container)]",
+    className,
+  );
+
+  const tileStyle = {
+    borderBottomWidth: 4,
+    borderBottomColor: t.accent,
+    animationDelay: `${delay}s`,
+    ...style,
+  };
+
+  if (href) {
+    return (
+      <Link href={href} className={classes} style={tileStyle}>
+        {inner}
+      </Link>
+    );
+  }
+
+  return (
+    <div className={classes} style={tileStyle} {...rest}>
+      {inner}
     </div>
   );
 }

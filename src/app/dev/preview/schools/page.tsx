@@ -18,7 +18,21 @@ import { SchoolGridCard } from "@/features/schools/school-grid-card";
 import { SchoolDetailForm } from "@/features/schools/school-detail-form";
 import { AddSchoolCard } from "@/features/schools/add-school-card";
 import { AIInsightCard } from "@/features/schools/ai-insight-card";
+import {
+  defaultLetterRecommenders,
+  defaultRequiredMaterials,
+} from "@/lib/school-tracker-defaults";
 import type { SchoolRow } from "@/features/schools/types";
+
+const TRACKER_DEFAULTS = {
+  programUrl: null,
+  department: null,
+  college: null,
+  primaryProfessor: null,
+  backupProfessors: null,
+  requiredMaterials: defaultRequiredMaterials(),
+  letterRecommenders: defaultLetterRecommenders(),
+} as const;
 
 const MOCK_SCHOOLS: SchoolRow[] = [
   {
@@ -31,8 +45,12 @@ const MOCK_SCHOOLS: SchoolRow[] = [
     deadline: "2025-12-15T00:00:00.000Z",
     status: "PLANNING",
     funding: "Need to apply for fellowships",
+    applicationFee: "$125",
     notes: "Top dream — focus the SOP on Fei-Fei's vision lab work.",
     portalUrl: "https://gradadmissions.stanford.edu",
+    ...TRACKER_DEFAULTS,
+    department: "Computer Science",
+    college: "School of Engineering",
     progress: 65,
     reminderAt: null,
     reminderNote: null,
@@ -48,8 +66,10 @@ const MOCK_SCHOOLS: SchoolRow[] = [
     deadline: "2025-11-01T00:00:00.000Z",
     status: "APPLIED",
     funding: "Funded — full stipend",
+    applicationFee: "$75",
     notes: null,
     portalUrl: null,
+    ...TRACKER_DEFAULTS,
     progress: 100,
     reminderAt: null,
     reminderNote: null,
@@ -65,8 +85,10 @@ const MOCK_SCHOOLS: SchoolRow[] = [
     deadline: "2025-12-01T00:00:00.000Z",
     status: "WAITING",
     funding: null,
+    applicationFee: null,
     notes: null,
     portalUrl: null,
+    ...TRACKER_DEFAULTS,
     progress: 30,
     reminderAt: null,
     reminderNote: null,
@@ -82,8 +104,10 @@ const MOCK_SCHOOLS: SchoolRow[] = [
     deadline: "2025-12-20T00:00:00.000Z",
     status: "ACCEPTED",
     funding: "Tuition waiver",
+    applicationFee: "$80",
     notes: "Acceptance email arrived 11/12 — celebrate before pivoting.",
     portalUrl: null,
+    ...TRACKER_DEFAULTS,
     progress: 100,
     reminderAt: null,
     reminderNote: null,
