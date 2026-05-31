@@ -1,7 +1,23 @@
-import pkg from "../../package.json";
+import buildMeta from "../../build.json";
+
+export type BuildMetadata = {
+  version: string;
+  buildNotes: string;
+};
+
+const meta = buildMeta as BuildMetadata;
+
+/** Canonical semver from build.json (not package.json). */
+export function getBuildMetadata(): BuildMetadata {
+  return meta;
+}
 
 export function getAppVersion(): string {
-  return pkg.version;
+  return meta.version;
+}
+
+export function getBuildNotes(): string {
+  return meta.buildNotes;
 }
 
 function shortSha(sha: string): string {

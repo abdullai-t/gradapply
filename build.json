@@ -1,0 +1,4 @@
+{
+  "version": "1.5.0",
+  "buildNotes": "This build includes the following changes:\n- Admin analytics dashboard (growth, product adoption, AI cost, optional Cloudflare Worker metrics)\n- Scholar collaboration review sessions with guest links and comments\n- Google Docs two-way sync for SOP, professor emails, and collaboration artifacts\n- Admins skip scholar onboarding; default post-login route uses /auth/continue\n- PostHog product analytics (off in local dev unless NEXT_PUBLIC_POSTHOG_DEV=true)\n- UserActivityDay tracking for DAU/WAU\n- build.json is the canonical app version (synced to package.json via pnpm version:sync)"
+}

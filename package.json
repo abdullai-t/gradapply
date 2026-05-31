@@ -1,6 +1,6 @@
 {
   "name": "gradapply",
-  "version": "1.3.0",
+  "version": "1.5.0",
   "private": true,
   "packageManager": "pnpm@9.15.9",
   "engines": {
@@ -15,7 +15,9 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "mail:test": "tsx scripts/test-email.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "version:sync": "node scripts/sync-version-from-build.mjs",
+    "version:verify": "node scripts/verify-build-version.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",

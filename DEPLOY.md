@@ -25,6 +25,19 @@ This guide is the production checklist for deploying GradApply on Vercel with Po
 
 Use this checklist before promoting a build to production or tagging a release.
 
+### Version and build notes (`build.json`)
+
+**`build.json` is the source of truth** for the app semver and release notes. `/api/health`, the corner build badge, and UI copy use this file via `src/lib/build-version.ts`.
+
+Before every push to `canary` / production:
+
+1. Edit **`build.json`**: bump `"version"` and update `"buildNotes"` (markdown-style plain text; shown in the build badge tooltip).
+2. Sync **`package.json`**: `pnpm version:sync`
+3. Verify: `pnpm version:verify`
+4. Commit **`build.json`** and **`package.json`** together with your code changes.
+
+Do not bump version only in `package.json`.
+
 ### Verify build health
 
 Run the same gates as CI (already enforced on `main` / PRs via `.github/workflows/ci.yml`). Shortcut:
