@@ -47,14 +47,14 @@ const CONNECTORS: ConnectorMeta[] = [
     startPath: "/api/connectors/google-drive/start",
     apiPath: "/api/connectors/google-drive",
     blurb:
-      "Read-only access to list and open files you choose (CVs, PDFs).",
+      "Sync SOPs, outreach emails, and review sessions with Google Docs (two-way).",
     blurbConnected: (email) => (
       <>
         Connected as{" "}
         <span className="font-bold text-[var(--on-surface)]">
           {email ?? "your Google account"}
         </span>{" "}
-        · read-only for upcoming file import.
+        · Google Docs sync enabled.
       </>
     ),
   },
@@ -86,12 +86,14 @@ export function ConnectorsSettings({ planTier }: { planTier: string }) {
         connected: false,
         email: null,
         updatedAt: null,
+        docsSyncReady: null,
       },
       google_drive: {
         provider: "google_drive",
         connected: false,
         email: null,
         updatedAt: null,
+        docsSyncReady: false,
       },
     };
     if (data) {
@@ -122,7 +124,7 @@ export function ConnectorsSettings({ planTier }: { planTier: string }) {
       setBanner({
         tone: "ok",
         message:
-          "Google Drive connected. Document import from Drive can use this link later.",
+          "Google Drive connected. You can open writeups in Google Docs from SOP studio, emails, and review sessions.",
       });
       void qc.invalidateQueries({ queryKey: connectorsKeys.all });
       return;
@@ -250,22 +252,38 @@ export function ConnectorsSettings({ planTier }: { planTier: string }) {
                       meta.blurb
                     )}
                   </p>
+                  {meta.provider === "google_drive" &&
+                  row.connected &&
+                  row.docsSyncReady === false ? (
+                    <p className="mt-2 text-xs font-semibold text-[var(--error)]">
+                      Reconnect to enable Google Docs sync (new permissions
+                      required).
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">
                 {row.connected ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={disconnecting !== null || loading}
-                    loading={isDisconnecting}
-                    icon="link_off"
-                    onClick={() => void disconnect(meta.provider)}
-                    className="border border-[var(--outline-variant)]"
-                  >
-                    {isDisconnecting ? "Disconnecting…" : "Disconnect"}
-                  </Button>
+                  <>
+                    {meta.provider === "google_drive" &&
+                    row.docsSyncReady === false ? (
+                      <Button asChild size="sm" icon="sync">
+                        <a href={meta.startPath}>Reconnect</a>
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={disconnecting !== null || loading}
+                      loading={isDisconnecting}
+                      icon="link_off"
+                      onClick={() => void disconnect(meta.provider)}
+                      className="border border-[var(--outline-variant)]"
+                    >
+                      {isDisconnecting ? "Disconnecting…" : "Disconnect"}
+                    </Button>
+                  </>
                 ) : canConnect ? (
                   <Button asChild size="sm" icon="login">
                     <a href={meta.startPath}>Connect {meta.label}</a>

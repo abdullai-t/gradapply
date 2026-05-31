@@ -22,6 +22,7 @@ import {
 import { sanitizeField, wrapUserContent } from "@/lib/agents/sanitize";
 import { bodyToEditorHtml } from "@/lib/sop-paragraphs";
 import { requireWritableAccount } from "@/lib/plan-gates";
+import { getPostHogClient } from "@/lib/posthog-server";
 import { bad, notFound, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
 
@@ -164,6 +165,9 @@ export const POST = withAuth(async (req, { userId }) => {
   }
   await markSopGenerateSuccess(userId);
 
+  const posthog = getPostHogClient();
+  posthog?.capture({ distinctId: userId, event: "sop_generated", properties: { school_id: school.id, school_name: school.name, program: school.program, degree: school.degree, used_free_preview: canUseFree } });
+
   return ok({ variant });
 });
 
@@ -194,6 +198,11 @@ export const PATCH = withAuth<{ id: string }>(
         ...(parsed.data.body !== undefined ? { body: parsed.data.body } : {}),
       },
     });
+
+    if (parsed.data.body !== undefined) {
+      const { schedulePushToGoogle } = await import("@/lib/google-docs/push-hook");
+      schedulePushToGoogle(userId, "SOP_VARIANT", id);
+    }
 
     return ok(variant);
   },

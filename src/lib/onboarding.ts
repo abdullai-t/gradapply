@@ -1,3 +1,11 @@
+import type { UserRole } from "@prisma/client";
+
+export function isOnboardingExemptRole(
+  role: UserRole | string | null | undefined,
+): boolean {
+  return role === "ADMIN" || role === "SUPERADMIN";
+}
+
 export type OnboardingProfile = {
   targetDegree: string | null;
   researchInterests: string | null;

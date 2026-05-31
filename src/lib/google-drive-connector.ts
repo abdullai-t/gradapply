@@ -14,14 +14,25 @@ import {
 } from "@/lib/google-oauth-tokens";
 import { prisma } from "@/lib/prisma";
 
-/** List and read files & metadata (import CV/PDF drafts later). */
-const DRIVE_SCOPE_READONLY = "https://www.googleapis.com/auth/drive.readonly";
+/** Per-file access for Docs created by GradApply. */
+const DRIVE_SCOPE_FILE = "https://www.googleapis.com/auth/drive.file";
+/** Read/write Google Docs content via Docs API when needed. */
+const DOCUMENTS_SCOPE = "https://www.googleapis.com/auth/documents";
 const USERINFO_EMAIL = "https://www.googleapis.com/auth/userinfo.email";
 
 export const GOOGLE_DRIVE_CONNECTOR_SCOPES = [
-  DRIVE_SCOPE_READONLY,
+  DRIVE_SCOPE_FILE,
+  DOCUMENTS_SCOPE,
   USERINFO_EMAIL,
 ].join(" ");
+
+/** True when stored connector scopes include Docs sync permissions. */
+export function hasGoogleDocsSyncScopes(scopes: string | null | undefined): boolean {
+  if (!scopes) return false;
+  return (
+    scopes.includes("drive.file") || scopes.includes(DRIVE_SCOPE_FILE)
+  );
+}
 
 export function googleDriveConnectorRedirectUri(): string {
   return `${appOrigin()}/api/connectors/google-drive/callback`;

@@ -29,6 +29,9 @@ import {
 import { useConnectors } from "@/features/connectors/api";
 import { profEmailsIndexPath } from "@/features/emails/paths";
 import type { EmailRow } from "@/features/emails/types";
+import { ShareReviewDialog } from "@/features/collaboration/share-review-dialog";
+import { GoogleDocsLinkButton } from "@/features/google-docs/google-docs-link-button";
+
 import {
   EmailDraftEditor,
   OutreachTrackingCard,
@@ -75,6 +78,7 @@ export function ProfEmailDetailPage({ emailId }: Props) {
   const [sendingViaGmail, setSendingViaGmail] = useState(false);
   const [draftSubject, setDraftSubject] = useState("");
   const [draftBody, setDraftBody] = useState("");
+  const [shareOpen, setShareOpen] = useState(false);
   const [saveVersionOpen, setSaveVersionOpen] = useState(false);
   const [saveVersionLabel, setSaveVersionLabel] = useState("");
   const [savingVersion, setSavingVersion] = useState(false);
@@ -332,7 +336,31 @@ export function ProfEmailDetailPage({ emailId }: Props) {
 
   return (
     <div className="slide-in mx-auto max-w-[1380px] space-y-10 pb-10">
-      <ProfEmailBreadcrumb profName={selected.profName} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ProfEmailBreadcrumb profName={selected.profName} />
+        <div className="flex flex-wrap items-center gap-2">
+          <GoogleDocsLinkButton
+            entityType="PROF_EMAIL"
+            entityId={selected.id}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShareOpen(true)}
+          >
+            Share for review
+          </Button>
+        </div>
+      </div>
+
+      <ShareReviewDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        artifactType="PROF_EMAIL"
+        entityId={selected.id}
+        titleHint={`Email — ${selected.profName ?? selected.university ?? "Outreach"}`}
+      />
 
       <ProfEmailHero
         selected={selected}

@@ -13,6 +13,7 @@ import {
   schoolTrackingLimitForUser,
 } from "@/lib/plan-gates";
 import { prisma } from "@/lib/prisma";
+import { touchUserActivityAsync } from "@/lib/user-activity";
 import {
   parseJsonFromLlmText,
   parseRecommendSchoolsFromLlmText,
@@ -31,6 +32,7 @@ import {
   recommendersFromInferCount,
 } from "@/lib/school-tracker-defaults";
 
+import { getPostHogClient } from "@/lib/posthog-server";
 import { bad, notFound, ok } from "../_responses";
 import { serializeSchool, serializeSchools } from "./serialize";
 import { withAuth } from "../_with-auth";
@@ -102,6 +104,9 @@ export const create = withAuth(async (req, { userId }) => {
     },
   });
 
+  touchUserActivityAsync(userId);
+  const posthog = getPostHogClient();
+  posthog?.capture({ distinctId: userId, event: "school_added", properties: { school_name: school.name, program: school.program, degree: school.degree, country: school.country } });
   return ok(serializeSchool(school));
 });
 
@@ -157,6 +162,7 @@ export const bulkCreate = withAuth(async (req, { userId }) => {
     }),
   );
 
+  touchUserActivityAsync(userId);
   return ok(serializeSchools(created));
 });
 
@@ -211,6 +217,7 @@ export const update = withAuth<{ id: string }>(
       },
     });
 
+    touchUserActivityAsync(userId);
     return ok(serializeSchool(school));
   },
 );

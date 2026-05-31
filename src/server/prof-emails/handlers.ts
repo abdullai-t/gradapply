@@ -1,4 +1,6 @@
+import { getPostHogClient } from "@/lib/posthog-server";
 import { prisma } from "@/lib/prisma";
+import { touchUserActivityAsync } from "@/lib/user-activity";
 import { requireWritableAccount } from "@/lib/plan-gates";
 
 import { bad, ok } from "../_responses";
@@ -46,5 +48,8 @@ export const create = withAuth(async (req, { userId }) => {
     },
   });
 
+  touchUserActivityAsync(userId);
+  const posthog = getPostHogClient();
+  posthog?.capture({ distinctId: userId, event: "professor_email_created", properties: { university: row.university, research_area: row.researchArea } });
   return ok(row);
 });

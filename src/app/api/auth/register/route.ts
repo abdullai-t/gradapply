@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { getPostHogClient } from "@/lib/posthog-server";
 import { hashPassword } from "@/lib/password";
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import { sendEmailVerification } from "@/lib/email-verification";
@@ -99,6 +100,12 @@ export async function POST(req: Request) {
 
   if (!verificationSent) {
     log.warn("register.verification_failed", { userId: user.id });
+  }
+
+  const posthog = getPostHogClient();
+  if (posthog) {
+    posthog.identify({ distinctId: user.id, properties: { email: user.email, name: user.name ?? undefined } });
+    posthog.capture({ distinctId: user.id, event: "user_registered", properties: { email: user.email, verification_sent: verificationSent, welcome_sent: welcomeResult.status === "sent" } });
   }
 
   const welcomeSent = welcomeResult.status === "sent";

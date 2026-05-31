@@ -16,6 +16,8 @@ export type ConnectorRow = {
   connected: boolean;
   email: string | null;
   updatedAt: string | null;
+  /** Drive only: true when OAuth scopes include Google Docs sync. */
+  docsSyncReady: boolean | null;
 };
 
 export type ConnectorsResponse = {

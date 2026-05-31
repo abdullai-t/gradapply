@@ -13,6 +13,7 @@ import {
   buildGoogleDriveAuthorizeUrl,
   exchangeDriveCodeForTokens,
   GOOGLE_DRIVE_CONNECTOR_SCOPES,
+  hasGoogleDocsSyncScopes,
   resolveDriveAccountEmail,
 } from "@/lib/google-drive-connector";
 import { isGoogleOAuthConfigured } from "@/lib/google-oauth-tokens";
@@ -37,7 +38,7 @@ export const list = withPlanGate("connectors", async (_req, { userId }) => {
       where: {
         userId_provider: { userId, provider: ConnectorProvider.GOOGLE_DRIVE },
       },
-      select: { externalEmail: true, updatedAt: true },
+      select: { externalEmail: true, updatedAt: true, scopes: true },
     }),
   ]);
 
@@ -50,12 +51,14 @@ export const list = withPlanGate("connectors", async (_req, { userId }) => {
         connected: Boolean(gmail),
         email: gmail?.externalEmail ?? null,
         updatedAt: gmail?.updatedAt?.toISOString() ?? null,
+        docsSyncReady: null,
       },
       {
         provider: "google_drive" as const,
         connected: Boolean(drive),
         email: drive?.externalEmail ?? null,
         updatedAt: drive?.updatedAt?.toISOString() ?? null,
+        docsSyncReady: drive ? hasGoogleDocsSyncScopes(drive.scopes) : false,
       },
     ],
   });

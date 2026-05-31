@@ -4,11 +4,13 @@ import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { capturePostHogEvent } from "@/lib/analytics/posthog-client";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthShell, GoogleButtonContent } from "@/features/auth/auth-shell";
+import { AUTH_CONTINUE_PATH } from "@/lib/auth-redirect";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -49,6 +51,10 @@ export function RegisterForm() {
         setError(data.error ?? "Could not create account.");
         return;
       }
+      capturePostHogEvent("register_form_submitted", {
+        email: email.trim(),
+        verification_sent: !!data.verificationSent,
+      });
       const params = new URLSearchParams({ registered: "1" });
       if (data.verificationSent) params.set("verify_email", "1");
       if (data.welcomeSent) params.set("welcome_sent", "1");
@@ -174,7 +180,7 @@ export function RegisterForm() {
           onClick={async () => {
             setError(null);
             setGoogleBusy(true);
-            await signIn("google", { callbackUrl: "/onboarding" });
+            await signIn("google", { callbackUrl: AUTH_CONTINUE_PATH });
             setGoogleBusy(false);
           }}
         >

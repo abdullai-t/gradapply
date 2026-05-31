@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { touchUserActivityAsync } from "@/lib/user-activity";
 import { requireWritableAccount } from "@/lib/plan-gates";
 
 import { bad, ok } from "../_responses";
@@ -57,5 +58,6 @@ export const PATCH = withAuth(async (req, { userId }) => {
     update: data,
   });
 
+  touchUserActivityAsync(userId);
   return ok(profile);
 });

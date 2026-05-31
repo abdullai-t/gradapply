@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import posthog from "posthog-js";
 
 import { Icon } from "@/components/icon";
 import { PageLoader } from "@/components/page-loader";
@@ -13,10 +14,14 @@ import {
 import { useSchools } from "@/features/schools/api";
 import { messageFromApiErrorPayload } from "@/lib/api-error-json";
 
+import { ShareReviewDialog } from "@/features/collaboration/share-review-dialog";
+import { GoogleDocsLinkButton } from "@/features/google-docs/google-docs-link-button";
+
 import { useGenerateVariant, useSopVariant } from "./api";
 import { SopChatPanel, type OnboardingSubmit } from "./chat-panel";
 import { SopEditorPanel } from "./editor-panel";
 import { StudioStyles } from "./studio-styles";
+import { Button } from "@/components/ui/button";
 
 type View = "chat" | "editor";
 
@@ -44,6 +49,7 @@ export function SopStudio({ schoolId }: Props) {
   const [hydratedView, setHydratedView] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const docRewriteRef = useRef<((prompt: string) => Promise<void>) | null>(
     null,
   );
@@ -198,6 +204,25 @@ export function SopStudio({ schoolId }: Props) {
             </p>
           ) : null}
         </div>
+        {variant ? (
+          <>
+            <GoogleDocsLinkButton
+              entityType="SOP_VARIANT"
+              entityId={variant.id}
+              className="shrink-0"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => setShareOpen(true)}
+            >
+              <Icon name="groups" size={16} className="mr-1" />
+              Share for review
+            </Button>
+          </>
+        ) : null}
         <Link
           href="/assistant"
           className="inline-flex items-center gap-1 rounded-full border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] px-3 py-1.5 text-xs font-bold text-[var(--on-surface-variant)] transition hover:border-[var(--outline)] hover:text-[var(--on-surface)]"
@@ -206,6 +231,16 @@ export function SopStudio({ schoolId }: Props) {
           Exit studio
         </Link>
       </header>
+
+      {variant ? (
+        <ShareReviewDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          artifactType="SOP_VARIANT"
+          entityId={variant.id}
+          titleHint={`SOP — ${school?.name ?? "School"}`}
+        />
+      ) : null}
 
       {error ? (
         <div className="glass-alert-error" role="alert">

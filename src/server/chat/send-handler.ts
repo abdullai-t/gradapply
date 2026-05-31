@@ -8,6 +8,7 @@ import {
 } from "@/lib/billing-allowance";
 import { formatLlmFailureMessage } from "@/lib/llm-errors";
 import { prisma } from "@/lib/prisma";
+import { touchUserActivityAsync } from "@/lib/user-activity";
 import { assertChatPostAllowedForUser } from "@/lib/upstash-rate-limit";
 
 import { bad, ok } from "../_responses";
@@ -123,6 +124,7 @@ export const send = withPlanGate("assistant", async (req, { userId }) => {
           ]);
 
           await finalizeAiConsumption(userId);
+          touchUserActivityAsync(userId);
 
           console.info("[chat][agent-stream]", {
             userId,
@@ -226,6 +228,7 @@ export const send = withPlanGate("assistant", async (req, { userId }) => {
   ]);
 
   await finalizeAiConsumption(userId);
+  touchUserActivityAsync(userId);
 
   return ok({ reply, agent });
 });

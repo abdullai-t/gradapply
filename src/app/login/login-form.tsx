@@ -4,6 +4,7 @@ import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import { capturePostHogEvent } from "@/lib/analytics/posthog-client";
 
 import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
@@ -15,8 +16,9 @@ import {
   AuthShell,
   GoogleButtonContent,
 } from "@/features/auth/auth-shell";
+import { AUTH_CONTINUE_PATH } from "@/lib/auth-redirect";
 
-const DEFAULT_CALLBACK = "/onboarding";
+const DEFAULT_CALLBACK = AUTH_CONTINUE_PATH;
 
 const errorMessages: Record<string, string> = {
   Configuration:
@@ -163,6 +165,7 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
       setFormError("Could not send the magic link. Try again or use Google.");
       return false;
     }
+    capturePostHogEvent("magic_link_requested", { email: targetEmail.trim() });
     setEmailSent(true);
     return true;
   }
@@ -170,6 +173,7 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
   async function handleGoogle() {
     setFormError(null);
     setGoogleBusy(true);
+    capturePostHogEvent("google_sign_in_clicked");
     await signIn("google", { callbackUrl });
     setGoogleBusy(false);
   }

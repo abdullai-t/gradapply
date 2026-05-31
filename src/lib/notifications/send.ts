@@ -29,7 +29,7 @@ export type SendNotificationResult =
   | { status: "skipped"; reason: string }
   | { status: "failed"; error: string };
 
-async function sendNotification(opts: {
+export async function sendNotification(opts: {
   userId: string;
   type: NotificationType;
   dedupeKey: string;

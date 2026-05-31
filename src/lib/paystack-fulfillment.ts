@@ -1,5 +1,6 @@
 import type { PlanTier } from "@prisma/client";
 
+import { getPostHogClient } from "@/lib/posthog-server";
 import { resetPaidPlanPeriodAllowance } from "@/lib/billing-allowance";
 import { grantCreditsPackToUser } from "@/lib/billing-credits";
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";
@@ -106,6 +107,8 @@ export async function processPaystackReference(reference: string): Promise<{
         }),
       );
     }
+  const posthogCredits = getPostHogClient();
+  posthogCredits?.capture({ distinctId: userIdMeta, event: "payment_completed", properties: { kind: "credits_pack", credits_added: creditsAdded, reference } });
     return { duplicate: false, applied: true, kind: "credits" };
   }
 
@@ -189,6 +192,8 @@ export async function processPaystackReference(reference: string): Promise<{
         }),
       );
     }
+  const posthogPlan = getPostHogClient();
+  posthogPlan?.capture({ distinctId: userIdMeta, event: "payment_completed", properties: { kind: "plan_purchase", tier: tierFromMeta, renewal: meta.renewal === "1", reference } });
     return { duplicate: false, applied: true, kind: "subscription" };
   }
 

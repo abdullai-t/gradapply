@@ -45,6 +45,11 @@ export const update = withAuth<{ id: string }>(
       },
     });
 
+    if (parsed.data.emailBody !== undefined) {
+      const { schedulePushToGoogle } = await import("@/lib/google-docs/push-hook");
+      schedulePushToGoogle(userId, "PROF_EMAIL", id);
+    }
+
     return ok(row);
   },
 );

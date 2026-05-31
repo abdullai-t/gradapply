@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getPostHogClient } from "@/lib/posthog-server";
 import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import { canExportWithoutWatermark } from "@/lib/export-watermark";
 import { paystackInitializeTransaction } from "@/lib/paystack-api";
@@ -191,6 +192,9 @@ export const checkout = withAuth(async (req, { userId }) => {
   }
 
   const callbackUrl = `${base}/api/billing/paystack/callback`;
+
+  const posthog = getPostHogClient();
+  posthog?.capture({ distinctId: userId, event: "checkout_started", properties: { tier, renewal: renewal ?? false } });
 
   if (tier === "credits" || tier === "cv_review" || tier === "sop_critique") {
     const creditQty = tier === "credits" ? (creditsAmount ?? cfg.creditsPackSize) : 1;

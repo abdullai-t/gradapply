@@ -45,6 +45,8 @@ export const config = {
     "/schools/:path*",
     "/timeline/:path*",
     "/emails/:path*",
+    "/collaboration",
+    "/collaboration/:path*",
     "/assistant",
     "/assistant/:path*",
     "/ai-coach/:path*",

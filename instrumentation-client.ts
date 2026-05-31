@@ -1,5 +1,9 @@
 import * as Sentry from "@sentry/nextjs";
 
+import { initPostHogClient } from "@/lib/analytics/posthog-client";
+
+initPostHogClient();
+
 /** Client bundles only expose env vars prefixed with NEXT_PUBLIC_. */
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 

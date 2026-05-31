@@ -11,6 +11,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { getObjectBuffer } from "@/lib/s3";
 
+import { getPostHogClient } from "@/lib/posthog-server";
 import { bad, notFound, ok } from "../_responses";
 import { withPlanGate } from "../_with-plan-gate";
 
@@ -201,6 +202,9 @@ export const sendViaGmail = withPlanGate<{ id: string }>(
         where: { id: row.id },
         data: { status: EmailStatus.SENT, sentAt: new Date() },
       });
+
+      const posthog = getPostHogClient();
+      posthog?.capture({ distinctId: userId, event: "professor_email_sent", properties: { university: row.university, has_attachments: attachments.length > 0, attachment_count: attachments.length } });
 
       return ok(updated);
     } catch (e) {

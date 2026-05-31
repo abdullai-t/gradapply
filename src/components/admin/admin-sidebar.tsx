@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BarChart3,
   LayoutDashboard,
   Settings,
   Tags,
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
 
 const nav = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/users", label: "User management", icon: Users },
   { href: "/admin/settings", label: "Platform settings", icon: Settings },
   { href: "/admin/pricing", label: "Pricing & billing", icon: Tags },

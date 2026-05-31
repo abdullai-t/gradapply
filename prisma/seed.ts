@@ -23,6 +23,18 @@ async function main() {
     },
   });
 
+  await prisma.featureFlag.upsert({
+    where: { key: "collaboration" },
+    update: { enabled: true },
+    create: {
+      key: "collaboration",
+      name: "Scholar collaboration",
+      description:
+        "Async review sessions and live co-editing between GradApply scholars.",
+      enabled: true,
+    },
+  });
+
   console.log("\nSeed user (email + password):\n");
   console.log(`  Email:    ${TEST_EMAIL}`);
   console.log(`  Password: ${TEST_PASSWORD}\n`);

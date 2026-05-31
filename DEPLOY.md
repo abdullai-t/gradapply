@@ -76,6 +76,7 @@ Some UI is gated by DB-backed flags (for example key `user_settings_page` for `/
 
 - **`homepage_pricing_section`** — when enabled, the marketing homepage shows the **Pricing** section and footer/nav links to `#pricing`. Default is **off** until the flag exists and is enabled (or set env **`FEATURE_FLAG_HOMEPAGE_PRICING_SECTION=true`** for an emergency override without DB).
 - **`support_tab`** — when enabled, the in-app **Support** tab appears in desktop and mobile navigation. Default is **off** until the flag exists and is enabled (or set env **`FEATURE_FLAG_SUPPORT_TAB=true`**).
+- **`collaboration`** — when enabled, PLUS/PRO users can create **review sessions** (share SOP/email snapshots, guest comment links, optional Liveblocks live co-edit). Set **`FEATURE_FLAG_COLLABORATION=true`** or enable in admin. Optional: **`COLLAB_TOKEN_PEPPER`**, **`LIVEBLOCKS_SECRET_KEY`**, **`NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY`** (see `.env.example`).
 
 ### Observability for LLM traffic
 
@@ -91,6 +92,28 @@ The app includes `@sentry/nextjs` behind environment variables. Without a DSN, S
 - `NEXT_PUBLIC_SENTRY_DSN` — browser/client initialization (required for client-side events; often the same DSN value as public project DSN in Sentry)
 
 Set at least one DSN for your target surfaces. SDK initialization is skipped when no DSN is set, so local runs stay quiet. For **client-side** reporting, expose `NEXT_PUBLIC_SENTRY_DSN` at **build time** as well as runtime so the browser bundle initializes correctly on Vercel. Source map upload is disabled in config by default; add `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT` later if you want upload-enabled releases.
+
+### Admin analytics (`/admin/analytics`)
+
+Admins and superadmins can open **Analytics** in the admin portal for growth, product adoption, AI cost, and (when configured) **Cloudflare Worker** metrics.
+
+**Product & sales (database):** signups, revenue, plan mix, activation funnel, feature creation counts, `LlmCostLog` breakdowns, and DAU/WAU from the `UserActivityDay` table (touched when users save schools, emails, profile, or chat).
+
+**Infrastructure (Cloudflare Workers):** set these for in-app Worker charts (GraphQL Analytics API):
+
+- `CLOUDFLARE_ACCOUNT_ID` — account ID from the Cloudflare dashboard URL
+- `CLOUDFLARE_API_TOKEN` — custom API token with **Account → Account Analytics → Read** (deploy/Workers edit tokens will return “authorization denied” on GraphQL). Under **Account Resources**, include your account or “All accounts”.
+- `CLOUDFLARE_WORKER_NAME` — defaults to `mygradapply` (see `wrangler.jsonc`)
+
+Worker metrics are **request CPU time (ms)** and **duration**, not host RAM or OS CPU %. The UI links to the Cloudflare observability dashboard for drill-down.
+
+**Optional link-outs:**
+
+- `SENTRY_ORG_SLUG` + `SENTRY_PROJECT` — “Open Sentry” button in admin
+- `NEON_CONSOLE_URL` — link to your Postgres provider console
+- `LLM_MONTHLY_BUDGET_USD` — monthly LLM budget line on the AI section (default `50`)
+
+**PostHog (optional):** `NEXT_PUBLIC_POSTHOG_KEY`. The browser SDK is **disabled in local development** unless `NEXT_PUBLIC_POSTHOG_DEV=true` (avoids `/ingest` fetch noise). On Cloudflare Workers builds, set `NEXT_PUBLIC_POSTHOG_USE_PROXY=false` and `NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com` because Next rewrites may not proxy `/ingest`. Use `NEXT_PUBLIC_POSTHOG_DISABLED=true` to turn it off entirely.
 
 ## 3) Required environment variables
 
@@ -233,6 +256,9 @@ Enable APIs in Google Cloud:
 
 - Gmail API
 - Google Drive API
+- **Google Docs API** (for two-way SOP/email/review-session sync)
+
+**Google Docs sync:** Users reconnect **Google Drive** in Settings to grant `drive.file` + `documents` scopes. GradApply creates Docs via Drive, registers a push channel to `https://<your-domain>/api/webhooks/google-drive`, and runs **`GET /api/cron/google-docs`** (same `CRON_SECRET` as notifications) to renew watches and reconcile stale links.
 
 ## 5) Migration workflow (safe + repeatable)
 
@@ -321,7 +347,7 @@ Vercel may still **build** the deployment, but it will **not assign your product
 - Can sign in (local seed user is dev-only; create real users in prod)
 - `/dashboard`, `/schools`, `/emails`, `/assistant`, `/documents` load
 - **`/settings`**: if feature flag `user_settings_page` is off or unset, expect redirect to `/dashboard`; if enabled, settings and billing flows load
-- **`/admin`**: reachable only as `ADMIN` / `SUPERADMIN`; verify overview, users, feature flags, pricing/settings after bootstrap
+- **`/admin`**: reachable only as `ADMIN` / `SUPERADMIN`; verify overview, **analytics**, users, pricing/settings after bootstrap
 - Billing: start a test checkout only from the deployed origin (CSRF); confirm the Paystack webhook receives events in the provider dashboard
 - If connectors enabled: from `/settings` (when available), Gmail/Drive connect without env errors
 - If uploads enabled: document upload succeeds
