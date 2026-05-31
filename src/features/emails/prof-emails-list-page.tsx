@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { Plus, Search, Sparkles, Trash2 } from "lucide-react";
+import { Plus, Search, Sparkles } from "lucide-react";
 
 import { Icon } from "@/components/icon";
 import { PageLoader } from "@/components/page-loader";
@@ -13,7 +13,8 @@ import { StatTile } from "@/components/stat-tile";
 import { FitScoreBadge } from "@/components/fit-score-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useProfEmails } from "@/features/emails/api";
+import { useDeleteProfEmail, useProfEmails } from "@/features/emails/api";
+import { isMutationPendingForId } from "@/lib/mutation-pending";
 import { cn } from "@/lib/utils";
 
 import { PROF_EMAIL_PREFILL_KEY } from "@/lib/prof-email-prefill";
@@ -28,6 +29,7 @@ export function ProfEmailsListPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const profEmailsQuery = useProfEmails();
+  const deleteProfEmail = useDeleteProfEmail();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | EmailStatus>("ALL");
@@ -106,8 +108,7 @@ export function ProfEmailsListPage() {
 
   const remove = async (id: string, name: string | null) => {
     if (!confirm(`Delete outreach draft for ${name ?? "this professor"}?`)) return;
-    const res = await fetch(`/api/prof-emails/${id}`, { method: "DELETE" });
-    if (res.ok) await profEmailsQuery.refetch();
+    await deleteProfEmail.mutateAsync(id);
   };
 
   if (profEmailsQuery.isLoading) {
@@ -194,6 +195,7 @@ export function ProfEmailsListPage() {
               key={row.id}
               row={row}
               onDelete={() => void remove(row.id, row.profName)}
+              deleteLoading={isMutationPendingForId(deleteProfEmail, row.id)}
             />
           ))}
         </div>
@@ -242,9 +244,11 @@ function FilterChip({
 function ProfEmailCard({
   row,
   onDelete,
+  deleteLoading,
 }: {
   row: EmailRow;
   onDelete: () => void;
+  deleteLoading?: boolean;
 }) {
   const updatedLabel =
     row.updatedAt != null
@@ -290,14 +294,14 @@ function ProfEmailCard({
           size="icon"
           className="pointer-events-auto h-8 w-8 shrink-0 text-[var(--on-surface-variant)] hover:text-destructive"
           aria-label={`Delete ${row.profName ?? "draft"}`}
+          icon="delete"
+          loading={deleteLoading}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
             onDelete();
           }}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        />
       </div>
     </article>
   );

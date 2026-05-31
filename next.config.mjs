@@ -1,27 +1,66 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { withSentryConfig } from "@sentry/nextjs";
 import bundleAnalyzer from "@next/bundle-analyzer";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const heavyDocExtractStub = "./src/lib/llm-doc-extract-heavy.stub.ts";
 
 const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
 });
 
+/** Paths omitted from the server bundle on Cloudflare (Workers 10 MiB script limit). */
+const cfTracingExcludes = [
+  "./node_modules/.prisma/client/libquery_engine-*",
+  "./node_modules/@prisma/client/runtime/query_engine_bg.mysql.wasm",
+  "./node_modules/@prisma/client/runtime/query_engine_bg.sqlite.wasm",
+  "./node_modules/pdf-parse/**",
+  "./node_modules/pdfjs-dist/**",
+  "./node_modules/mammoth/**",
+  "./node_modules/jsdom/**",
+  "./node_modules/@napi-rs/canvas/**",
+  "./node_modules/next/dist/server/capsize-font-metrics.json",
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: [
-    "@prisma/client",
-    ".prisma/client",
-    "pdf-parse",
-    "@napi-rs/canvas",
-    "mammoth",
-  ],
+  serverExternalPackages:
+    process.env.CF_BUILD === "1"
+      ? ["@prisma/client", ".prisma/client"]
+      : [
+          "@prisma/client",
+          ".prisma/client",
+          "pdf-parse",
+          "@napi-rs/canvas",
+          "mammoth",
+        ],
+  ...(process.env.CF_BUILD === "1"
+    ? {
+        output: "standalone",
+        outputFileTracingExcludes: {
+          "*": cfTracingExcludes,
+        },
+      }
+    : {}),
   outputFileTracingIncludes: {
     "**/*": [
       "./node_modules/pg-cloudflare/dist/**",
       "./node_modules/pg-cloudflare/esm/**",
     ],
   },
-  experimental: {
-  },
+  ...(process.env.CF_BUILD === "1"
+    ? {
+        turbopack: {
+          root: __dirname,
+          resolveAlias: {
+            "@/lib/llm-doc-extract-heavy.server": heavyDocExtractStub,
+          },
+        },
+      }
+    : {}),
+  experimental: {},
   async headers() {
     return [
       {

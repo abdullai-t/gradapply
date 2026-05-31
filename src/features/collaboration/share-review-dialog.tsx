@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Copy, Loader2 } from "lucide-react";
+import { Copy } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +43,7 @@ export function ShareReviewDialog({
   const [guestUrl, setGuestUrl] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [creatingGuestLink, setCreatingGuestLink] = useState(false);
 
   const invite = useInviteCollaborator(sessionId ?? "");
 
@@ -51,10 +52,12 @@ export function ShareReviewDialog({
     setGuestUrl(null);
     setInviteEmail("");
     setError(null);
+    setCreatingGuestLink(false);
   };
 
   const handleCreate = async () => {
     setError(null);
+    setCreatingGuestLink(true);
     try {
       const { session } = await createSession.mutateAsync({
         artifactType,
@@ -80,6 +83,8 @@ export function ShareReviewDialog({
       setGuestUrl(link.url);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create session");
+    } finally {
+      setCreatingGuestLink(false);
     }
   };
 
@@ -127,11 +132,8 @@ export function ShareReviewDialog({
               </Button>
               <Button
                 onClick={() => void handleCreate()}
-                disabled={createSession.isPending}
+                loading={createSession.isPending || creatingGuestLink}
               >
-                {createSession.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
                 Create review session
               </Button>
             </DialogFooter>
@@ -169,7 +171,8 @@ export function ShareReviewDialog({
                 <Button
                   type="button"
                   variant="secondary"
-                  disabled={invite.isPending || !inviteEmail.trim()}
+                  loading={invite.isPending}
+                  disabled={!inviteEmail.trim()}
                   onClick={() => void handleInvite()}
                 >
                   Invite

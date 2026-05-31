@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 
 import { Icon } from "@/components/icon";
 
@@ -23,6 +24,7 @@ export function FoldersBar({
   onCreate,
   onRename,
   onDelete,
+  pendingDeleteFolderId = null,
   totalCount,
   uncategorizedCount,
 }: {
@@ -32,6 +34,7 @@ export function FoldersBar({
   onCreate: (name: string) => Promise<void> | void;
   onRename: (id: string, name: string) => Promise<void> | void;
   onDelete: (id: string) => Promise<void> | void;
+  pendingDeleteFolderId?: string | null;
   totalCount: number;
   uncategorizedCount: number;
 }) {
@@ -106,6 +109,7 @@ export function FoldersBar({
             onDelete={async () => {
               await onDelete(f.id);
             }}
+            deleteLoading={pendingDeleteFolderId === f.id}
           />
         ))}
         {adding ? (
@@ -171,6 +175,7 @@ function FolderChip({
   onSelect,
   onRename,
   onDelete,
+  deleteLoading,
 }: {
   icon: string;
   label: string;
@@ -179,6 +184,7 @@ function FolderChip({
   onSelect: () => void;
   onRename?: (next: string) => Promise<void> | void;
   onDelete?: () => Promise<void> | void;
+  deleteLoading?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(label);
@@ -249,6 +255,7 @@ function FolderChip({
           </button>
           <button
             type="button"
+            disabled={deleteLoading}
             onClick={async () => {
               if (
                 count > 0
@@ -261,9 +268,13 @@ function FolderChip({
               }
             }}
             aria-label={`Delete ${label}`}
-            className="grid h-5 w-5 place-items-center rounded-full text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)] hover:text-[var(--error)]"
+            className="grid h-5 w-5 place-items-center rounded-full text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)] hover:text-[var(--error)] disabled:pointer-events-none disabled:opacity-50"
           >
-            <Icon name="delete" size={12} />
+            {deleteLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+            ) : (
+              <Icon name="delete" size={12} />
+            )}
           </button>
         </div>
       ) : null}

@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Loader2, RefreshCw, Sparkles } from "lucide-react";
 
 import { Icon } from "@/components/icon";
 import { SealAvatar } from "@/components/seal-avatar";
@@ -60,6 +59,7 @@ export function ProfEmailHero({
   googleOAuthConfigured,
   sendingViaGmail,
   drafting,
+  deleting,
   onSendGmail,
   onAiDraft,
   onDelete,
@@ -69,6 +69,7 @@ export function ProfEmailHero({
   googleOAuthConfigured: boolean;
   sendingViaGmail: boolean;
   drafting: boolean;
+  deleting?: boolean;
   onSendGmail: () => void;
   onAiDraft: () => void;
   onDelete: () => void;
@@ -118,16 +119,16 @@ export function ProfEmailHero({
             <Button
               variant="primary"
               size="sm"
-              disabled={sendingViaGmail}
+              loading={sendingViaGmail}
               onClick={onSendGmail}
             >
-              {sendingViaGmail ? "Sending…" : "Send via Gmail"}
+              Send via Gmail
             </Button>
           ) : null}
           <Button
             variant="secondary"
             size="sm"
-            disabled={drafting}
+            loading={drafting}
             onClick={onAiDraft}
             title={
               selected.profileUrl?.trim()
@@ -135,8 +136,7 @@ export function ProfEmailHero({
                 : "Draft from name, university, and research area"
             }
           >
-            <Sparkles className="h-4 w-4" aria-hidden />
-            {drafting ? "Working…" : "Improve with AI"}
+            Improve with AI
           </Button>
           {selected.profileUrl?.trim() ? (
             <Button variant="outline" size="sm" asChild>
@@ -151,6 +151,7 @@ export function ProfEmailHero({
             size="sm"
             className="text-[var(--error)]"
             icon="delete"
+            loading={deleting}
             onClick={onDelete}
           >
             Delete
@@ -229,8 +230,8 @@ export function EmailDraftEditor({
 
       <div className="mt-5 flex flex-wrap gap-2">
         <ToolbarButton onClick={onTemplate}>Use template</ToolbarButton>
-        <ToolbarButton onClick={onAiDraft} disabled={drafting}>
-          {drafting ? "Working…" : "Personalize with AI"}
+        <ToolbarButton onClick={onAiDraft} loading={drafting}>
+          Personalize with AI
         </ToolbarButton>
         <ToolbarButton onClick={onClarity}>Improve clarity</ToolbarButton>
         <ToolbarButton onClick={onShorten}>Shorten</ToolbarButton>
@@ -273,10 +274,12 @@ function ToolbarButton({
   children,
   onClick,
   disabled,
+  loading,
 }: {
   children: ReactNode;
   onClick: () => void;
   disabled?: boolean;
+  loading?: boolean;
 }) {
   return (
     <Button
@@ -284,6 +287,7 @@ function ToolbarButton({
       size="sm"
       variant="outline"
       disabled={disabled}
+      loading={loading}
       className="h-8 rounded-full border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] px-3 text-xs font-semibold"
       onClick={onClick}
     >
@@ -335,14 +339,10 @@ export function ResearchContextPanel({
           variant="outline"
           size="sm"
           className="w-full"
-          disabled={auditingResearch}
+          loading={auditingResearch}
           onClick={onRunAudit}
         >
-          <RefreshCw
-            className={cn("mr-2 h-4 w-4", auditingResearch && "animate-spin")}
-            aria-hidden
-          />
-          {auditingResearch ? "Refreshing…" : "Run research audit"}
+          Run research audit
         </Button>
         <div
           className="grid grid-cols-3 gap-1 rounded-xl border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-1"

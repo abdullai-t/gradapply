@@ -26,6 +26,7 @@ import { admissionTermLabel } from "@/lib/admission-term";
 import { progressFromStatus } from "@/lib/school-progress";
 import { FitScoreBadge, FitScoreMeter } from "@/components/fit-score-badge";
 import { cn } from "@/lib/utils";
+import { isMutationPendingForId } from "@/lib/mutation-pending";
 
 import {
   materialsProgress,
@@ -180,6 +181,7 @@ export function SchoolDetailPage({ schoolId }: Props) {
         pipelineProgress={pipelineProgress}
         checklistPct={checklistPct}
         onDelete={handleDelete}
+        deleteLoading={isMutationPendingForId(deleteSchool, school.id)}
         onEditDetails={() => setEditModalOpen(true)}
       />
 
@@ -261,6 +263,7 @@ function SchoolHero({
   pipelineProgress,
   checklistPct,
   onDelete,
+  deleteLoading,
   onEditDetails,
 }: {
   school: SchoolRow;
@@ -269,6 +272,7 @@ function SchoolHero({
   pipelineProgress: number;
   checklistPct: number;
   onDelete: () => void;
+  deleteLoading?: boolean;
   onEditDetails: () => void;
 }) {
   const term = admissionTermLabel(school.term);
@@ -343,6 +347,7 @@ function SchoolHero({
             size="sm"
             className="text-[var(--error)]"
             icon="delete"
+            loading={deleteLoading}
             onClick={() => void onDelete()}
           >
             Delete

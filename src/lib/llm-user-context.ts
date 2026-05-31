@@ -213,11 +213,15 @@ function inferDocumentFormat(
 }
 
 async function extractDocxPlainText(buf: Buffer): Promise<string | null> {
+  if (process.env.CF_BUILD === "1") {
+    log.warn("doc-extraction.docx", { reason: "disabled_on_cloudflare_workers" });
+    return null;
+  }
   try {
-    const mammoth = await import("mammoth");
-    const result = await mammoth.extractRawText({ buffer: buf });
-    const text = (result.value ?? "").replace(/\s+/g, " ").trim();
-    return text.length >= 20 ? text.slice(0, MAX_PER_DOC_CHARS) : null;
+    const { extractDocxWithMammoth } = await import(
+      "@/lib/llm-doc-extract-heavy.server"
+    );
+    return await extractDocxWithMammoth(buf);
   } catch (e) {
     log.warn("doc-extraction.docx", {
       reason: e instanceof Error ? e.message : "unknown_error",
@@ -227,25 +231,19 @@ async function extractDocxPlainText(buf: Buffer): Promise<string | null> {
 }
 
 async function extractPdfPlainText(buf: Buffer): Promise<string | null> {
-  try {
-    const { CanvasFactory } = await import("pdf-parse/worker");
-    const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({
-      data: new Uint8Array(buf),
-      CanvasFactory,
-    });
+  if (process.env.CF_BUILD !== "1") {
     try {
-      const textResult = await parser.getText();
-      const text = (textResult.text ?? "").replace(/\s+/g, " ").trim();
-      if (text.length >= 20) return text.slice(0, MAX_PER_DOC_CHARS);
-    } finally {
-      await parser.destroy().catch(() => {});
+      const { extractPdfWithPdfParse } = await import(
+        "@/lib/llm-doc-extract-heavy.server"
+      );
+      const parsed = await extractPdfWithPdfParse(buf);
+      if (parsed) return parsed;
+    } catch (e) {
+      log.warn("doc-extraction.pdf-parse", {
+        path: "canvas-factory",
+        reason: e instanceof Error ? e.message : "unknown_error",
+      });
     }
-  } catch (e) {
-    log.warn("doc-extraction.pdf-parse", {
-      path: "canvas-factory",
-      reason: e instanceof Error ? e.message : "unknown_error",
-    });
   }
 
   try {

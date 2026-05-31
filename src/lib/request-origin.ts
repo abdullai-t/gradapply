@@ -29,9 +29,14 @@ export function isTrustedMutationOrigin(req: Request): boolean {
     return Boolean(refOrigin && trustedOrigins.has(refOrigin));
   }
 
-  // Non-browser or stripped-header fallback: allow only same-origin/none hints.
+  // Non-browser clients without Origin/Referer: allow same-origin hint only.
+  // Do not trust sec-fetch-site "none" in production (CSRF bypass risk).
   const secFetchSite = req.headers.get("sec-fetch-site");
-  if (secFetchSite === "same-origin" || secFetchSite === "none") {
+  if (secFetchSite === "same-origin") return true;
+  if (
+    secFetchSite === "none" &&
+    process.env.NODE_ENV !== "production"
+  ) {
     return true;
   }
   return false;

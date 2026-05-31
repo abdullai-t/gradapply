@@ -49,6 +49,7 @@ import {
   useUpdateSchool,
 } from "@/features/schools/api";
 import type { SchoolRow } from "@/features/schools/types";
+import { isMutationPendingForId } from "@/lib/mutation-pending";
 
 function SchoolsPageInner() {
   const qc = useQueryClient();
@@ -231,6 +232,7 @@ function SchoolsPageInner() {
               expanded={expandedId === school.id}
               onToggleExpand={() => toggleExpanded(school.id)}
               onDelete={() => deleteSchool(school.id)}
+              deleteLoading={isMutationPendingForId(deleteSchoolMutation, school.id)}
               onAiSuggestDetails={() => suggestSchoolDetailsWithAi(school)}
               aiSuggestDetailsLoading={suggestingSchoolId === school.id}
             >

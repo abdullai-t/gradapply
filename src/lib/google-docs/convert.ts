@@ -1,9 +1,8 @@
+import { sanitizeRichHtml } from "@/lib/sanitize-html";
 import { bodyToEditorHtml, stripHtmlToPlain } from "@/lib/sop-paragraphs";
 
 export function sanitizeImportedHtml(html: string): string {
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  return sanitizeRichHtml(html);
 }
 
 /** GradApply storage format (HTML paragraphs) for entity body fields. */

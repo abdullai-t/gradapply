@@ -1,8 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/icon";
 
@@ -51,14 +49,10 @@ export function GoogleDocsLinkButton({ entityType, entityId, className }: Props)
           type="button"
           variant="outline"
           size="sm"
-          disabled={busy}
+          loading={busy}
           onClick={() => void openOrCreate()}
+          icon={busy ? undefined : "description"}
         >
-          {busy ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Icon name="description" size={16} className="mr-1" />
-          )}
           {link ? "Open in Google Docs" : "Sync with Google Docs"}
         </Button>
         {link ? (

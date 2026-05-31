@@ -2,14 +2,13 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PageLoader } from "@/components/page-loader";
 import { StudioStyles } from "@/features/sop-studio/studio-styles";
 import { bodyToEditorHtml, isBlockHtml } from "@/lib/sop-paragraphs";
+import { sanitizeRichHtml } from "@/lib/sanitize-html";
 
 import type { ArtifactSnapshot } from "./api";
 import {
@@ -28,17 +27,11 @@ type Props = {
   backHref?: string;
 };
 
-function sanitizeSnapshotHtml(html: string): string {
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
-}
-
 function SnapshotHtmlBody({ body, emptyLabel }: { body: string; emptyLabel: string }) {
   const html = useMemo(() => {
     const trimmed = body.trim();
     if (!trimmed) return "";
-    return sanitizeSnapshotHtml(bodyToEditorHtml(trimmed));
+    return sanitizeRichHtml(bodyToEditorHtml(trimmed));
   }, [body]);
 
   if (!html) {
@@ -173,7 +166,7 @@ export function CollaborationSessionView({
             <Button
               variant="outline"
               size="sm"
-              disabled={refreshArtifact.isPending}
+              loading={refreshArtifact.isPending}
               onClick={() => void refreshArtifact.mutateAsync()}
             >
               Publish update
@@ -181,6 +174,7 @@ export function CollaborationSessionView({
             <Button
               variant="outline"
               size="sm"
+              loading={updateSession.isPending}
               onClick={() =>
                 void updateSession.mutateAsync({
                   liveEnabled: !session.liveEnabled,
@@ -192,6 +186,7 @@ export function CollaborationSessionView({
             <Button
               variant="outline"
               size="sm"
+              loading={updateSession.isPending}
               onClick={() =>
                 void updateSession.mutateAsync({
                   status: session.status === "OPEN" ? "CLOSED" : "OPEN",
@@ -280,12 +275,10 @@ export function CollaborationSessionView({
               rows={3}
             />
             <Button
-              disabled={addComment.isPending || !commentBody.trim()}
+              loading={addComment.isPending}
+              disabled={!commentBody.trim()}
               onClick={() => void submitComment()}
             >
-              {addComment.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
               Post comment
             </Button>
           </div>

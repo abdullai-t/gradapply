@@ -23,11 +23,13 @@ export async function requireElevatedUser(): Promise<{
   if (!session?.user?.id) return null;
   let role = await getCurrentUserRole(session.user.id);
   if (role === "USER") {
+    const bootstrapEnabled =
+      process.env.ALLOW_SUPERADMIN_BOOTSTRAP === "true";
     const allowList = (process.env.SUPERADMIN_EMAILS ?? "")
       .split(",")
       .map((v) => v.trim().toLowerCase())
       .filter(Boolean);
-    if (allowList.length > 0) {
+    if (bootstrapEnabled && allowList.length > 0) {
       const user = await prisma.user.findUnique({
         where: { id: session.user.id },
         select: { email: true, emailVerified: true },

@@ -23,9 +23,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   contentVersionsKeys,
   profEmailsKeys,
+  useDeleteProfEmail,
   useProfEmail,
   useProfEmails,
 } from "@/features/emails/api";
+import { isMutationPendingForId } from "@/lib/mutation-pending";
 import { useConnectors } from "@/features/connectors/api";
 import { profEmailsIndexPath } from "@/features/emails/paths";
 import type { EmailRow } from "@/features/emails/types";
@@ -48,6 +50,7 @@ export function ProfEmailDetailPage({ emailId }: Props) {
   const router = useRouter();
 
   const profEmailsQuery = useProfEmails();
+  const deleteProfEmail = useDeleteProfEmail();
   const connectorsQuery = useConnectors();
   const selectedId = emailId;
 
@@ -206,11 +209,8 @@ export function ProfEmailDetailPage({ emailId }: Props) {
 
   const remove = async (id: string) => {
     if (!confirm("Delete this outreach record?")) return;
-    const res = await fetch(`/api/prof-emails/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      await load();
-      router.push(profEmailsIndexPath());
-    }
+    await deleteProfEmail.mutateAsync(id);
+    router.push(profEmailsIndexPath());
   };
 
   const sendViaGmail = async (id: string) => {
@@ -368,6 +368,7 @@ export function ProfEmailDetailPage({ emailId }: Props) {
         googleOAuthConfigured={googleOAuthConfigured}
         sendingViaGmail={sendingViaGmail}
         drafting={drafting === selected.id}
+        deleting={isMutationPendingForId(deleteProfEmail, selected.id)}
         onSendGmail={handleSendGmail}
         onAiDraft={() => aiDraft(selected.id)}
         onDelete={() => void remove(selected.id)}

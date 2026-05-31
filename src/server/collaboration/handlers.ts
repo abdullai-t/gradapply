@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { appOrigin } from "@/lib/app-origin";
+import { collabGuestSetCookieHeader } from "@/lib/collab-guest-cookie";
 import {
   generateCollabGuestToken,
   hashCollabGuestToken,
 } from "@/lib/collab-tokens";
+import { isTrustedMutationOrigin } from "@/lib/request-origin";
+import { sanitizeArtifactBody } from "@/lib/sanitize-html";
+import { stripHtmlToPlain } from "@/lib/sop-paragraphs";
 import { assertGuestCommentAllowed } from "@/lib/collab-guest-rate-limit";
 import {
   requireCollaborationCreate,
@@ -298,9 +302,8 @@ export const createGuestLink = withAuth(async (req, { userId, params }) => {
 
   const token = generateCollabGuestToken();
   const tokenHash = hashCollabGuestToken(token);
-  const expiresAt = parsed.data.expiresInDays
-    ? new Date(Date.now() + parsed.data.expiresInDays * 86_400_000)
-    : null;
+  const expiresInDays = parsed.data.expiresInDays ?? 14;
+  const expiresAt = new Date(Date.now() + expiresInDays * 86_400_000);
 
   const invite = await getDb().collaborationGuestInvite.create({
     data: {
@@ -434,6 +437,10 @@ export const createComment = async (
   req: Request,
   routeCtx: { params: Promise<{ id: string }> },
 ) => {
+  if (!isTrustedMutationOrigin(req)) {
+    return forbidden("Untrusted origin");
+  }
+
   const gate = await requireCollaborationFeature();
   if (gate) return gate;
 
@@ -467,7 +474,7 @@ export const createComment = async (
   const comment = await getDb().collaborationComment.create({
     data: {
       sessionId: id,
-      body: parsed.data.body.trim(),
+      body: stripHtmlToPlain(parsed.data.body).trim(),
       parentId: parsed.data.parentId ?? null,
       authorUserId: access.kind === "guest" ? null : access.userId,
       guestLabel:
@@ -532,7 +539,7 @@ export const resolveGuestToken = async (
   });
   res.headers.set(
     "Set-Cookie",
-    `collab_guest=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`,
+    collabGuestSetCookieHeader(token, invite.expiresAt),
   );
   return res;
 };
@@ -562,7 +569,7 @@ export const persistLiveBody = withAuth(async (req, { userId, params }) => {
 
   await getDb().sopVariant.updateMany({
     where: { id: latest.sourceEntityId, userId },
-    data: { body: parsed.data.body },
+    data: { body: sanitizeArtifactBody(parsed.data.body) },
   });
 
   return ok({ persisted: true });

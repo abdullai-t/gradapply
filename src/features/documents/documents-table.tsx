@@ -29,6 +29,7 @@ export type DocRow = {
 export function DocumentsTable({
   rows,
   onDelete,
+  pendingDeleteId = null,
   folders = [],
   onMove,
   extractionById,
@@ -39,6 +40,7 @@ export function DocumentsTable({
 }: {
   rows: DocRow[];
   onDelete: (id: string) => void;
+  pendingDeleteId?: string | null;
   folders?: FolderSummary[];
   onMove?: (docId: string, folderId: string | null) => void;
   extractionById?: Record<string, ExtractionStatusRow>;
@@ -88,6 +90,7 @@ export function DocumentsTable({
                   key={doc.id}
                   doc={doc}
                   onDelete={onDelete}
+                  deleteLoading={pendingDeleteId === doc.id}
                   folders={folders}
                   onMove={onMove}
                   extraction={extractionById?.[doc.id]}
@@ -165,12 +168,14 @@ const TYPE_TONE: Record<string, { tint: string; fg: string; icon: string }> = {
 function DocumentRow({
   doc,
   onDelete,
+  deleteLoading,
   folders,
   onMove,
   extraction,
 }: {
   doc: DocRow;
   onDelete: (id: string) => void;
+  deleteLoading?: boolean;
   folders: FolderSummary[];
   onMove?: (docId: string, folderId: string | null) => void;
   extraction?: ExtractionStatusRow;
@@ -238,6 +243,7 @@ function DocumentRow({
             variant="ghost"
             size="icon"
             aria-label="Remove document"
+            loading={deleteLoading}
             onClick={() => onDelete(doc.id)}
             icon="delete"
           />

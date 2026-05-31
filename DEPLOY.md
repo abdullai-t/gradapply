@@ -80,7 +80,8 @@ Secrets stored in **`AppSetting`** (admin pricing/API keys) are encrypted with a
 
 ### Bootstrap the admin portal
 
-- **`SUPERADMIN_EMAILS`** (optional): comma-separated, lowercased emails. If **no** `SUPERADMIN` exists yet, the first **verified** sign-in whose email appears in this list is promoted to **`SUPERADMIN`** once (see `src/lib/admin-auth.ts`). Use this for the initial production operator, then manage roles from **Admin → Users**.
+- **`ALLOW_SUPERADMIN_BOOTSTRAP=true`** and **`SUPERADMIN_EMAILS`** (optional): comma-separated emails. If **no** `SUPERADMIN` exists yet, the first **verified** sign-in on the list is promoted once (see `src/lib/admin-auth.ts`). Disable bootstrap after the first operator exists. See also `docs/SECURITY.md`.
+- **`GOOGLE_ALLOW_DANGEROUS_ACCOUNT_LINKING=true`** (optional): allows Google OAuth to attach to an existing account with the same email without a verified link step. Off by default.
 - **`ADMIN`** / **`SUPERADMIN`** roles are stored on `User`; ensure migrations ran before relying on `/admin`.
 
 ### Feature flags
@@ -143,7 +144,7 @@ Recommended optional variables:
 - `AI_PROVIDER` — optional override (`openrouter` or `groq`). If both keys are set, **OpenRouter is preferred** unless you force `AI_PROVIDER=groq`.
 - Uploads: `CLOUDINARY_URL` (or S3-compatible vars your repo documents for storage)
 - Google auth/connectors: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
-- `SUPERADMIN_EMAILS` — optional bootstrap allowlist for the first superadmin (see §2)
+- `ALLOW_SUPERADMIN_BOOTSTRAP` + `SUPERADMIN_EMAILS` — optional bootstrap for the first superadmin (see §2)
 - **`NEXT_PUBLIC_SUPPORT_EMAIL`** — optional; shown on **`/support`**, sidebar “Support”, and marketing footer so users can reach you (rebuild after changing)
 - **`UPSTASH_REDIS_REST_URL`** and **`UPSTASH_REDIS_REST_TOKEN`** — optional; together they enable **distributed** API rate limits across Vercel instances (see **Distributed rate limiting** under §2)
 
@@ -201,6 +202,21 @@ curl -sS -H "Authorization: Bearer $CRON_SECRET" \
 ```
 
 **Cloudflare Workers:** add a [Cron Trigger](https://developers.cloudflare.com/workers/configuration/cron-triggers/) that `fetch`es the URL above, or use an external scheduler (GitHub Actions, cron-job.org).
+
+### Cloudflare Workers deploy (OpenNext)
+
+| Step | Command |
+| --- | --- |
+| Build (Next + OpenNext + bundle prune) | `pnpm run cf:build` |
+| Deploy | `pnpm run cf:deploy` |
+
+Requires **Node.js ≥ 22** for Wrangler (see `package.json` `engines`).
+
+**Worker script size (error 10027):** uploaded Worker code must stay under **10 MiB** ([docs](https://developers.cloudflare.com/workers/observability/errors/#errors-on-worker-upload)). Large dependencies are excluded or stubbed when `CF_BUILD=1`. `scripts/prune-cf-worker-bundle.mjs` removes unused Prisma native binaries after the OpenNext bundle step.
+
+**On Workers, document extraction is limited:** PDF/DOCX parsing via `pdf-parse` / `mammoth` is not bundled; lightweight PDF heuristics still run.
+
+**Deploy API token** (separate from analytics): **Account → Workers Scripts → Edit** and **Workers Services → Edit** for `wrangler deploy`.
 
 **Test transport:** `pnpm mail:test you@example.com` (see `scripts/test-email.ts`).
 

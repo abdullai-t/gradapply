@@ -18,7 +18,8 @@ function googleProviders() {
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID.trim(),
       clientSecret: process.env.GOOGLE_CLIENT_SECRET.trim(),
-      allowDangerousEmailAccountLinking: true,
+      allowDangerousEmailAccountLinking:
+        process.env.GOOGLE_ALLOW_DANGEROUS_ACCOUNT_LINKING === "true",
     }),
   ];
 }

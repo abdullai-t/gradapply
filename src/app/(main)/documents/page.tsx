@@ -150,6 +150,13 @@ export default function DocumentsPage() {
     await deleteFolderMutation.mutateAsync(id);
   };
 
+  const pendingDeleteId = deleteDocument.isPending
+    ? (deleteDocument.variables ?? null)
+    : null;
+  const pendingDeleteFolderId = deleteFolderMutation.isPending
+    ? (deleteFolderMutation.variables ?? null)
+    : null;
+
   if (planTier === "FREE") {
     return (
       <FreePlanGate
@@ -203,6 +210,7 @@ export default function DocumentsPage() {
           onCreate={createFolder}
           onRename={renameFolder}
           onDelete={deleteFolder}
+          pendingDeleteFolderId={pendingDeleteFolderId}
           totalCount={totalCount}
           uncategorizedCount={uncategorizedCount}
         />
@@ -215,6 +223,7 @@ export default function DocumentsPage() {
         <DocumentsTable
           rows={pageRows}
           onDelete={remove}
+          pendingDeleteId={pendingDeleteId}
           folders={folders}
           onMove={move}
           extractionById={extractionById}

@@ -1,5 +1,6 @@
 import type { CollaborationArtifactType } from "@prisma/client";
 
+import { sanitizeArtifactBody } from "@/lib/sanitize-html";
 import { getDb } from "@/lib/prisma";
 
 export type ArtifactSnapshot = {
@@ -8,6 +9,10 @@ export type ArtifactSnapshot = {
   emailSubject?: string;
   profName?: string;
 };
+
+function withSanitizedBody(snapshot: ArtifactSnapshot): ArtifactSnapshot {
+  return { ...snapshot, body: sanitizeArtifactBody(snapshot.body) };
+}
 
 export async function buildArtifactSnapshot(opts: {
   userId: string;
@@ -26,7 +31,7 @@ export async function buildArtifactSnapshot(opts: {
     if (!body) throw new Error("customBody required for CUSTOM_TEXT");
     const title = opts.customTitle?.trim() || "Shared draft";
     return {
-      snapshot: { body, title },
+      snapshot: withSanitizedBody({ body, title }),
       title,
       schoolId: null,
       sourceEntityId: null,
@@ -47,10 +52,10 @@ export async function buildArtifactSnapshot(opts: {
       opts.customTitle?.trim() ||
       `SOP review — ${variant.school.name} (${variant.school.program})`;
     return {
-      snapshot: {
+      snapshot: withSanitizedBody({
         body: variant.body,
         title: variant.title,
-      },
+      }),
       title,
       schoolId: variant.schoolId,
       sourceEntityId: variant.id,
@@ -67,12 +72,12 @@ export async function buildArtifactSnapshot(opts: {
     `Email review — ${email.profName?.trim() || email.university?.trim() || "Outreach draft"}`;
 
   return {
-    snapshot: {
+    snapshot: withSanitizedBody({
       body: email.emailBody?.trim() ?? "",
       emailSubject: email.emailSubject?.trim() ?? undefined,
       profName: email.profName?.trim() ?? undefined,
       title,
-    },
+    }),
     title,
     schoolId: null,
     sourceEntityId: email.id,

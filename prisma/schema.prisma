@@ -1,6 +1,8 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["driverAdapters"]
+  // No Rust query engine in the bundle — required for Cloudflare Workers size limits.
+  engineType      = "client"
 }
 
 datasource db {

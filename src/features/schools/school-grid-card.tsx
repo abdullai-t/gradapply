@@ -22,6 +22,7 @@ export interface SchoolGridCardProps {
   expanded: boolean;
   onToggleExpand: () => void;
   onDelete: () => void;
+  deleteLoading?: boolean;
   /** AI: suggest deadline, intake term, funding, notes, portal URL (PATCHes the school). */
   onAiSuggestDetails?: () => void | Promise<void>;
   /** True while `onAiSuggestDetails` is running. */
@@ -42,6 +43,7 @@ export function SchoolGridCard({
   expanded,
   onToggleExpand,
   onDelete,
+  deleteLoading,
   onAiSuggestDetails,
   aiSuggestDetailsLoading,
   children,
@@ -178,17 +180,19 @@ export function SchoolGridCard({
               <Icon name="auto_awesome" fill size={18} />
             </Link>
           ) : null}
-          <button
+          <Button
             type="button"
-            className="grid h-9 w-9 place-items-center rounded-lg text-[var(--outline)] transition-colors hover:bg-[var(--error-container)] hover:text-[var(--error)]"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 text-[var(--outline)] hover:bg-[var(--error-container)] hover:text-[var(--error)]"
             aria-label="Delete school"
+            loading={deleteLoading}
+            icon="delete"
             onClick={(e) => {
               e.stopPropagation();
               onDelete();
             }}
-          >
-            <Icon name="delete" size={18} />
-          </button>
+          />
           <Button
             type="button"
             variant="ghost"

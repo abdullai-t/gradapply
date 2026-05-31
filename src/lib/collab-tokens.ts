@@ -3,11 +3,16 @@ import { createHash, randomBytes } from "node:crypto";
 const TOKEN_BYTES = 32;
 
 function pepper(): string {
-  return (
-    process.env.COLLAB_TOKEN_PEPPER?.trim() ||
-    process.env.AUTH_SECRET?.trim() ||
-    "dev-collab-pepper"
-  );
+  const explicit = process.env.COLLAB_TOKEN_PEPPER?.trim();
+  if (explicit) return explicit;
+  const authSecret = process.env.AUTH_SECRET?.trim();
+  if (authSecret) return authSecret;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "COLLAB_TOKEN_PEPPER or AUTH_SECRET is required in production",
+    );
+  }
+  return "dev-collab-pepper";
 }
 
 export function generateCollabGuestToken(): string {
