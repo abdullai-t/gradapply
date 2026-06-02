@@ -5,7 +5,7 @@ import { log } from "@/lib/logger";
 import { sendWelcomeEmail } from "@/lib/notifications/send";
 import { prisma } from "@/lib/prisma";
 
-import type { VerifiedFirebaseToken } from "./verify-token";
+import type { VerifiedFirebaseToken } from "./verify-token-edge";
 
 function isUniqueConstraintError(error: unknown, field: string): boolean {
   return (

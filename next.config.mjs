@@ -6,6 +6,7 @@ import bundleAnalyzer from "@next/bundle-analyzer";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const heavyDocExtractStub = "./src/lib/llm-doc-extract-heavy.stub.ts";
+const firebaseAdminStub = "./src/lib/firebase/admin.stub.ts";
 
 const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
@@ -22,6 +23,8 @@ const cfTracingExcludes = [
   "./node_modules/jsdom/**",
   "./node_modules/@napi-rs/canvas/**",
   "./node_modules/next/dist/server/capsize-font-metrics.json",
+  "./node_modules/firebase-admin/**",
+  "./node_modules/jwks-rsa/**",
 ];
 
 /** @type {import('next').NextConfig} */
@@ -56,7 +59,15 @@ const nextConfig = {
           root: __dirname,
           resolveAlias: {
             "@/lib/llm-doc-extract-heavy.server": heavyDocExtractStub,
+            "@/lib/firebase/admin": firebaseAdminStub,
           },
+        },
+        webpack: (config) => {
+          config.resolve.alias = {
+            ...config.resolve.alias,
+            "@/lib/firebase/admin": path.resolve(__dirname, "src/lib/firebase/admin.stub.ts"),
+          };
+          return config;
         },
       }
     : {}),

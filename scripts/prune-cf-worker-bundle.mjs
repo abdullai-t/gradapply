@@ -8,7 +8,7 @@ import { join } from "node:path";
 const bundleRoot = ".open-next/server-functions/default";
 
 const PRUNE_NAME =
-  /(?:libquery_engine-|query_engine_bg\.(?:mysql|sqlite)\.wasm$|capsize-font-metrics\.json$)/;
+  /(?:libquery_engine-|query_engine_bg\.(?:mysql|sqlite)\.wasm$|capsize-font-metrics\.json$|firebase-admin|jwks-rsa)/;
 
 function walk(dir, onFile) {
   for (const ent of readdirSync(dir, { withFileTypes: true })) {

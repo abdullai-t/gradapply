@@ -9,7 +9,7 @@ import {
   sessionCookieOptions,
 } from "@/lib/firebase/session-cookie";
 import { ensureAppUserFromFirebaseToken } from "@/lib/firebase/user-sync";
-import { verifyFirebaseIdTokenNode } from "@/lib/firebase/verify-token";
+import { verifyFirebaseIdTokenNode } from "@/lib/firebase/verify-token-node";
 import {
   assertSessionPostAllowedByIp,
   getClientIpFromRequest,

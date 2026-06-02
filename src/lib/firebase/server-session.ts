@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 
 import { SESSION_COOKIE_NAME } from "./session-cookie";
 import { ensureAppUserFromFirebaseToken } from "./user-sync";
-import { verifyFirebaseSessionCookieNode } from "./verify-token";
+import { verifyFirebaseSessionCookieEdge } from "./verify-token-edge";
 
 export type AppSessionUser = {
   id: string;
@@ -29,7 +29,7 @@ export async function getAppSession(): Promise<AppSession | null> {
   const token = await getSessionTokenFromCookies();
   if (!token) return null;
 
-  const decoded = await verifyFirebaseSessionCookieNode(token);
+  const decoded = await verifyFirebaseSessionCookieEdge(token);
   if (!decoded?.sub) return null;
 
   const user = await ensureAppUserFromFirebaseToken(decoded);
