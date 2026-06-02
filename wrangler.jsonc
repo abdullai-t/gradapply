@@ -27,5 +27,15 @@
             "binding": "WORKER_SELF_REFERENCE",
             "service": "mygradapply"
         }
-    ]
+    ],
+    "routes": [
+        {
+            "pattern": "mygradapply.com",
+            "custom_domain": true
+        },
+        {
+            "pattern": "www.mygradapply.com",
+            "custom_domain": true
+        }
+]
 }
