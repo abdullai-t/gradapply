@@ -52,14 +52,25 @@ import {
   updateSchoolSchema,
 } from "./schemas";
 
+const SCHOOL_LIST_MAX = 200;
+const SCHOOL_LIST_DEFAULT = 100;
+
 export const list = withAuth(async (req, { userId }) => {
-  const sort = new URL(req.url).searchParams.get("sort");
+  const url = new URL(req.url);
+  const sort = url.searchParams.get("sort");
+  const takeRaw = Number.parseInt(url.searchParams.get("take") ?? "", 10);
+  const take =
+    Number.isFinite(takeRaw) && takeRaw > 0
+      ? Math.min(takeRaw, SCHOOL_LIST_MAX)
+      : SCHOOL_LIST_DEFAULT;
+
   const schools = await prisma.school.findMany({
     where: { userId },
     orderBy:
       sort === "timeline"
         ? [{ deadline: "asc" }, { name: "asc" }]
         : [{ updatedAt: "desc" }],
+    take,
   });
 
   return ok(serializeSchools(schools));
@@ -275,6 +286,40 @@ function buildProfileContextBlock(profile: {
   return lines.length > 1 ? lines.join("\n") : "";
 }
 
+function buildOnboardingRecommendPrompt(opts: {
+  countryHint: string;
+  profileContext: string;
+  excludeBlock: string;
+  variationBlock: string;
+  retry: boolean;
+}): string {
+  const { countryHint, profileContext, excludeBlock, variationBlock, retry } =
+    opts;
+  const lines = [
+    "Recommend exactly 5 graduate schools for an onboarding shortlist.",
+    "Balance tiers: roughly 2 top_tier (reach), 2 mid_tier (match), 1 safety.",
+    'Set tierBucket on each row to "top_tier", "mid_tier", or "safety".',
+    "Selection criteria (in order): (1) research fit to my profile and interests, (2) realistic funding availability (RA/TA, stipend, tuition waiver, or competitive scholarships).",
+    "Deprioritize programs that are typically unfunded unless the research fit is exceptional.",
+    "whyFit: one sentence on research fit only (<= 22 words).",
+    "funding: one sentence on typical funding availability for this program (<= 22 words).",
+    "notes: optional deadline or GRE caveat (<= 12 words) or null.",
+    excludeBlock,
+    variationBlock,
+    countryHint,
+    profileContext,
+    'Return ONLY minified JSON: {"schools":[{"name","program","degree","country","tierBucket","whyFit","funding","notes","portalUrl":null}]}',
+    "Never include a school on the exclusion list (same institution or same program).",
+    "No markdown fences or prose before or after the JSON.",
+  ];
+  if (retry) {
+    lines.push(
+      "Previous output was invalid JSON. Output a single minified JSON object only.",
+    );
+  }
+  return lines.join("\n");
+}
+
 function buildTierRecommendPrompt(opts: {
   tier: (typeof RECOMMEND_TIERS)[number];
   countryHint: string;
@@ -346,6 +391,56 @@ function normalizeRecommendRow(row: RecommendSchoolRow): Record<string, unknown>
     portalUrl:
       typeof row.portalUrl === "string" ? row.portalUrl.trim() : null,
   };
+}
+
+async function fetchOnboardingSchools(
+  userId: string,
+  countryHint: string,
+  profileContext: string,
+  excludeFrom: SchoolIdentity[],
+  searchSeed: string,
+): Promise<unknown[]> {
+  const excludeBlock = buildExcludeBlock(excludeFrom);
+  const variationBlock = buildVariationBlock(searchSeed);
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const prompt = buildOnboardingRecommendPrompt({
+      countryHint,
+      profileContext,
+      excludeBlock,
+      variationBlock,
+      retry: attempt > 0,
+    });
+    try {
+      const result = await runTask("school-intel", prompt, userId, {
+        recommendSearchSeed: searchSeed,
+      });
+      const raw = result.reply.trim();
+      try {
+        const schools = parseRecommendSchoolsFromLlmText(raw);
+        log.debug("schools/recommend.onboarding", {
+          userId,
+          attempt: attempt + 1,
+          schoolCount: schools.length,
+        });
+        return schools.slice(0, 5);
+      } catch (e) {
+        log.warn("schools/recommend.onboarding.invalid-json", {
+          userId,
+          attempt: attempt + 1,
+          preview: raw.slice(0, 400),
+          reason: e instanceof Error ? e.message : "unknown",
+        });
+      }
+    } catch (e) {
+      log.warn("schools/recommend.onboarding-error", {
+        userId,
+        attempt: attempt + 1,
+        reason: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+  return [];
 }
 
 async function fetchTierSchools(
@@ -485,22 +580,36 @@ export const recommend = withAuth(async (req, { userId }) => {
         ? `Only recommend schools in these countries of interest: ${countriesOfInterest.join(", ")}.`
         : "If no countries of interest are set, you may recommend across countries.";
 
-    const rawSchools: unknown[] = [];
-    for (const tier of tierOrder) {
-      const tierSchools = await fetchTierSchools(
-        userId,
-        tier,
-        countryHint,
-        profileContext,
-        excludeFrom,
-        searchSeed,
-      );
-      rawSchools.push(...tierSchools);
-    }
+    const rawSchools: unknown[] = isOnboardingRequest
+      ? await fetchOnboardingSchools(
+          userId,
+          countryHint,
+          profileContext,
+          excludeFrom,
+          searchSeed,
+        )
+      : (
+          await Promise.all(
+            tierOrder.map((tier) =>
+              fetchTierSchools(
+                userId,
+                tier,
+                countryHint,
+                profileContext,
+                excludeFrom,
+                searchSeed,
+              ),
+            ),
+          )
+        ).flat();
 
     let schools = filterRecommendSchoolRows(rawSchools, excludeFrom).map(
       normalizeRecommendRow,
     );
+
+    if (isOnboardingRequest) {
+      schools = schools.slice(0, 5);
+    }
 
     if (schools.length === 0) {
       throw new SyntaxError("Could not parse JSON from model output");

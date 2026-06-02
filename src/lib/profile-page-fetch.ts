@@ -1,8 +1,10 @@
+import dns from "node:dns/promises";
+
 import { httpStatusUserMessage } from "@/lib/page-fetch-errors";
 
 /**
  * Fetch a public faculty profile HTML and reduce to plain text for the LLM.
- * Basic SSRF hardening: only http(s), block obvious private hosts.
+ * SSRF hardening: block private IPs (including decimal/hex/octal literals), resolve hostnames.
  */
 
 const MAX_BYTES = 1_500_000;
@@ -33,24 +35,116 @@ function isBlockedIpv4Literal(dotted: string): boolean {
   return false;
 }
 
-function isBlockedHost(hostname: string): boolean {
+function parseIpv4Literal(hostname: string): string | null {
+  const h = hostname.toLowerCase();
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return h;
+
+  if (/^\d+$/.test(h)) {
+    const n = Number(h);
+    if (Number.isFinite(n) && n >= 0 && n <= 0xffff_ffff) {
+      return [
+        (n >>> 24) & 0xff,
+        (n >>> 16) & 0xff,
+        (n >>> 8) & 0xff,
+        n & 0xff,
+      ].join(".");
+    }
+  }
+
+  if (/^0x[0-9a-f]+$/i.test(h)) {
+    const n = Number.parseInt(h, 16);
+    if (Number.isFinite(n) && n >= 0 && n <= 0xffff_ffff) {
+      return [
+        (n >>> 24) & 0xff,
+        (n >>> 16) & 0xff,
+        (n >>> 8) & 0xff,
+        n & 0xff,
+      ].join(".");
+    }
+  }
+
+  if (/^0[0-7]+$/.test(h)) {
+    const n = Number.parseInt(h, 8);
+    if (Number.isFinite(n) && n >= 0 && n <= 0xffff_ffff) {
+      return [
+        (n >>> 24) & 0xff,
+        (n >>> 16) & 0xff,
+        (n >>> 8) & 0xff,
+        n & 0xff,
+      ].join(".");
+    }
+  }
+
+  return null;
+}
+
+function isBlockedIpv6Literal(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (BLOCKED_HOSTS.has(h)) return true;
-  if (h.endsWith(".localhost")) return true;
   if (h === "::1") return true;
+  if (h === "::") return true;
+  if (h.startsWith("fc") || h.startsWith("fd")) return true;
+  if (h.startsWith("fe80")) return true;
   if (h.startsWith("::ffff:")) {
     const v4 = h.slice("::ffff:".length);
     if (isBlockedIpv4Literal(v4)) return true;
   }
+  return false;
+}
+
+function isBlockedHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (BLOCKED_HOSTS.has(h)) return true;
+  if (h.endsWith(".localhost")) return true;
+
+  const ipv4 = parseIpv4Literal(h);
+  if (ipv4 && isBlockedIpv4Literal(ipv4)) return true;
+
+  if (isBlockedIpv6Literal(h)) return true;
   if (isBlockedIpv4Literal(h)) return true;
   return false;
 }
 
-/**
- * Ensures a resolved URL is safe to fetch (after redirects). Call on both the user-supplied URL
- * and the final response URL — open redirects must not bypass SSRF checks.
- */
-export function assertHttpUrlFetchAllowed(url: URL): void {
+async function assertResolvedHostAllowed(hostname: string): Promise<void> {
+  if (isBlockedHost(hostname)) {
+    throw new Error(
+      "That link can't be loaded from here. Use a public university profile page.",
+    );
+  }
+
+  const ipv4 = parseIpv4Literal(hostname);
+  if (ipv4) {
+    if (isBlockedIpv4Literal(ipv4)) {
+      throw new Error(
+        "That link can't be loaded from here. Use a public university profile page.",
+      );
+    }
+    return;
+  }
+
+  try {
+    const records = await dns.lookup(hostname, { all: true });
+    for (const rec of records) {
+      if (rec.family === 4 && isBlockedIpv4Literal(rec.address)) {
+        throw new Error(
+          "That link can't be loaded from here. Use a public university profile page.",
+        );
+      }
+      if (rec.family === 6 && isBlockedIpv6Literal(rec.address)) {
+        throw new Error(
+          "That link can't be loaded from here. Use a public university profile page.",
+        );
+      }
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("can't be loaded")) throw e;
+    throw new Error(
+      "We couldn't verify that website address. Check the URL and try again.",
+    );
+  }
+}
+
+/** Synchronous hostname literal checks (schemas / quick validation). */
+export function assertHttpUrlFetchAllowedSync(url: URL): void {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error("Only web links starting with http:// or https:// are supported.");
   }
@@ -59,6 +153,15 @@ export function assertHttpUrlFetchAllowed(url: URL): void {
       "That link can't be loaded from here. Use a public university profile page.",
     );
   }
+}
+
+/**
+ * Ensures a resolved URL is safe to fetch (after redirects). Call on both the user-supplied URL
+ * and the final response URL — open redirects must not bypass SSRF checks.
+ */
+export async function assertHttpUrlFetchAllowed(url: URL): Promise<void> {
+  assertHttpUrlFetchAllowedSync(url);
+  await assertResolvedHostAllowed(url.hostname);
 }
 
 export function htmlToPlainText(html: string): string {
@@ -142,7 +245,7 @@ async function fetchProfileHtml(rawUrl: string): Promise<{ finalUrl: URL; html: 
     throw new Error("That doesn't look like a valid web address. Check the link and try again.");
   }
 
-  assertHttpUrlFetchAllowed(url);
+  await assertHttpUrlFetchAllowed(url);
 
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), 25_000);
@@ -176,7 +279,7 @@ async function fetchProfileHtml(rawUrl: string): Promise<{ finalUrl: URL; html: 
         "The link redirected to an invalid address. Try a direct faculty profile URL.",
       );
     }
-    assertHttpUrlFetchAllowed(finalUrl);
+    await assertHttpUrlFetchAllowed(finalUrl);
 
     if (!res.ok) {
       throw new Error(httpStatusUserMessage(res.status));

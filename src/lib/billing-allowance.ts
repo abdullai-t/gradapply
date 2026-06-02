@@ -34,20 +34,6 @@ function quotaExceededMessage(planTier: PlanTier): string {
   return "Plan allowance for this billing period is used up. Purchase credits in Settings to continue.";
 }
 
-/**
- * Throws {@link AiBudgetExceededError} when plan allowance and purchased credits are insufficient.
- * No-op when Paystack billing is not configured.
- */
-export async function assertAiBudgetWithinLimit(userId: string): Promise<void> {
-  await assertAiBudgetWithinLimitForAction(userId, "generic");
-}
-
-/** Stored in `aiUsageMonth` for paid users — keyed to subscription `currentPeriodEnd`. */
-export function billingPeriodTokenFromEnd(periodEnd: Date | null): string | null {
-  if (!periodEnd || Number.isNaN(periodEnd.getTime())) return null;
-  return `period:${periodEnd.toISOString()}`;
-}
-
 type BillingCfg = Awaited<ReturnType<typeof getBillingAdminConfig>>;
 
 type Tx = Pick<typeof prisma, "user">;
@@ -83,6 +69,30 @@ async function loadUserBudgetTx(
     where: { id: userId },
     select: userBudgetSelect,
   });
+}
+
+/** When true, AI usage is metered (Paystack configured, or production fail-closed). */
+async function isAiBillingEnforced(): Promise<boolean> {
+  const cfg = await getBillingAdminConfig();
+  if (cfg.paystackSecretKey) return true;
+  return process.env.NODE_ENV === "production";
+}
+
+async function requireBillingCfg(): Promise<BillingCfg | null> {
+  const cfg = await getBillingAdminConfig();
+  if (cfg.paystackSecretKey) return cfg;
+  if (process.env.NODE_ENV === "production") {
+    throw new AiBudgetExceededError(
+      "AI billing is not configured on this server. Contact support.",
+    );
+  }
+  return null;
+}
+
+/** Stored in `aiUsageMonth` for paid users — keyed to subscription `currentPeriodEnd`. */
+export function billingPeriodTokenFromEnd(periodEnd: Date | null): string | null {
+  if (!periodEnd || Number.isNaN(periodEnd.getTime())) return null;
+  return `period:${periodEnd.toISOString()}`;
 }
 
 /** Paid: reset plan allowance when subscription billing period changes (not each calendar month). */
@@ -154,12 +164,22 @@ function hasPurchasedCredits(user: UserBudgetRow, cost: number): boolean {
   return user.aiCreditsBalance >= cost;
 }
 
+/**
+ * Throws {@link AiBudgetExceededError} when plan allowance and purchased credits are insufficient.
+ * No-op in non-production when Paystack is not configured.
+ */
+export async function assertAiBudgetWithinLimit(userId: string): Promise<void> {
+  await assertAiBudgetWithinLimitForAction(userId, "generic");
+}
+
 export async function assertAiBudgetWithinLimitForAction(
   userId: string,
   action: AiActionCostKey,
 ): Promise<void> {
-  const cfg = await getBillingAdminConfig();
-  if (!cfg.paystackSecretKey) return;
+  if (!(await isAiBillingEnforced())) return;
+
+  const cfg = await requireBillingCfg();
+  if (!cfg) return;
 
   await ensureBillingPeriodSynced(userId);
 
@@ -176,8 +196,8 @@ export async function assertAiBudgetWithinLimitForAction(
 }
 
 /**
- * Consumes AI budget: plan allowance first (paid), then purchased credits.
- * FREE tier spends from the one-time signup credit balance only.
+ * Atomically debits AI budget after a successful action.
+ * Throws {@link AiBudgetExceededError} when the conditional update affects zero rows.
  */
 export async function finalizeAiConsumption(userId: string): Promise<void> {
   await finalizeAiConsumptionForAction(userId, "generic");
@@ -187,46 +207,60 @@ export async function finalizeAiConsumptionForAction(
   userId: string,
   action: AiActionCostKey,
 ): Promise<void> {
-  const cfg = await getBillingAdminConfig();
-  if (!cfg.paystackSecretKey) return;
+  if (!(await isAiBillingEnforced())) return;
+
+  const cfg = await requireBillingCfg();
+  if (!cfg) return;
+
   const cost = resolveCost(action);
 
   await prisma.$transaction(async (tx) => {
     const user = await loadUserBudgetTx(tx, userId);
-    if (!user) return;
+    if (!user) throw new Error("User not found");
 
     if (user.planTier !== "FREE") {
       await syncPaidBillingPeriod(tx, userId, user.currentPeriodEnd);
     }
 
     const fresh = await loadUserBudgetTx(tx, userId);
-    if (!fresh) return;
+    if (!fresh) throw new Error("User not found");
 
     const allowance = cfg.allowance[fresh.planTier];
+    let debited = false;
 
     if (fresh.planTier === "FREE") {
-      if (fresh.aiCreditsBalance >= cost) {
-        await tx.user.update({
-          where: { id: userId },
-          data: { aiCreditsBalance: { decrement: cost } },
-        });
-      }
-      return;
-    }
-
-    if (fresh.aiUsageUsed + cost <= allowance) {
-      await tx.user.update({
-        where: { id: userId },
-        data: { aiUsageUsed: { increment: cost } },
-      });
-      return;
-    }
-
-    if (fresh.aiCreditsBalance >= cost) {
-      await tx.user.update({
-        where: { id: userId },
+      const result = await tx.user.updateMany({
+        where: {
+          id: userId,
+          planTier: "FREE",
+          aiCreditsBalance: { gte: cost },
+        },
         data: { aiCreditsBalance: { decrement: cost } },
       });
+      debited = result.count > 0;
+    } else if (fresh.aiUsageUsed + cost <= allowance) {
+      const result = await tx.user.updateMany({
+        where: {
+          id: userId,
+          planTier: { not: "FREE" },
+          aiUsageUsed: { lte: allowance - cost },
+        },
+        data: { aiUsageUsed: { increment: cost } },
+      });
+      debited = result.count > 0;
+    } else if (fresh.aiCreditsBalance >= cost) {
+      const result = await tx.user.updateMany({
+        where: {
+          id: userId,
+          aiCreditsBalance: { gte: cost },
+        },
+        data: { aiCreditsBalance: { decrement: cost } },
+      });
+      debited = result.count > 0;
+    }
+
+    if (!debited) {
+      throw new AiBudgetExceededError(quotaExceededMessage(fresh.planTier));
     }
   });
 }

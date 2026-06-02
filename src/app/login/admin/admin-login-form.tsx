@@ -1,66 +1,52 @@
 "use client";
 
 import Link from "next/link";
-import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  AuthDivider,
-  AuthShell,
-  GoogleButtonContent,
-} from "@/features/auth/auth-shell";
+import { AuthShell } from "@/features/auth/auth-shell";
+import { signInAdminWithPassword } from "@/lib/auth-client";
+import { isSafeAuthRedirectPath } from "@/lib/auth-redirect";
 
 const DEFAULT_CALLBACK = "/admin";
 
 function AdminLoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? DEFAULT_CALLBACK;
-  const rawError = searchParams.get("error");
+  const rawCallback = searchParams.get("callbackUrl");
+  const callbackUrl =
+    rawCallback && isSafeAuthRedirectPath(rawCallback)
+      ? rawCallback
+      : DEFAULT_CALLBACK;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(
-    rawError ? "Sign-in failed. Check your credentials." : null,
-  );
+  const [error, setError] = useState<string | null>(null);
 
   async function handlePassword(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!email.trim() || !password) return;
     setBusy(true);
-    const res = await signIn("credentials", {
-      email: email.trim(),
-      password,
-      redirect: false,
-      callbackUrl,
-    });
-    setBusy(false);
-    if (res?.error) {
-      setError("Invalid email or password.");
-      return;
-    }
-    if (res?.ok) {
-      router.push(res.url ?? callbackUrl);
+    try {
+      await signInAdminWithPassword(email, password);
+      router.push(callbackUrl);
       router.refresh();
+    } catch {
+      setError("Invalid email or password, or you do not have admin access.");
+    } finally {
+      setBusy(false);
     }
-  }
-
-  async function handleGoogle() {
-    setBusy(true);
-    await signIn("google", { callbackUrl });
-    setBusy(false);
   }
 
   return (
     <AuthShell
       title="Admin sign in"
-      description="Email and password for operator accounts. End users should use the public login."
+      description="Email and password for operator accounts pre-created in Firebase. End users should use the public login."
       topBanners={
         error ? (
           <div key="error" className="glass-alert-error" role="alert">
@@ -110,19 +96,6 @@ function AdminLoginInner() {
           Sign in
         </Button>
       </form>
-
-      <AuthDivider>Or continue with</AuthDivider>
-
-      <Button
-        type="button"
-        size="lg"
-        variant="secondary"
-        className="w-full"
-        disabled={busy}
-        onClick={() => void handleGoogle()}
-      >
-        <GoogleButtonContent />
-      </Button>
     </AuthShell>
   );
 }

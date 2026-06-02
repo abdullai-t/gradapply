@@ -7,7 +7,10 @@ import {
   getSupportInboxEmail,
   type ContactTopic,
 } from "@/lib/support";
-import { getClientIpFromRequest } from "@/lib/upstash-rate-limit";
+import {
+  assertContactAllowedByIp,
+  getClientIpFromRequest,
+} from "@/lib/upstash-rate-limit";
 
 export const runtime = "nodejs";
 
@@ -19,25 +22,6 @@ const contactSchema = z.object({
   website: z.string().optional(),
 });
 
-const contactMemory = new Map<
-  string,
-  { count: number; windowEnd: number }
->();
-const CONTACT_WINDOW_MS = 60 * 60 * 1000;
-const CONTACT_MAX_PER_HOUR = 5;
-
-function assertContactAllowed(ip: string): { ok: true } | { ok: false } {
-  const now = Date.now();
-  const row = contactMemory.get(ip);
-  if (!row || now > row.windowEnd) {
-    contactMemory.set(ip, { count: 1, windowEnd: now + CONTACT_WINDOW_MS });
-    return { ok: true };
-  }
-  if (row.count >= CONTACT_MAX_PER_HOUR) return { ok: false };
-  row.count += 1;
-  return { ok: true };
-}
-
 export async function POST(req: Request) {
   const inbox = getSupportInboxEmail();
   if (!inbox) {
@@ -48,10 +32,14 @@ export async function POST(req: Request) {
   }
 
   const ip = getClientIpFromRequest(req);
-  if (!assertContactAllowed(ip).ok) {
+  const rate = await assertContactAllowedByIp(ip);
+  if (!rate.ok) {
     return NextResponse.json(
       { error: "Too many messages. Please try again in about an hour." },
-      { status: 429 },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rate.retryAfterSec) },
+      },
     );
   }
 

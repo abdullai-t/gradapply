@@ -37,15 +37,19 @@ export const list = withPlanGate("documents", async (req, { userId }) => {
           entityId: null as null,
         };
 
+  const takeRaw = Number.parseInt(searchParams.get("take") ?? "", 10);
+  const take =
+    Number.isFinite(takeRaw) && takeRaw > 0 ? Math.min(takeRaw, 100) : 50;
+
   const rows = await prisma.contentVersion.findMany({
     where,
     orderBy: { createdAt: "desc" },
+    take,
     select: {
       id: true,
       entityType: true,
       entityId: true,
       label: true,
-      body: true,
       fileUrl: true,
       createdAt: true,
       parentVersionId: true,

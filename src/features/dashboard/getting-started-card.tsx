@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,13 @@ export type GettingStartedItem = {
 };
 
 export function GettingStartedCard({ items }: { items: GettingStartedItem[] }) {
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(STORAGE_KEY) === "1";
-  });
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    if (window.localStorage.getItem(STORAGE_KEY) === "1") {
+      setDismissed(true);
+    }
+  }, []);
 
   const dismiss = useCallback(() => {
     window.localStorage.setItem(STORAGE_KEY, "1");

@@ -8,11 +8,17 @@ import { withAuth } from "../_with-auth";
 
 import { createProfEmailSchema } from "./schemas";
 
-export const list = withAuth(async (_req, { userId }) => {
+export const list = withAuth(async (req, { userId }) => {
   const startedAt = Date.now();
+  const { searchParams } = new URL(req.url);
+  const takeRaw = Number.parseInt(searchParams.get("take") ?? "", 10);
+  const take =
+    Number.isFinite(takeRaw) && takeRaw > 0 ? Math.min(takeRaw, 100) : 50;
+
   const emails = await prisma.profEmail.findMany({
     where: { userId },
     orderBy: { updatedAt: "desc" },
+    take,
     select: {
       id: true,
       profName: true,

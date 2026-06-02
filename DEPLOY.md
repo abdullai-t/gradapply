@@ -19,7 +19,8 @@ This guide is the production checklist for deploying GradApply on Vercel with Po
 
 - A Vercel account connected to this GitHub repo
 - A production PostgreSQL database (Neon/Supabase/Railway/RDS/etc.)
-- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` only if you want Google sign-in and connectors
+- Firebase project with Auth enabled (Google + Email link for scholars; Email/Password for admins)
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` only if you want Google Docs/Gmail connectors (separate from Firebase sign-in)
 
 ## 2) Release preparation (DevOps)
 
@@ -134,16 +135,18 @@ Worker metrics are **request CPU time (ms)** and **duration**, not host RAM or O
 Set these in **Vercel Project → Settings → Environment Variables**:
 
 - `DATABASE_URL` — production Postgres connection string
-- `AUTH_SECRET` — random secret (`openssl rand -base64 32`)
+- `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`
+- `FIREBASE_SERVICE_ACCOUNT_JSON` (or `FIREBASE_PROJECT_ID` + `FIREBASE_CLIENT_EMAIL` + `FIREBASE_PRIVATE_KEY`)
+- `AUTH_SECRET` — random secret for encrypted admin settings (`openssl rand -base64 32`)
 - `AUTH_URL` — your public app URL (for example `https://your-app.vercel.app`)
-- `NEXTAUTH_URL` — same as `AUTH_URL` (compatibility)
+- `NEXTAUTH_URL` — same as `AUTH_URL` (CSRF / redirect compatibility)
 
 Recommended optional variables:
 
 - AI providers (at least one): `OPENROUTER_API_KEY`, `GROQ_API_KEY`
 - `AI_PROVIDER` — optional override (`openrouter` or `groq`). If both keys are set, **OpenRouter is preferred** unless you force `AI_PROVIDER=groq`.
 - Uploads: `CLOUDINARY_URL` (or S3-compatible vars your repo documents for storage)
-- Google auth/connectors: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- Google connectors: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 - `ALLOW_SUPERADMIN_BOOTSTRAP` + `SUPERADMIN_EMAILS` — optional bootstrap for the first superadmin (see §2)
 - **`NEXT_PUBLIC_SUPPORT_EMAIL`** — optional; shown on **`/support`**, sidebar “Support”, and marketing footer so users can reach you (rebuild after changing)
 - **`UPSTASH_REDIS_REST_URL`** and **`UPSTASH_REDIS_REST_TOKEN`** — optional; together they enable **distributed** API rate limits across Vercel instances (see **Distributed rate limiting** under §2)

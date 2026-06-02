@@ -125,16 +125,23 @@ export const importExcel = withAuth(async (req, { userId }) => {
   const importErrors: string[] = [...parsed.errors];
   let tracked = current;
 
-  for (const row of toImport) {
-    try {
-      const existing = await prisma.school.findFirst({
+  const existingKeys = new Set(
+    (
+      await prisma.school.findMany({
         where: {
           userId,
-          name: row.name,
-          program: row.program,
+          OR: toImport.map((row) => ({
+            name: row.name,
+            program: row.program,
+          })),
         },
-      });
+        select: { name: true, program: true },
+      })
+    ).map((s) => `${s.name}\0${s.program}`),
+  );
 
+  for (const row of toImport) {
+    try {
       const status = row.status ?? SchoolStatus.PLANNING;
       const data = {
         name: row.name,
@@ -156,24 +163,34 @@ export const importExcel = withAuth(async (req, { userId }) => {
         letterRecommenders: row.letterRecommenders,
       };
 
-      if (existing) {
-        await prisma.school.update({
-          where: { id: existing.id },
-          data,
-        });
+      const key = `${row.name}\0${row.program}`;
+      const isUpdate = existingKeys.has(key);
+
+      if (!isUpdate && tracked >= limit) {
+        importErrors.push(
+          `Stopped at "${row.name}" — school limit reached.`,
+        );
+        break;
+      }
+
+      await prisma.school.upsert({
+        where: {
+          userId_name_program: {
+            userId,
+            name: row.name,
+            program: row.program,
+          },
+        },
+        create: { ...data, userId },
+        update: data,
+      });
+
+      if (isUpdate) {
         updated += 1;
       } else {
-        if (tracked >= limit) {
-          importErrors.push(
-            `Stopped at "${row.name}" — school limit reached.`,
-          );
-          break;
-        }
-        await prisma.school.create({
-          data: { ...data, userId },
-        });
         created += 1;
         tracked += 1;
+        existingKeys.add(key);
       }
     } catch (e) {
       importErrors.push(

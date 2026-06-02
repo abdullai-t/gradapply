@@ -1,4 +1,4 @@
-import { PlanTier } from "@prisma/client";
+import { PlanTier, Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 import {
@@ -65,6 +65,16 @@ function countByUtcDay(
     if (map.has(key)) map.set(key, (map.get(key) ?? 0) + 1);
   }
   return bucketKeys.map((date) => ({ date, count: map.get(date) ?? 0 }));
+}
+
+async function countDistinctUserIds(
+  db: PrismaClient,
+  table: "School" | "ProfEmail" | "ChatMessage",
+): Promise<number> {
+  const rows = await db.$queryRaw<[{ count: number }]>(
+    Prisma.sql`SELECT COUNT(DISTINCT "userId")::int AS count FROM ${Prisma.raw(`"${table}"`)}`,
+  );
+  return rows[0]?.count ?? 0;
 }
 
 function isMissingTableError(err: unknown): boolean {
@@ -236,9 +246,9 @@ export const analytics = withAdmin(async (req) => {
     dau,
     wau,
     onboardingComplete,
-    usersWithSchool,
-    usersWithProfEmail,
-    usersWithChat,
+    usersWithSchoolCount,
+    usersWithProfEmailCount,
+    usersWithChatCount,
     featureSchools,
     featureProfEmails,
     featureSopVariants,
@@ -291,15 +301,9 @@ export const analytics = withAdmin(async (req) => {
     db.profile.count({
       where: { onboardingCompletedAt: { not: null } },
     }),
-    db.school.findMany({ select: { userId: true }, distinct: ["userId"] }),
-    db.profEmail.findMany({
-      select: { userId: true },
-      distinct: ["userId"],
-    }),
-    db.chatMessage.findMany({
-      select: { userId: true },
-      distinct: ["userId"],
-    }),
+    countDistinctUserIds(db, "School"),
+    countDistinctUserIds(db, "ProfEmail"),
+    countDistinctUserIds(db, "ChatMessage"),
     db.school.count({ where: dateFilter }),
     db.profEmail.count({ where: dateFilter }),
     db.sopVariant.count({ where: dateFilter }),
@@ -331,6 +335,8 @@ export const analytics = withAdmin(async (req) => {
     db.llmCostLog.findMany({
       where: dateFilter,
       select: { createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 10_000,
     }),
     db.llmCostLog.groupBy({
       by: ["userId"],
@@ -410,9 +416,9 @@ export const analytics = withAdmin(async (req) => {
       activation: {
         signedUp: usersTotal,
         onboardingComplete,
-        hasSchool: usersWithSchool.length,
-        hasProfEmail: usersWithProfEmail.length,
-        hasChat: usersWithChat.length,
+        hasSchool: usersWithSchoolCount,
+        hasProfEmail: usersWithProfEmailCount,
+        hasChat: usersWithChatCount,
       },
       features: {
         schools: featureSchools,

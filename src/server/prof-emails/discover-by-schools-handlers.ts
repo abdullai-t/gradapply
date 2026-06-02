@@ -81,11 +81,6 @@ export const discoverBySchools = withAuth(async (req, { userId }) => {
 
     const result = await runTask("faculty-discovery", message, userId);
 
-    await Promise.all([
-      finalizeAiConsumption(userId),
-      markProfEmailLlmSuccess(userId),
-    ]);
-
     const raw = result.reply.trim();
     // The model often wraps the JSON in a ```json fenced block — sometimes
     // the closing fence is missing if the response hits a length limit, so
@@ -175,6 +170,11 @@ export const discoverBySchools = withAuth(async (req, { userId }) => {
         source: "school_program" as const,
       };
     }).filter((c) => c.name.trim().length > 0);
+
+    await Promise.all([
+      finalizeAiConsumption(userId),
+      markProfEmailLlmSuccess(userId),
+    ]);
 
     return ok({ candidates });
   } catch (e) {

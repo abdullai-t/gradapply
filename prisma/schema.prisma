@@ -461,6 +461,7 @@ model School {
   chatMessages ChatMessage[]
   collaborationSessions CollaborationSession[]
 
+  @@unique([userId, name, program])
   @@index([userId, updatedAt])
   @@index([userId, deadline])
   @@index([userId, reminderAt])

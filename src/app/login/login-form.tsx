@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { capturePostHogEvent } from "@/lib/analytics/posthog-client";
@@ -16,29 +15,12 @@ import {
   AuthShell,
   GoogleButtonContent,
 } from "@/features/auth/auth-shell";
-import { AUTH_CONTINUE_PATH } from "@/lib/auth-redirect";
+import type { LoginSetup } from "@/auth";
+import { AUTH_CONTINUE_PATH, isSafeAuthRedirectPath } from "@/lib/auth-redirect";
+import { sendMagicLink, signInWithGoogle } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
 
 const DEFAULT_CALLBACK = AUTH_CONTINUE_PATH;
-
-const errorMessages: Record<string, string> = {
-  Configuration:
-    "Sign-in is not configured on this server. Contact support if this persists.",
-  AccessDenied: "Sign in was cancelled or you do not have access.",
-  Verification: "The sign-in link is invalid or has expired. Request a new one.",
-  OAuthSignin: "Could not start Google sign-in. Try again later.",
-  OAuthCallback: "Google sign-in failed. Check your account and try again.",
-  OAuthAccountNotLinked:
-    "This email is already used with another sign-in method.",
-  Default: "Sign-in failed. Try again or contact support.",
-};
-
-export type LoginSetup = {
-  hasGoogle: boolean;
-  hasEmail: boolean;
-  hasSecret: boolean;
-  hasPasswordLogin: boolean;
-  providerCount: number;
-};
 
 function LoginTrustRow() {
   return (
@@ -126,21 +108,13 @@ function MagicLinkSentPanel({
 }
 
 function LoginInner({ setup }: { setup: LoginSetup }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const rawError = searchParams.get("error");
-  const verified = searchParams.get("verified") === "1";
-  const verifyError = searchParams.get("verify_error") === "1";
-  const registered = searchParams.get("registered") === "1";
-  const verifyEmail = searchParams.get("verify_email") === "1";
-  const mailFailed = searchParams.get("mail_failed") === "1";
-  const errorKey = rawError && errorMessages[rawError] ? rawError : null;
-  const errorText = errorKey
-    ? errorMessages[errorKey]
-    : rawError
-      ? `${errorMessages.Default} (${rawError})`
-      : null;
-
-  const callbackUrl = searchParams.get("callbackUrl") ?? DEFAULT_CALLBACK;
+  const rawCallback = searchParams.get("callbackUrl");
+  const callbackUrl =
+    rawCallback && isSafeAuthRedirectPath(rawCallback)
+      ? rawCallback
+      : DEFAULT_CALLBACK;
 
   const [email, setEmail] = useState("");
   const [emailSent, setEmailSent] = useState(false);
@@ -152,41 +126,46 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
   const canSignIn = setup.hasGoogle || setup.hasEmail;
   const busy = emailBusy || googleBusy;
 
-  async function sendMagicLink(targetEmail: string) {
+  async function sendMagicLinkTo(targetEmail: string) {
     setFormError(null);
     setEmailBusy(true);
-    const res = await signIn("nodemailer", {
-      email: targetEmail.trim(),
-      callbackUrl,
-      redirect: false,
-    });
-    setEmailBusy(false);
-    if (res?.error) {
+    try {
+      await sendMagicLink(targetEmail);
+      capturePostHogEvent("magic_link_requested", { email: targetEmail.trim() });
+      setEmailSent(true);
+      return true;
+    } catch {
       setFormError("Could not send the magic link. Try again or use Google.");
       return false;
+    } finally {
+      setEmailBusy(false);
     }
-    capturePostHogEvent("magic_link_requested", { email: targetEmail.trim() });
-    setEmailSent(true);
-    return true;
   }
 
   async function handleGoogle() {
     setFormError(null);
     setGoogleBusy(true);
-    capturePostHogEvent("google_sign_in_clicked");
-    await signIn("google", { callbackUrl });
-    setGoogleBusy(false);
+    try {
+      capturePostHogEvent("google_sign_in_clicked");
+      await signInWithGoogle();
+      router.push(callbackUrl);
+      router.refresh();
+    } catch {
+      setFormError("Google sign-in failed. Try again.");
+    } finally {
+      setGoogleBusy(false);
+    }
   }
 
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || !setup.hasEmail) return;
-    await sendMagicLink(email);
+    await sendMagicLinkTo(email);
   }
 
   async function handleResend() {
     if (!email.trim()) return;
-    const ok = await sendMagicLink(email);
+    const ok = await sendMagicLinkTo(email);
     if (ok) setResent(true);
   }
 
@@ -201,70 +180,20 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
   if (!canSignIn) {
     notices.push(
       <AuthNotice key="providers" tone="error" title="Sign-in unavailable">
-        Magic email or Google must be enabled on this deployment.
-      </AuthNotice>
-    );
-  }
-  if (registered && mailFailed) {
-    notices.push(
-      <AuthNotice key="mail-failed" tone="error" title="Account created — email not sent">
-        We could not send signup email from this server. Check that RESEND_API_KEY and
-        EMAIL_FROM (verified domain) are set, then use Resend verification or contact
-        support. You can request a new verification link after signing in is enabled.
-      </AuthNotice>
-    );
-  } else if (registered) {
-    notices.push(
-      <AuthNotice
-        key="registered"
-        tone="success"
-        title={verifyEmail ? "Account created" : "You are all set"}
-      >
-        {verifyEmail
-          ? "Check your inbox for a verification email (and welcome note). Confirm your email, then sign in below."
-          : "Sign in below to open your dashboard."}
-      </AuthNotice>
-    );
-  }
-  if (verified) {
-    notices.push(
-      <AuthNotice key="verified" tone="success" title="Email verified">
-        You can sign in now with Google or a magic link.
-      </AuthNotice>
-    );
-  }
-  if (verifyError) {
-    notices.push(
-      <AuthNotice key="verify-error" tone="error" title="Verification failed">
-        That link is invalid or has expired. Request a new magic link below.
-      </AuthNotice>
-    );
-  }
-  if (errorText) {
-    notices.push(
-      <AuthNotice key="error" tone="error" title="Sign-in issue">
-        {errorText}
-      </AuthNotice>
+        Firebase Auth is not configured on this deployment.
+      </AuthNotice>,
     );
   }
   if (formError) {
     notices.push(
       <AuthNotice key="form-error" tone="error">
         {formError}
-      </AuthNotice>
+      </AuthNotice>,
     );
   }
 
   const footer = (
     <>
-      New to GradApply?{" "}
-      <Link
-        href="/register"
-        className="font-bold text-[var(--primary)] underline-offset-4 hover:underline"
-      >
-        Create account
-      </Link>
-      {" · "}
       <Link
         href="/"
         className="underline-offset-4 hover:text-[var(--primary)] hover:underline"

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOutClient } from "@/lib/auth-client";
 
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/icon";
@@ -15,9 +15,9 @@ import { cn } from "@/lib/utils";
 import { TIER_SECTIONS, type RecommendedSchool } from "./types";
 
 const LOADING_PHASES = [
-  "Finding reach schools…",
-  "Finding match schools…",
-  "Finding safety schools…",
+  "Matching programs to your profile…",
+  "Checking funding and fit…",
+  "Building your shortlist…",
 ] as const;
 
 function schoolKey(s: RecommendedSchool) {
@@ -46,7 +46,7 @@ export function OnboardingSchoolPickerStep() {
   const [loading, setLoading] = useState(true);
   const [loadPhase, setLoadPhase] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [busyAction, setBusyAction] = useState<"add" | "skip" | null>(null);
 
   useEffect(() => {
     if (!loading) return;
@@ -126,16 +126,23 @@ export function OnboardingSchoolPickerStep() {
   };
 
   const finishOnboarding = useCallback(async () => {
-    await updateProfile.mutateAsync({
-      onboardingCompletedAt: new Date().toISOString(),
-    });
-    router.push("/dashboard");
-    router.refresh();
+    setBusyAction("skip");
+    setError(null);
+    try {
+      await updateProfile.mutateAsync({
+        onboardingCompletedAt: new Date().toISOString(),
+      });
+      router.push("/dashboard");
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+      setBusyAction(null);
+    }
   }, [router, updateProfile]);
 
   const addSelected = async () => {
     const picked = schools.filter((s) => selected.has(schoolKey(s)));
-    setSubmitting(true);
+    setBusyAction("add");
     setError(null);
     try {
       if (picked.length > 0) {
@@ -156,11 +163,14 @@ export function OnboardingSchoolPickerStep() {
         }
         await qc.invalidateQueries({ queryKey: schoolsKeys.all });
       }
-      await finishOnboarding();
+      await updateProfile.mutateAsync({
+        onboardingCompletedAt: new Date().toISOString(),
+      });
+      router.push("/dashboard");
+      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
-    } finally {
-      setSubmitting(false);
+      setBusyAction(null);
     }
   };
 
@@ -184,7 +194,7 @@ export function OnboardingSchoolPickerStep() {
             {LOADING_PHASES[loadPhase]}
           </p>
           <p className="mt-1 text-xs text-[var(--outline)]">
-            This usually takes 15–45 seconds while we search three tiers.
+            This usually takes 10–20 seconds.
           </p>
         </div>
       </div>
@@ -204,7 +214,8 @@ export function OnboardingSchoolPickerStep() {
           <Button
             type="button"
             variant="secondary"
-            loading={updateProfile.isPending}
+            loading={busyAction === "skip"}
+            disabled={busyAction !== null}
             onClick={() => void finishOnboarding()}
           >
             Skip for now
@@ -214,15 +225,30 @@ export function OnboardingSchoolPickerStep() {
     );
   }
 
+  const isBusy = busyAction !== null;
+
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6">
+      {isBusy ? (
+        <div
+          className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-[var(--surface)]/60 backdrop-blur-[2px]"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <p className="text-sm font-semibold text-[var(--on-surface)]">
+            {busyAction === "skip"
+              ? "Skipping to your dashboard…"
+              : "Adding schools to your list…"}
+          </p>
+        </div>
+      ) : null}
       <div>
         <h2 className="t-headline-md m-0 text-[var(--on-surface)]">
           Pick programs to track
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-[var(--on-surface-variant)]">
-          We found 15 suggestions across reach, match, and safety tiers. Select
-          any you want on your list — you can add more later.
+          We picked 5 programs matched to your profile. Select any you want on
+          your list — you can add more later.
         </p>
       </div>
 
@@ -328,8 +354,8 @@ export function OnboardingSchoolPickerStep() {
           <Button
             type="button"
             variant="secondary"
-            disabled={submitting}
-            loading={submitting && selectedCount === 0}
+            disabled={isBusy}
+            loading={busyAction === "skip"}
             onClick={() => void finishOnboarding()}
           >
             Skip for now
@@ -337,8 +363,8 @@ export function OnboardingSchoolPickerStep() {
           <Button
             type="button"
             icon="add"
-            disabled={selectedCount === 0}
-            loading={submitting && selectedCount > 0}
+            disabled={isBusy || selectedCount === 0}
+            loading={busyAction === "add"}
             onClick={() => void addSelected()}
           >
             Add selected to my list
@@ -353,7 +379,7 @@ export function OnboardingSignOutLink() {
   return (
     <button
       type="button"
-      onClick={() => void signOut({ callbackUrl: "/login" })}
+      onClick={() => void signOutClient().then(() => window.location.assign("/login"))}
       className="text-sm font-semibold text-[var(--on-surface-variant)] underline-offset-2 hover:underline"
     >
       Sign out

@@ -4,6 +4,8 @@ import { getBillingAdminConfig } from "@/lib/billing-admin-config";
 import { processPaystackReference } from "@/lib/paystack-fulfillment";
 import { verifyPaystackWebhookSignature } from "@/lib/paystack-api";
 
+export const runtime = "nodejs";
+
 export async function POST(req: Request) {
   const cfg = await getBillingAdminConfig();
   const raw = await req.text();

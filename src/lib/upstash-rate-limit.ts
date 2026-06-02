@@ -157,3 +157,137 @@ export async function assertChatPostAllowedForUser(
   }
   return { ok: true };
 }
+
+export type SessionPostRateResult =
+  | { ok: true }
+  | { ok: false; retryAfterSec: number };
+
+let sessionPostIpRatelimit: Ratelimit | undefined;
+
+function getSessionPostIpRatelimit(): Ratelimit | null {
+  const redis = getUpstashRedis();
+  if (!redis) return null;
+  if (!sessionPostIpRatelimit) {
+    const perHour = envNum("RATE_LIMIT_SESSION_POST_PER_IP_PER_HOUR", 60);
+    sessionPostIpRatelimit = new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(perHour, "1 h"),
+      prefix: "gradapply:session:ip",
+    });
+  }
+  return sessionPostIpRatelimit;
+}
+
+const sessionPostMemory = new Map<
+  string,
+  { count: number; windowEnd: number }
+>();
+const SESSION_POST_WINDOW_MS = 60 * 60 * 1000;
+
+function rateLimitSessionPostMemory(ip: string): SessionPostRateResult {
+  const max = envNum("RATE_LIMIT_SESSION_POST_PER_IP_PER_HOUR", 60);
+  const now = Date.now();
+  let row = sessionPostMemory.get(ip);
+  if (!row || now > row.windowEnd) {
+    row = { count: 1, windowEnd: now + SESSION_POST_WINDOW_MS };
+    sessionPostMemory.set(ip, row);
+    return { ok: true };
+  }
+  if (row.count >= max) {
+    return {
+      ok: false,
+      retryAfterSec: Math.max(1, Math.ceil((row.windowEnd - now) / 1000)),
+    };
+  }
+  row.count += 1;
+  return { ok: true };
+}
+
+/** Session cookie POST: per IP per hour (Upstash or in-memory fallback). */
+export async function assertSessionPostAllowedByIp(
+  ip: string,
+): Promise<SessionPostRateResult> {
+  const rl = getSessionPostIpRatelimit();
+  if (rl) {
+    const result = await rl.limit(ip);
+    void result.pending;
+    if (!result.success) {
+      return {
+        ok: false,
+        retryAfterSec: Math.max(
+          1,
+          Math.ceil((result.reset - Date.now()) / 1000),
+        ),
+      };
+    }
+    return { ok: true };
+  }
+  return rateLimitSessionPostMemory(ip);
+}
+
+export type ContactRateResult =
+  | { ok: true }
+  | { ok: false; retryAfterSec: number };
+
+let contactIpRatelimit: Ratelimit | undefined;
+
+function getContactIpRatelimit(): Ratelimit | null {
+  const redis = getUpstashRedis();
+  if (!redis) return null;
+  if (!contactIpRatelimit) {
+    const perHour = envNum("RATE_LIMIT_CONTACT_PER_IP_PER_HOUR", 5);
+    contactIpRatelimit = new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(perHour, "1 h"),
+      prefix: "gradapply:contact:ip",
+    });
+  }
+  return contactIpRatelimit;
+}
+
+const contactMemory = new Map<
+  string,
+  { count: number; windowEnd: number }
+>();
+const CONTACT_WINDOW_MS = 60 * 60 * 1000;
+
+function rateLimitContactMemory(ip: string): ContactRateResult {
+  const max = envNum("RATE_LIMIT_CONTACT_PER_IP_PER_HOUR", 5);
+  const now = Date.now();
+  let row = contactMemory.get(ip);
+  if (!row || now > row.windowEnd) {
+    row = { count: 1, windowEnd: now + CONTACT_WINDOW_MS };
+    contactMemory.set(ip, row);
+    return { ok: true };
+  }
+  if (row.count >= max) {
+    return {
+      ok: false,
+      retryAfterSec: Math.max(1, Math.ceil((row.windowEnd - now) / 1000)),
+    };
+  }
+  row.count += 1;
+  return { ok: true };
+}
+
+/** Support contact form: per IP per hour (Upstash or in-memory fallback). */
+export async function assertContactAllowedByIp(
+  ip: string,
+): Promise<ContactRateResult> {
+  const rl = getContactIpRatelimit();
+  if (rl) {
+    const result = await rl.limit(ip);
+    void result.pending;
+    if (!result.success) {
+      return {
+        ok: false,
+        retryAfterSec: Math.max(
+          1,
+          Math.ceil((result.reset - Date.now()) / 1000),
+        ),
+      };
+    }
+    return { ok: true };
+  }
+  return rateLimitContactMemory(ip);
+}

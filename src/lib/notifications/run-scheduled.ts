@@ -16,6 +16,9 @@ export type ScheduledNotificationsSummary = {
   failed: number;
 };
 
+const USERS_PER_CRON_RUN = 100;
+const MAX_SCHOOLS_PER_USER = 50;
+
 export async function runScheduledSchoolNotifications(
   now = new Date(),
 ): Promise<ScheduledNotificationsSummary> {
@@ -49,8 +52,12 @@ export async function runScheduledSchoolNotifications(
           reminderNote: true,
           status: true,
         },
+        take: MAX_SCHOOLS_PER_USER,
+        orderBy: { deadline: "asc" },
       },
     },
+    take: USERS_PER_CRON_RUN,
+    orderBy: { id: "asc" },
   });
 
   for (const user of users) {
@@ -88,6 +95,12 @@ export async function runScheduledSchoolNotifications(
       else if (result.status === "failed") summary.failed += 1;
       else summary.skipped += 1;
     }
+  }
+
+  if (users.length >= USERS_PER_CRON_RUN) {
+    log.warn("notifications.cron.user_cap_reached", {
+      cap: USERS_PER_CRON_RUN,
+    });
   }
 
   log.info("notifications.scheduled_complete", summary);

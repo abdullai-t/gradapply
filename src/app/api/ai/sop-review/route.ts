@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { auth } from "@/auth";
+import { requireAuthedAiMutation } from "@/lib/ai-route-auth";
 import { applicantProfileForLlm } from "@/lib/features/applicant-profile";
 import { reviewSOP } from "@/lib/features/sopReview";
 import {
@@ -10,13 +10,12 @@ import {
 import { isWithinBudget } from "@/lib/llm/costGuard";
 import { prisma } from "@/lib/prisma";
 
-export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const runtime = "nodejs";
 
-  const userId = session.user.id;
+export async function POST(req: Request) {
+  const authed = await requireAuthedAiMutation(req);
+  if (authed instanceof Response) return authed;
+  const { userId } = authed;
 
   const withinBudget = await isWithinBudget();
   if (!withinBudget) {

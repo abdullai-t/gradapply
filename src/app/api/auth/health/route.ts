@@ -2,12 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getAuthSetupStatus } from "@/auth";
 import { appOrigin } from "@/lib/app-origin";
-import {
-  getMailTransportMode,
-  isMailConfigured,
-  mailFromAddress,
-  verifyMailTransport,
-} from "@/lib/mail";
+import { isFirebaseConfigured } from "@/lib/firebase/config";
 
 export const runtime = "nodejs";
 
@@ -26,37 +21,22 @@ export async function GET(req: Request) {
   const setup = getAuthSetupStatus();
   const configuredOrigin = appOrigin();
   const derivedOrigin = requestOrigin(req);
-  const url = new URL(req.url);
-  const runVerify = url.searchParams.get("verify") === "1";
-
-  const emailBase = {
-    configured: isMailConfigured(),
-    mode: getMailTransportMode(),
-    from: mailFromAddress(),
-    magicLinkProviderEnabled: setup.hasEmail,
-  };
-
-  const email =
-    runVerify && isMailConfigured()
-      ? { ...emailBase, ...(await verifyMailTransport()) }
-      : emailBase;
 
   return NextResponse.json(
     {
       ok: true,
       auth: {
-        hasSecret: setup.hasSecret,
+        hasFirebase: setup.hasFirebase,
         hasGoogle: setup.hasGoogle,
-        hasPasswordLogin: setup.hasPasswordLogin,
-        hasEmail: setup.hasEmail,
+        hasEmailMagicLink: setup.hasEmail,
       },
-      email,
       origin: {
         configured: configuredOrigin,
         derivedFromRequest: derivedOrigin || null,
       },
-      google: {
-        expectedRedirectUri: `${configuredOrigin}/api/auth/callback/google`,
+      firebase: {
+        configured: isFirebaseConfigured(),
+        emailLinkFinishUrl: `${configuredOrigin}/auth/email-link`,
       },
     },
     {

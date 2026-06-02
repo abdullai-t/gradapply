@@ -62,7 +62,7 @@ async function duckDuckGoResultUrls(query: string): Promise<string[]> {
     const decoded = decodeDuckDuckGoRedirect(m[1]);
     if (!decoded) continue;
     try {
-      assertHttpUrlFetchAllowed(new URL(decoded));
+      await assertHttpUrlFetchAllowed(new URL(decoded));
     } catch {
       continue;
     }

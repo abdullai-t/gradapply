@@ -13,16 +13,11 @@ export type OnboardingProfile = {
   onboardingCompletedAt: Date | string | null;
 };
 
-const MIN_RESEARCH_INTERESTS_CHARS = 20;
-
 export function profileMeetsOnboardingMinimum(
   profile: OnboardingProfile | null | undefined,
 ): boolean {
   if (!profile) return false;
   if (!profile.targetDegree?.trim()) return false;
-  if ((profile.researchInterests?.trim().length ?? 0) < MIN_RESEARCH_INTERESTS_CHARS) {
-    return false;
-  }
   if (!profile.countriesOfInterest?.length) return false;
   return true;
 }

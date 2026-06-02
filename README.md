@@ -1,6 +1,6 @@
 # GradApply
 
-Graduate school application companion: track schools, draft outreach and statements with AI, manage documents, and connect optional Google services (Gmail / Drive). Built with [Next.js](https://nextjs.org/) (App Router), [Prisma](https://www.prisma.io/), and [NextAuth](https://next-auth.js.org/).
+Graduate school application companion: track schools, draft outreach and statements with AI, manage documents, and connect optional Google services (Gmail / Drive). Built with [Next.js](https://nextjs.org/) (App Router), [Prisma](https://www.prisma.io/), and [Firebase Auth](https://firebase.google.com/docs/auth).
 
 ## Prerequisites
 
@@ -12,7 +12,7 @@ Graduate school application companion: track schools, draft outreach and stateme
 
 ```bash
 make setup          # install deps + copy .env.example → .env if missing
-# Edit .env: set DATABASE_URL and AUTH_SECRET (see Environment below)
+# Edit .env: set DATABASE_URL, Firebase keys, and AUTH_SECRET (see Environment below)
 
 make db-push        # apply schema to your database (local dev)
 make db-seed        # creates test user; prints credentials to the terminal
@@ -29,20 +29,12 @@ pnpm db:seed
 pnpm dev
 ```
 
-## Test login (seed user)
+## Sign-in
 
-After `**make db-seed**` or `**pnpm db:seed**`, sign in at `**/login**` with:
+- **Scholars:** Google or email magic link at `/login` (Firebase Authentication).
+- **Admins:** Email/password at `/login/admin` — create operator accounts in the Firebase Console (Authentication → Users) and set `ADMIN` / `SUPERADMIN` on the matching `User` row in Postgres (or use Firebase custom claims `role`).
 
-
-| Field    | Value                  |
-| -------- | ---------------------- |
-| Email    | `test@gradapply.local` |
-| Password | `password123`          |
-
-
-These values are defined in `[prisma/seed.ts](prisma/seed.ts)`. The seed script **upserts** this user and logs the same pair to your terminal when it runs.
-
-**Who should use this:** developers and testers only. Change or remove the seed for production deployments.
+The Prisma seed still creates a sample `User` row for local data testing; it does **not** create a Firebase account. Use Firebase Console or your own Google account for end-to-end auth locally.
 
 ## Environment variables
 
@@ -52,13 +44,15 @@ All keys and comments live in `**[.env.example](.env.example)`**. Copy it to `.e
 | Variable                    | Purpose                                                      |
 | --------------------------- | ------------------------------------------------------------ |
 | `DATABASE_URL`              | PostgreSQL connection string                                 |
-| `AUTH_SECRET`               | Session encryption — generate e.g. `openssl rand -base64 32` |
-| `AUTH_URL` / `NEXTAUTH_URL` | App URL (e.g. `http://localhost:3000`)                       |
+| `NEXT_PUBLIC_FIREBASE_*`    | Firebase web app config (see `.env.example`)                 |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` or `FIREBASE_*` | Server token verification |
+| `AUTH_SECRET`               | Encrypts admin app settings (not Firebase sessions)          |
+| `AUTH_URL` / `NEXTAUTH_URL` | Canonical app URL (magic links, CSRF checks)                 |
 
 
 Optional but needed for features:
 
-- **Google sign-in & connectors:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (see comments in `.env.example` for redirect URIs and APIs to enable).
+- **Google Docs / Gmail connectors:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (separate from Firebase Google sign-in; see `.env.example`).
 - **LLM (assistant, drafts, school infer):** at least one of `OPENROUTER_API_KEY` or `GROQ_API_KEY` (both recommended for automatic fallback).
 - **File uploads:** `CLOUDINARY_URL` or S3-style variables documented in `.env.example`.
 

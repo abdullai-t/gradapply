@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { format } from "date-fns";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Icon } from "@/components/icon";
 import type { DashboardUrgent } from "./compute";
@@ -15,10 +15,13 @@ type Props = {
 
 export function UrgentStrip({ urgent }: Props) {
   const dismissId = `${urgent.kind}:${urgent.schoolId}:${urgent.dateIso}`;
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return sessionStorage.getItem(DISMISS_KEY) === dismissId;
-  });
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem(DISMISS_KEY) === dismissId) {
+      setDismissed(true);
+    }
+  }, [dismissId]);
 
   const dismiss = useCallback(() => {
     sessionStorage.setItem(DISMISS_KEY, dismissId);

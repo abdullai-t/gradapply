@@ -35,9 +35,9 @@ async function main() {
     },
   });
 
-  console.log("\nSeed user (email + password):\n");
+  console.log("\nSeed DB user (for local data only — sign in via Firebase at /login):\n");
   console.log(`  Email:    ${TEST_EMAIL}`);
-  console.log(`  Password: ${TEST_PASSWORD}\n`);
+  console.log(`  (legacy password hash kept for migrations; auth is Firebase)\n`);
 }
 
 main()

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentType } from "react"
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession } from "@/hooks/use-auth";
 
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";

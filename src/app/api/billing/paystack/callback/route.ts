@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { processPaystackReference } from "@/lib/paystack-fulfillment";
-
-/** Paystack redirects here after payment (`reference` or `trxref`). */
+/** Paystack redirects here after payment — display-only; fulfillment is webhook-only. */
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const ref =
@@ -18,10 +16,5 @@ export async function GET(req: Request) {
     return NextResponse.redirect(`${base}/settings?billing=error`);
   }
 
-  const result = await processPaystackReference(ref);
-  if (!result.applied && !result.duplicate) {
-    return NextResponse.redirect(`${base}/settings?billing=error`);
-  }
-
-  return NextResponse.redirect(`${base}/settings?billing=success`);
+  return NextResponse.redirect(`${base}/settings?billing=pending&ref=${encodeURIComponent(ref)}`);
 }

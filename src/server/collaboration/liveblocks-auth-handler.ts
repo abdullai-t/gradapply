@@ -2,6 +2,7 @@ import { Liveblocks } from "@liveblocks/node";
 
 import { auth } from "@/auth";
 import { collabGuestTokenFromRequest } from "@/lib/collab-tokens";
+import { isTrustedMutationOrigin } from "@/lib/request-origin";
 import { requireCollaborationFeature } from "@/lib/collaboration-gates";
 import { getDb } from "@/lib/prisma";
 import { bad, forbidden } from "@/server/_responses";
@@ -15,6 +16,10 @@ function liveblocksClient(): Liveblocks | null {
 }
 
 export async function liveblocksAuth(req: Request): Promise<Response> {
+  if (!isTrustedMutationOrigin(req)) {
+    return forbidden("Untrusted origin");
+  }
+
   const gate = await requireCollaborationFeature();
   if (gate) return gate;
 

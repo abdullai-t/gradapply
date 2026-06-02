@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { CountryPicker } from "@/components/country-picker";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,9 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Icon } from "@/components/icon";
 import { useProfile, useUpdateProfile } from "@/features/profile/api";
-import { COUNTRY_OPTIONS } from "@/lib/country-options";
 import {
   DEGREE_OPTIONS,
   PROGRAM_OPTIONS,
@@ -45,7 +44,6 @@ export function OnboardingProfileStep({ onContinue }: Props) {
     countriesOfInterest: [],
     bio: "",
   });
-  const [countryDraft, setCountryDraft] = useState(SELECT_NONE);
   const [error, setError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
@@ -72,22 +70,6 @@ export function OnboardingProfileStep({ onContinue }: Props) {
     () => optionsWithFallback(PROGRAM_OPTIONS, form.focusArea),
     [form.focusArea],
   );
-  const selectedCountries = useMemo(
-    () => new Set(form.countriesOfInterest),
-    [form.countriesOfInterest],
-  );
-
-  const addCountry = () => {
-    if (countryDraft === SELECT_NONE) return;
-    if (selectedCountries.has(countryDraft)) return;
-    if (form.countriesOfInterest.length >= 5) return;
-    setForm((f) => ({
-      ...f,
-      countriesOfInterest: [...f.countriesOfInterest, countryDraft],
-    }));
-    setCountryDraft(SELECT_NONE);
-  };
-
   const submit = useCallback(async () => {
     setError(null);
     const draft = {
@@ -101,9 +83,7 @@ export function OnboardingProfileStep({ onContinue }: Props) {
         onboardingCompletedAt: null,
       })
     ) {
-      setError(
-        "Add your target degree, at least 20 characters of research interests, and one country.",
-      );
+      setError("Add your target degree and at least one country of interest.");
       return;
     }
     try {
@@ -190,65 +170,26 @@ export function OnboardingProfileStep({ onContinue }: Props) {
           </Field>
         </div>
 
-        <Field label="Research interests *">
+        <Field label="Research interests (optional)">
           <Textarea
             value={form.researchInterests}
             onChange={(e) =>
               setForm((f) => ({ ...f, researchInterests: e.target.value }))
             }
-            placeholder="What questions and methods drive your graduate school plans? (at least a few sentences)"
+            placeholder="What questions and methods drive your graduate school plans? (optional — improves recommendations)"
             rows={4}
           />
         </Field>
 
-        <div className="space-y-2">
-          <Label className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--outline)]">
-            Countries of interest * (up to 5)
-          </Label>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Select value={countryDraft} onValueChange={setCountryDraft}>
-              <SelectTrigger className="sm:flex-1">
-                <SelectValue placeholder="Select country" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[min(22rem,60vh)]">
-                <SelectItem value={SELECT_NONE}>Choose a country</SelectItem>
-                {COUNTRY_OPTIONS.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button type="button" variant="secondary" icon="add" onClick={addCountry}>
-              Add
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {form.countriesOfInterest.map((c) => (
-              <span
-                key={c}
-                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--secondary-container)]/40 bg-[var(--secondary-container)]/30 px-3 py-1 text-xs font-bold text-[var(--on-secondary-container)]"
-              >
-                {c}
-                <button
-                  type="button"
-                  aria-label={`Remove ${c}`}
-                  onClick={() =>
-                    setForm((f) => ({
-                      ...f,
-                      countriesOfInterest: f.countriesOfInterest.filter(
-                        (x) => x !== c,
-                      ),
-                    }))
-                  }
-                  className="grid h-4 w-4 place-items-center rounded-full hover:bg-black/10"
-                >
-                  <Icon name="close" size={12} />
-                </button>
-              </span>
-            ))}
-          </div>
-        </div>
+        <CountryPicker
+          label="Countries of interest * (up to 5)"
+          value={form.countriesOfInterest}
+          onChange={(countriesOfInterest) =>
+            setForm((f) => ({ ...f, countriesOfInterest }))
+          }
+          max={5}
+          hint="Click a country in the list to add it. We use these for reach / match / safety recommendations."
+        />
 
         <Field label="Short bio (optional)">
           <Textarea

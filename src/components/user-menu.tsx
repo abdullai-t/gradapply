@@ -1,6 +1,7 @@
 "use client";
 
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "@/hooks/use-auth";
+import { signOutClient } from "@/lib/auth-client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -60,7 +61,7 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
       >
         <DropdownMenuItem
           className="cursor-pointer rounded-lg px-2.5 py-2 text-sm font-bold focus:bg-[var(--error-container)] focus:text-[var(--on-error-container)]"
-          onClick={() => signOut({ callbackUrl: "/" })}
+          onClick={() => void signOutClient().then(() => window.location.assign("/"))}
         >
           <Icon name="logout" size={18} className="mr-2" />
           Sign out

@@ -1,30 +1,25 @@
-import { isMailConfigured } from "@/lib/mail";
+import { isFirebaseConfigured } from "@/lib/firebase/config";
+import { getSessionWithFreshRole, type AppSession } from "@/lib/firebase/server-session";
 
-export { auth, handlers } from "@/lib/auth-server";
+export type { AppSession, AppSessionUser } from "@/lib/firebase/server-session";
 
 /**
- * Login UI helpers. Provider wiring lives in `@/lib/auth-server` (Node only).
- * Middleware uses JWT via `getToken` — do not call `auth()` there.
+ * Server session from Firebase ID token cookie.
+ * Replaces NextAuth `auth()` — import from `@/auth` in server code.
  */
+export async function auth(): Promise<AppSession | null> {
+  return getSessionWithFreshRole();
+}
+
+/** Login UI / health checks. */
 export function getAuthSetupStatus() {
-  const hasGoogle = Boolean(
-    process.env.GOOGLE_CLIENT_ID?.trim() &&
-      process.env.GOOGLE_CLIENT_SECRET?.trim(),
-  );
-  const hasEmail = isMailConfigured();
-  const hasSecret = Boolean(
-    (process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? "").trim(),
-  );
-
-  const googleCount = hasGoogle ? 1 : 0;
-  const emailCount = hasEmail ? 1 : 0;
-  const passwordCount = hasSecret ? 1 : 0;
-
+  const hasFirebase = isFirebaseConfigured();
   return {
-    hasGoogle,
-    hasEmail,
-    hasSecret,
-    hasPasswordLogin: Boolean(hasSecret),
-    providerCount: googleCount + emailCount + passwordCount,
+    hasGoogle: hasFirebase,
+    hasEmail: hasFirebase,
+    hasFirebase,
+    providerCount: hasFirebase ? 2 : 0,
   };
 }
+
+export type LoginSetup = ReturnType<typeof getAuthSetupStatus>;

@@ -83,11 +83,6 @@ export const discover = withAuth(async (req, { userId }) => {
       url: page.url,
     });
 
-    await Promise.all([
-      finalizeAiConsumption(userId),
-      markProfEmailLlmSuccess(userId),
-    ]);
-
     const raw = result.reply.trim();
     const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
     const candidate = fenced ? fenced[1] : raw;
@@ -97,6 +92,11 @@ export const discover = withAuth(async (req, { userId }) => {
     } catch {
       parsed2 = { candidates: [] };
     }
+
+    await Promise.all([
+      finalizeAiConsumption(userId),
+      markProfEmailLlmSuccess(userId),
+    ]);
 
     return ok({
       ...parsed2,

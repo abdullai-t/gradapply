@@ -22,11 +22,6 @@ export default async function AuthContinuePage({
     );
   }
 
-  const { next } = await searchParams;
-  if (next && isSafeAuthRedirectPath(next)) {
-    redirect(next);
-  }
-
   if (isOnboardingExemptRole(session.user.role)) {
     await ensureAdminOnboardingSkipped(session.user.id);
     redirect("/admin");
@@ -35,6 +30,11 @@ export default async function AuthContinuePage({
   const { complete } = await getOnboardingStatusForUser(session.user.id);
   if (!complete) {
     redirect("/onboarding");
+  }
+
+  const { next } = await searchParams;
+  if (next && isSafeAuthRedirectPath(next)) {
+    redirect(next);
   }
 
   redirect("/dashboard");

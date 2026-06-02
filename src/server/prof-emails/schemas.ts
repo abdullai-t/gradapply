@@ -1,10 +1,26 @@
 import { EmailStatus } from "@prisma/client";
 import { z } from "zod";
 
+import { assertHttpUrlFetchAllowedSync } from "@/lib/profile-page-fetch";
 import { zPrismaRecordId } from "@/lib/prisma-record-id-zod";
 
+const safeHttpUrl = z.string().url().max(2000).superRefine((val, ctx) => {
+  try {
+    assertHttpUrlFetchAllowedSync(new URL(val));
+  } catch (e) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        e instanceof Error
+          ? e.message
+          : "That link can't be loaded from here.",
+      path: [],
+    });
+  }
+});
+
 const optionalHttpUrl = z
-  .union([z.string().url().max(2000), z.literal(""), z.null()])
+  .union([safeHttpUrl, z.literal(""), z.null()])
   .optional()
   .transform((v) => (v === "" || v == null ? null : v));
 
@@ -69,7 +85,7 @@ export const analyzeReplyBodySchema = z.object({
 
 export const fromUrlBodySchema = z
   .object({
-    profileUrl: z.string().url().max(2000),
+    profileUrl: safeHttpUrl,
     profName: z.string().min(1).max(200).optional(),
     university: z.string().min(1).max(200).optional(),
   })
@@ -90,7 +106,7 @@ export const sendViaGmailBodySchema = z.object({
 });
 
 export const discoverBodySchema = z.object({
-  profileUrl: z.string().url().max(2000),
+  profileUrl: safeHttpUrl,
   schoolIds: z.array(zPrismaRecordId).min(1).max(12),
 });
 

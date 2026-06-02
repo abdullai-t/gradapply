@@ -1,4 +1,5 @@
-import type { PlanTier } from "@prisma/client";
+import { Prisma, type PlanTier } from "@prisma/client";
+import { addMonths } from "date-fns";
 
 import { getPostHogClient } from "@/lib/posthog-server";
 import { resetPaidPlanPeriodAllowance } from "@/lib/billing-allowance";
@@ -15,6 +16,13 @@ import {
 } from "@/lib/notifications/send";
 import { prisma } from "@/lib/prisma";
 
+function isPaystackReferenceDuplicate(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
+}
+
 async function loadBillingRecipient(userId: string) {
   return prisma.user.findUnique({
     where: { id: userId },
@@ -29,6 +37,19 @@ async function loadBillingRecipient(userId: string) {
   });
 }
 
+/** Insert dedupe row first; only the winner proceeds to fulfillment. */
+async function claimPaystackReference(
+  reference: string,
+): Promise<"claimed" | "duplicate"> {
+  try {
+    await prisma.paystackEventLog.create({ data: { reference } });
+    return "claimed";
+  } catch (error) {
+    if (isPaystackReferenceDuplicate(error)) return "duplicate";
+    throw error;
+  }
+}
+
 /**
  * Fulfill a completed Paystack transaction once (callback + webhook share this).
  * Credits path uses transaction metadata; subscription path uses customer + plan code.
@@ -38,15 +59,14 @@ export async function processPaystackReference(reference: string): Promise<{
   applied: boolean;
   kind?: "credits" | "subscription";
 }> {
-  const dup = await prisma.paystackEventLog.findUnique({
-    where: { reference },
-  });
-  if (dup) return { duplicate: true, applied: false };
-
   const cfg = await getBillingAdminConfig();
   const tx = await paystackVerifyTransaction(reference, cfg.paystackSecretKey);
-  if (!tx?.status || tx.status !== "success")
+  if (!tx?.status || tx.status !== "success") {
     return { duplicate: false, applied: false };
+  }
+
+  const claim = await claimPaystackReference(reference);
+  if (claim === "duplicate") return { duplicate: true, applied: false };
 
   const meta = (tx.metadata ?? {}) as Record<string, unknown>;
   const userIdMeta =
@@ -74,7 +94,6 @@ export async function processPaystackReference(reference: string): Promise<{
         ? creditsFromMeta
         : cfg.creditsPackSize;
 
-    await prisma.paystackEventLog.create({ data: { reference } });
     await grantCreditsPackToUser(userIdMeta, creditsAdded);
     await prisma.billingPayment.create({
       data: {
@@ -107,15 +126,18 @@ export async function processPaystackReference(reference: string): Promise<{
         }),
       );
     }
-  const posthogCredits = getPostHogClient();
-  posthogCredits?.capture({ distinctId: userIdMeta, event: "payment_completed", properties: { kind: "credits_pack", credits_added: creditsAdded, reference } });
+    const posthogCredits = getPostHogClient();
+    posthogCredits?.capture({
+      distinctId: userIdMeta,
+      event: "payment_completed",
+      properties: { kind: "credits_pack", credits_added: creditsAdded, reference },
+    });
     return { duplicate: false, applied: true, kind: "credits" };
   }
 
   const isAddonService =
     checkoutKind === "cv_deep_review" || checkoutKind === "sop_detailed_critique";
   if (isAddonService && userIdMeta) {
-    await prisma.paystackEventLog.create({ data: { reference } });
     await prisma.billingPayment.create({
       data: {
         userId: userIdMeta,
@@ -145,13 +167,15 @@ export async function processPaystackReference(reference: string): Promise<{
   const isPlanPurchase = checkoutKind === "plan_purchase";
   if (isPlanPurchase && userIdMeta) {
     const tierFromMeta =
-      tierRaw === "plus" ? ("PLUS" as const) : tierRaw === "pro" ? ("PRO" as const) : null;
+      tierRaw === "plus"
+        ? ("PLUS" as const)
+        : tierRaw === "pro"
+          ? ("PRO" as const)
+          : null;
     if (!tierFromMeta) return { duplicate: false, applied: false };
     const now = tx.paidAt ? new Date(tx.paidAt) : new Date();
-    const periodEnd = new Date(now);
-    periodEnd.setMonth(periodEnd.getMonth() + 6);
+    const periodEnd = addMonths(now, 6);
 
-    await prisma.paystackEventLog.create({ data: { reference } });
     await prisma.user.update({
       where: { id: userIdMeta },
       data: {
@@ -192,8 +216,17 @@ export async function processPaystackReference(reference: string): Promise<{
         }),
       );
     }
-  const posthogPlan = getPostHogClient();
-  posthogPlan?.capture({ distinctId: userIdMeta, event: "payment_completed", properties: { kind: "plan_purchase", tier: tierFromMeta, renewal: meta.renewal === "1", reference } });
+    const posthogPlan = getPostHogClient();
+    posthogPlan?.capture({
+      distinctId: userIdMeta,
+      event: "payment_completed",
+      properties: {
+        kind: "plan_purchase",
+        tier: tierFromMeta,
+        renewal: meta.renewal === "1",
+        reference,
+      },
+    });
     return { duplicate: false, applied: true, kind: "subscription" };
   }
 
@@ -214,7 +247,6 @@ export async function processPaystackReference(reference: string): Promise<{
       where: { paystackCustomerId: String(cid) },
     });
     if (user) {
-      await prisma.paystackEventLog.create({ data: { reference } });
       await prisma.user.update({
         where: { id: user.id },
         data: {

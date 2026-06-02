@@ -1,31 +1,20 @@
-import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-function authSecret(): string {
-  return process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? "";
-}
+import { isFirebaseConfigured } from "@/lib/firebase/config";
+import { SESSION_COOKIE_NAME } from "@/lib/firebase/session-cookie";
 
-function isSecureRequest(req: NextRequest): boolean {
-  if (req.nextUrl.protocol === "https:") return true;
-  const forwarded = req.headers.get("x-forwarded-proto");
-  if (forwarded?.split(",")[0]?.trim() === "https") return true;
-  return process.env.NODE_ENV === "production";
-}
-
-/** Edge middleware — required for OpenNext on Cloudflare (Node proxy is unsupported). */
+/**
+ * Edge middleware — cookie presence only (no JWT verify; avoids node:crypto on edge).
+ * API routes and server layouts verify the Firebase ID token via Admin SDK / Node.
+ */
 export async function middleware(req: NextRequest) {
-  const secret = authSecret();
-  if (!secret) {
+  if (!isFirebaseConfigured()) {
     return NextResponse.next();
   }
 
-  const token = await getToken({
-    req,
-    secret,
-    secureCookie: isSecureRequest(req),
-  });
-  if (!token?.sub) {
+  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
+  if (!token?.trim()) {
     const loginPath = req.nextUrl.pathname.startsWith("/admin")
       ? "/login/admin"
       : "/login";
@@ -41,6 +30,7 @@ export const config = {
   matcher: [
     "/onboarding",
     "/onboarding/:path*",
+    "/dashboard",
     "/dashboard/:path*",
     "/schools/:path*",
     "/timeline/:path*",

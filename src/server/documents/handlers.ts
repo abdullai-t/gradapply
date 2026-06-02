@@ -135,17 +135,19 @@ export const list = withPlanGate("documents", async (req, { userId }) => {
     });
   }
 
-  // Legacy non-paginated response — preserved so existing callers (the v1
-  // /documents page bootstrap) keep working.
+  // Legacy list — capped so unbounded loads cannot exhaust memory.
+  const legacyTake = 100;
   const documents = supportsFolders
     ? await runtimeDocument.findMany({
         where: { userId, ...folderFilter },
         orderBy: { createdAt: "desc" },
+        take: legacyTake,
         include: { folder: { select: { id: true, name: true } } },
       })
     : await prisma.document.findMany({
         where: { userId, ...folderFilter },
         orderBy: { createdAt: "desc" },
+        take: legacyTake,
       });
 
   return ok(documents);

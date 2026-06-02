@@ -70,14 +70,19 @@ export async function getOnboardingStatusForUser(userId: string) {
 /** Use in server pages under (main) to send incomplete users to onboarding. */
 export async function requireOnboardingCompleteOrRedirect() {
   const session = await auth();
-  if (!session?.user?.id) return null;
+  const userId = session?.user?.id;
+  if (!userId) {
+    const { redirect } = await import("next/navigation");
+    redirect("/login?callbackUrl=/dashboard");
+    throw new Error("redirect");
+  }
 
   if (isOnboardingExemptRole(session.user.role)) {
-    await ensureAdminOnboardingSkipped(session.user.id);
+    await ensureAdminOnboardingSkipped(userId);
     return session;
   }
 
-  const { complete } = await getOnboardingStatusForUser(session.user.id);
+  const { complete } = await getOnboardingStatusForUser(userId);
   if (!complete) {
     const { redirect } = await import("next/navigation");
     redirect("/onboarding");

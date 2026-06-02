@@ -49,6 +49,7 @@ export const listSessions = withAuth(async (_req, { userId }) => {
       OR: [{ ownerId: userId }, { members: { some: { userId } } }],
     },
     orderBy: { updatedAt: "desc" },
+    take: 50,
     include: {
       owner: { select: { name: true } },
       artifacts: {
@@ -418,6 +419,7 @@ export const listComments = async (
   const comments = await getDb().collaborationComment.findMany({
     where: { sessionId: id },
     orderBy: { createdAt: "asc" },
+    take: 200,
     include: { author: { select: { id: true, name: true } } },
   });
 

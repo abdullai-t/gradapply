@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { useSession } from "@/hooks/use-auth";
 import posthog from "posthog-js";
 
 import { Icon } from "@/components/icon";
