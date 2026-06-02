@@ -1,5 +1,5 @@
 import { isFirebaseConfigured } from "@/lib/firebase/config";
-import { getSessionWithFreshRole, type AppSession } from "@/lib/firebase/server-session";
+import { getAppSession, type AppSession } from "@/lib/firebase/server-session";
 
 export type { AppSession, AppSessionUser } from "@/lib/firebase/server-session";
 
@@ -8,7 +8,7 @@ export type { AppSession, AppSessionUser } from "@/lib/firebase/server-session";
  * Replaces NextAuth `auth()` — import from `@/auth` in server code.
  */
 export async function auth(): Promise<AppSession | null> {
-  return getSessionWithFreshRole();
+  return getAppSession();
 }
 
 /** Login UI / health checks. */

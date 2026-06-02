@@ -14,7 +14,6 @@ import {
 import { useSchools } from "@/features/schools/api";
 import { messageFromApiErrorPayload } from "@/lib/api-error-json";
 
-import { ShareReviewDialog } from "@/features/collaboration/share-review-dialog";
 import { GoogleDocsLinkButton } from "@/features/google-docs/google-docs-link-button";
 
 import { useGenerateVariant, useSopVariant } from "./api";
@@ -49,7 +48,6 @@ export function SopStudio({ schoolId }: Props) {
   const [hydratedView, setHydratedView] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
   const docRewriteRef = useRef<((prompt: string) => Promise<void>) | null>(
     null,
   );
@@ -211,16 +209,6 @@ export function SopStudio({ schoolId }: Props) {
               entityId={variant.id}
               className="shrink-0"
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="shrink-0"
-              onClick={() => setShareOpen(true)}
-            >
-              <Icon name="groups" size={16} className="mr-1" />
-              Share for review
-            </Button>
           </>
         ) : null}
         <Link
@@ -231,16 +219,6 @@ export function SopStudio({ schoolId }: Props) {
           Exit studio
         </Link>
       </header>
-
-      {variant ? (
-        <ShareReviewDialog
-          open={shareOpen}
-          onOpenChange={setShareOpen}
-          artifactType="SOP_VARIANT"
-          entityId={variant.id}
-          titleHint={`SOP — ${school?.name ?? "School"}`}
-        />
-      ) : null}
 
       {error ? (
         <div className="glass-alert-error" role="alert">

@@ -15,15 +15,16 @@ async function checkDatabase(): Promise<void> {
 }
 
 export type HealthCheckResult =
-  | { ok: true; version: string }
-  | { ok: false; error: "database" };
+  | { ok: true; version: string; dbMs: number }
+  | { ok: false; error: "database"; dbMs?: number };
 
 /** Shared by `/api/health` and `/status` so probes and UI stay consistent. */
 export async function runHealthCheck(): Promise<HealthCheckResult> {
+  const started = Date.now();
   try {
     await checkDatabase();
-    return { ok: true, version: getAppVersion() };
+    return { ok: true, version: getAppVersion(), dbMs: Date.now() - started };
   } catch {
-    return { ok: false, error: "database" };
+    return { ok: false, error: "database", dbMs: Date.now() - started };
   }
 }

@@ -42,7 +42,6 @@ type AdminAnalytics = {
       sopVariants: number;
       chatMessages: number;
       documents: number;
-      collabSessions: number;
       googleDocLinks: number;
     };
     llmFeatures: Array<{ feature: string; calls: number; costUsd: number }>;
@@ -111,7 +110,6 @@ const FEATURE_LABELS: Record<string, string> = {
   sopVariants: "SOP variants",
   chatMessages: "Assistant messages",
   documents: "Documents",
-  collabSessions: "Collaboration sessions",
   googleDocLinks: "Google Doc links",
 };
 

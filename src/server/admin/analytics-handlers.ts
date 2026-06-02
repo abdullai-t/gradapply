@@ -92,7 +92,7 @@ async function countActiveUsersFromEntities(
     until != null ? { gte: since, lt: until } : { gte: since };
   const where = { createdAt };
 
-  const [llm, chat, school, profEmail, sop, collab] = await Promise.all([
+  const [llm, chat, school, profEmail, sop] = await Promise.all([
     db.llmCostLog.findMany({
       where,
       select: { userId: true },
@@ -118,13 +118,6 @@ async function countActiveUsersFromEntities(
       select: { userId: true },
       distinct: ["userId"],
     }),
-    hasPrismaModel(db, "collaborationSession", "findMany")
-      ? db.collaborationSession.findMany({
-          where,
-          select: { ownerId: true },
-          distinct: ["ownerId"],
-        })
-      : Promise.resolve([] as Array<{ ownerId: string }>),
   ]);
 
   const ids = new Set<string>();
@@ -133,7 +126,6 @@ async function countActiveUsersFromEntities(
   for (const row of school) ids.add(row.userId);
   for (const row of profEmail) ids.add(row.userId);
   for (const row of sop) ids.add(row.userId);
-  for (const row of collab) ids.add(row.ownerId);
   return ids.size;
 }
 
@@ -191,16 +183,6 @@ async function countGoogleDocLinks(
   }
 }
 
-async function countCollabSessions(
-  db: PrismaClient,
-  dateFilter: { createdAt: { gte: Date } },
-): Promise<number> {
-  if (!hasPrismaModel(db, "collaborationSession", "count")) {
-    return 0;
-  }
-  return db.collaborationSession.count({ where: dateFilter });
-}
-
 // -- /api/admin/analytics -------------------------------------------------
 
 export const analytics = withAdmin(async (req) => {
@@ -254,7 +236,6 @@ export const analytics = withAdmin(async (req) => {
     featureSopVariants,
     featureChatMessages,
     featureDocuments,
-    featureCollabSessions,
     featureGoogleDocLinks,
     llmByFeature,
     llmByModel,
@@ -309,7 +290,6 @@ export const analytics = withAdmin(async (req) => {
     db.sopVariant.count({ where: dateFilter }),
     db.chatMessage.count({ where: dateFilter }),
     db.document.count({ where: dateFilter }),
-    countCollabSessions(db, dateFilter),
     countGoogleDocLinks(db, dateFilter),
     db.llmCostLog.groupBy({
       by: ["feature"],
@@ -426,7 +406,6 @@ export const analytics = withAdmin(async (req) => {
         sopVariants: featureSopVariants,
         chatMessages: featureChatMessages,
         documents: featureDocuments,
-        collabSessions: featureCollabSessions,
         googleDocLinks: featureGoogleDocLinks,
       },
       llmFeatures: llmByFeature.map((row) => ({

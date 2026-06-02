@@ -3,7 +3,6 @@ import { z } from "zod";
 export const entityTypeSchema = z.enum([
   "SOP_VARIANT",
   "PROF_EMAIL",
-  "COLLABORATION_SESSION",
   "DOCUMENT_TEXT",
 ]);
 

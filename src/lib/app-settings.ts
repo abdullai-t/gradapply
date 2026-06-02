@@ -4,7 +4,6 @@ import {
   createHash,
   randomBytes,
 } from "node:crypto";
-
 import { prisma } from "@/lib/prisma";
 
 const SECRET_PREFIX = "enc:v1";
@@ -92,6 +91,35 @@ export function clearAppSettingCache(key?: string): void {
     return;
   }
   settingsCache.clear();
+}
+
+/** One query to warm the in-memory cache for many billing keys. */
+export async function prefetchAppSettings(keys: readonly string[]): Promise<void> {
+  const now = Date.now();
+  const missing = keys.filter((key) => {
+    const cached = settingsCache.get(key);
+    return !cached || cached.expiresAt <= now;
+  });
+  if (missing.length === 0) return;
+
+  const rows = await prisma.appSetting.findMany({
+    where: { key: { in: [...missing] } },
+  });
+  const found = new Set(rows.map((r) => r.key));
+  for (const row of rows) {
+    let plain: string;
+    try {
+      plain = row.isSecret ? decryptValue(row.value) : row.value;
+    } catch {
+      plain = "";
+    }
+    settingsCache.set(row.key, { value: plain, expiresAt: now + CACHE_TTL_MS });
+  }
+  for (const key of missing) {
+    if (!found.has(key)) {
+      settingsCache.set(key, { value: "", expiresAt: now + CACHE_TTL_MS });
+    }
+  }
 }
 
 export async function getAppSettingValue(

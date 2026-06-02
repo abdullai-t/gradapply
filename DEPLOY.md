@@ -91,8 +91,6 @@ Some UI is gated by DB-backed flags (for example key `user_settings_page` for `/
 
 - **`homepage_pricing_section`** — when enabled, the marketing homepage shows the **Pricing** section and footer/nav links to `#pricing`. Default is **off** until the flag exists and is enabled (or set env **`FEATURE_FLAG_HOMEPAGE_PRICING_SECTION=true`** for an emergency override without DB).
 - **`support_tab`** — when enabled, the in-app **Support** tab appears in desktop and mobile navigation. Default is **off** until the flag exists and is enabled (or set env **`FEATURE_FLAG_SUPPORT_TAB=true`**).
-- **`collaboration`** — when enabled, PLUS/PRO users can create **review sessions** (share SOP/email snapshots, guest comment links, optional Liveblocks live co-edit). Set **`FEATURE_FLAG_COLLABORATION=true`** or enable in admin. Optional: **`COLLAB_TOKEN_PEPPER`**, **`LIVEBLOCKS_SECRET_KEY`**, **`NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY`** (see `.env.example`).
-
 ### Observability for LLM traffic
 
 Production logs may include structured lines **`[llm][attempt]`**, **`[llm][oneshot]`**, and **`[chat][response-ai]`** for capacity and provider debugging. Ensure log retention and access policies match your compliance needs.
@@ -212,8 +210,24 @@ curl -sS -H "Authorization: Bearer $CRON_SECRET" \
 | --- | --- |
 | Build (Next + OpenNext + bundle prune) | `pnpm run cf:build` |
 | Deploy | `pnpm run cf:deploy` |
+| Stream live logs | `pnpm run cf:tail` (see [docs/CLOUDFLARE_LOGS.md](docs/CLOUDFLARE_LOGS.md)) |
 
 Requires **Node.js ≥ 22** for Wrangler (see `package.json` `engines`).
+
+**Log streaming:** [`wrangler.jsonc`](wrangler.jsonc) sends logs/traces to Grafana destinations `grafana-logs` and `grafana-traces` after you create those destinations in **Workers & Pages → Observability → Destinations**. For a live terminal stream, use `pnpm run cf:tail`.
+
+**Postgres on Workers (required — production page speed):** Do **not** point the Worker directly at a remote Postgres URL over the public internet. Every navigation otherwise pays for a new TCP connection (slow TTFB). Use **[Hyperdrive](https://developers.cloudflare.com/hyperdrive/)**:
+
+1. Dashboard → **Hyperdrive** → **Create** → connect your Neon/Postgres `DATABASE_URL`.
+2. Add the binding to [`wrangler.jsonc`](wrangler.jsonc) (or set **`HYPERDRIVE_CONFIG_ID`** and let `cf:deploy` inject it via [`scripts/prepare-wrangler-hyperdrive.mjs`](scripts/prepare-wrangler-hyperdrive.mjs)).
+3. Ensure **`DATABASE_URL`** is in `.env` (same database Hyperdrive points at). Wrangler 4 uses it as the local Hyperdrive stand-in when you run `cf:build` / `cf:deploy` via [`scripts/run-with-cf-env.mjs`](scripts/run-with-cf-env.mjs).
+4. Redeploy: `pnpm run cf:deploy`.
+
+The app reads `env.HYPERDRIVE.connectionString` automatically ([`src/lib/prisma.ts`](src/lib/prisma.ts)) in production. Keep `DATABASE_URL` for migrations (`pnpm exec prisma migrate deploy`).
+
+**Verify after deploy:** `curl -s https://mygradapply.com/api/health` — JSON includes `dbMs` (target well under ~400ms with Hyperdrive). Compare before/after.
+
+Optional tuning: `PG_CONNECT_TIMEOUT_MS=10000` (Worker secret) if connections are slow.
 
 **Worker script size (error 10027):** uploaded Worker code must stay under **10 MiB** ([docs](https://developers.cloudflare.com/workers/observability/errors/#errors-on-worker-upload)). Large dependencies are excluded or stubbed when `CF_BUILD=1`. `scripts/prune-cf-worker-bundle.mjs` removes unused Prisma native binaries after the OpenNext bundle step.
 

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 
 import type { UserRole } from "@prisma/client";
@@ -25,14 +26,32 @@ export async function getSessionTokenFromCookies(): Promise<string | null> {
   return jar.get(SESSION_COOKIE_NAME)?.value ?? null;
 }
 
-export async function getAppSession(): Promise<AppSession | null> {
+/** One JWT verify + one DB read per RSC/request (deduped via React cache). */
+export const getAppSession = cache(async (): Promise<AppSession | null> => {
   const token = await getSessionTokenFromCookies();
   if (!token) return null;
 
   const decoded = await verifyFirebaseSessionCookieEdge(token);
   if (!decoded?.sub) return null;
 
-  const user = await ensureAppUserFromFirebaseToken(decoded);
+  let user = await prisma.user.findUnique({
+    where: { id: decoded.sub },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      image: true,
+      role: true,
+    },
+  });
+
+  if (!user) {
+    try {
+      user = await ensureAppUserFromFirebaseToken(decoded);
+    } catch {
+      return null;
+    }
+  }
 
   return {
     user: {
@@ -43,26 +62,7 @@ export async function getAppSession(): Promise<AppSession | null> {
       role: user.role,
     },
   };
-}
+});
 
-/** Resolve role from DB (source of truth after sync). */
-export async function getSessionWithFreshRole(): Promise<AppSession | null> {
-  const session = await getAppSession();
-  if (!session) return null;
-
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { role: true, email: true, name: true, image: true },
-  });
-  if (!dbUser) return null;
-
-  return {
-    user: {
-      ...session.user,
-      role: dbUser.role,
-      email: dbUser.email,
-      name: dbUser.name,
-      image: dbUser.image,
-    },
-  };
-}
+/** @deprecated Use getAppSession — kept for imports; same cached implementation. */
+export const getSessionWithFreshRole = getAppSession;

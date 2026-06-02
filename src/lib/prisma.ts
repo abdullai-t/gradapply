@@ -11,12 +11,52 @@ function resolveDatabaseUrl(): string {
   return url;
 }
 
-function createPrismaClient() {
-  const pool = new Pool({
-    connectionString: resolveDatabaseUrl(),
+/** Cloudflare Hyperdrive binding (see wrangler.jsonc + DEPLOY.md). */
+function resolveHyperdriveConnectionString(): string | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getCloudflareContext } =
+      require("@opennextjs/cloudflare") as typeof import("@opennextjs/cloudflare");
+    const ctx = getCloudflareContext();
+    const hyperdrive = (
+      ctx.env as { HYPERDRIVE?: { connectionString?: string } }
+    ).HYPERDRIVE;
+    const cs = hyperdrive?.connectionString?.trim();
+    return cs || null;
+  } catch {
+    return null;
+  }
+}
+
+function isCloudflareWorkersRuntime(): boolean {
+  if (process.env.CF_WORKERS === "1") return true;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getCloudflareContext } =
+      require("@opennextjs/cloudflare") as typeof import("@opennextjs/cloudflare");
+    getCloudflareContext();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveConnectionString(): string {
+  return resolveHyperdriveConnectionString() ?? resolveDatabaseUrl();
+}
+
+function createPool(): Pool {
+  return new Pool({
+    connectionString: resolveConnectionString(),
     maxUses: 1,
+    max: Number(process.env.PG_POOL_MAX ?? 5),
+    connectionTimeoutMillis: Number(process.env.PG_CONNECT_TIMEOUT_MS ?? 10_000),
+    idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS ?? 20_000),
   });
-  const adapter = new PrismaPg(pool);
+}
+
+function createPrismaClient() {
+  const adapter = new PrismaPg(createPool());
   return new PrismaClient({ adapter });
 }
 
@@ -45,15 +85,15 @@ function hasModelDelegate(
   return typeof delegate?.[method] === "function";
 }
 
-/** True when `prisma generate` included collaboration models. */
-export function isPrismaCollaborationReady(client: PrismaClient): boolean {
-  return hasModelDelegate(client, "collaborationSession", "create");
+/** True when `prisma generate` included Google Docs link models. */
+export function isPrismaGoogleDocsReady(client: PrismaClient): boolean {
+  return hasModelDelegate(client, "googleDocLink", "create");
 }
 
 /** True when analytics models (`UserActivityDay`, `GoogleDocLink`) are on the client. */
 export function isPrismaAnalyticsReady(client: PrismaClient): boolean {
   return (
-    isPrismaCollaborationReady(client) &&
+    isPrismaGoogleDocsReady(client) &&
     hasModelDelegate(client, "userActivityDay", "count") &&
     hasModelDelegate(client, "googleDocLink", "count")
   );
@@ -71,6 +111,12 @@ const PRISMA_REFRESH_HINT =
   "Prisma Client is out of date. Run:\n  pnpm exec prisma generate\n  pnpm exec prisma migrate deploy\nThen restart the dev server (pnpm dev).";
 
 function resolveFreshDb(check: (client: PrismaClient) => boolean): PrismaClient {
+  if (isCloudflareWorkersRuntime()) {
+    const cached = getPrismaCached();
+    if (!check(cached)) throw new Error(PRISMA_REFRESH_HINT);
+    return cached;
+  }
+
   const globalClient = globalForPrisma.gradapplyPrisma;
   if (globalClient && check(globalClient)) {
     return globalClient;
@@ -91,26 +137,29 @@ function resolveFreshDb(check: (client: PrismaClient) => boolean): PrismaClient 
 }
 
 /**
- * Prisma client for collaboration APIs. Validates delegates at runtime so a stale
+ * Prisma client for Google Docs sync APIs. Validates delegates at runtime so a stale
  * cached client fails with an actionable message instead of `.create` on undefined.
  */
 export function getDb(): PrismaClient {
-  return resolveFreshDb(isPrismaCollaborationReady);
+  return resolveFreshDb(isPrismaGoogleDocsReady);
 }
 
 /**
- * Prisma client for admin analytics (collaboration + UserActivityDay + GoogleDocLink).
+ * Prisma client for admin analytics (UserActivityDay + GoogleDocLink).
  */
 export function getAnalyticsDb(): PrismaClient {
   try {
     return resolveFreshDb(isPrismaAnalyticsReady);
   } catch {
-    // Allow analytics to degrade when only newer models are missing on a warm client.
-    return resolveFreshDb(isPrismaCollaborationReady);
+    return resolveFreshDb(isPrismaGoogleDocsReady);
   }
 }
 
 function resolvePrismaClient(): PrismaClient {
+  if (isCloudflareWorkersRuntime()) {
+    return getPrismaCached();
+  }
+
   const globalClient = globalForPrisma.gradapplyPrisma;
   if (globalClient) return globalClient;
   const cached = getPrismaCached();
@@ -120,7 +169,7 @@ function resolvePrismaClient(): PrismaClient {
 
 /**
  * Back-compat export for existing call sites. Routes each property access through
- * a request-scoped client so Workers never reuse pooled DB connections.
+ * a request-scoped client so Workers never reuse pooled DB connections across requests.
  */
 export const prisma = new Proxy({} as PrismaClient, {
   get(_target, prop) {

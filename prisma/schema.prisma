@@ -49,23 +49,6 @@ enum NotificationType {
   COLLAB_INVITE
 }
 
-enum CollaborationSessionStatus {
-  OPEN
-  CLOSED
-}
-
-enum CollaborationMemberRole {
-  OWNER
-  COMMENTER
-  EDITOR
-}
-
-enum CollaborationArtifactType {
-  SOP_VARIANT
-  PROF_EMAIL
-  CUSTOM_TEXT
-}
-
 /// Dedupe Paystack fulfillment (callback + webhook) per transaction reference.
 model PaystackEventLog {
   reference String   @id
@@ -142,9 +125,6 @@ model User {
   llmCostLogs         LlmCostLog[]
   notificationLogs    NotificationLog[]
 
-  ownedCollaborationSessions CollaborationSession[] @relation("CollaborationOwner")
-  collaborationMemberships CollaborationMember[]
-  collaborationComments    CollaborationComment[] @relation("CollaborationCommentAuthor")
   googleDocLinks           GoogleDocLink[]
   activityDays             UserActivityDay[]
 }
@@ -162,7 +142,6 @@ model UserActivityDay {
 enum GoogleDocLinkEntityType {
   SOP_VARIANT
   PROF_EMAIL
-  COLLABORATION_SESSION
   DOCUMENT_TEXT
 }
 
@@ -459,7 +438,6 @@ model School {
   updatedAt    DateTime       @updatedAt
   sopVariant   SopVariant?
   chatMessages ChatMessage[]
-  collaborationSessions CollaborationSession[]
 
   @@unique([userId, name, program])
   @@index([userId, updatedAt])
@@ -606,84 +584,4 @@ model SopVariant {
   updatedAt      DateTime @updatedAt
 
   @@index([userId])
-}
-
-/// Async or live review session between scholars (not Auth.js Session).
-model CollaborationSession {
-  id          String                     @id @default(cuid())
-  ownerId     String
-  owner       User                       @relation("CollaborationOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  title       String
-  status      CollaborationSessionStatus @default(OPEN)
-  /// Optional context label only — guests never receive full school rows.
-  schoolId    String?
-  school      School?                    @relation(fields: [schoolId], references: [id], onDelete: SetNull)
-  liveEnabled Boolean                    @default(false)
-  liveRoomId  String?
-  artifacts   CollaborationArtifact[]
-  members     CollaborationMember[]
-  invites     CollaborationGuestInvite[]
-  comments    CollaborationComment[]
-  createdAt   DateTime                   @default(now())
-  updatedAt   DateTime                   @updatedAt
-
-  @@index([ownerId, updatedAt])
-  @@index([status, updatedAt])
-}
-
-model CollaborationArtifact {
-  id             String                    @id @default(cuid())
-  sessionId      String
-  session        CollaborationSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  type           CollaborationArtifactType
-  sourceEntityId String?
-  /// Frozen draft: { body, title?, emailSubject?, profName? }
-  snapshot       Json
-  version        Int                       @default(1)
-  createdAt      DateTime                  @default(now())
-
-  @@index([sessionId, version])
-}
-
-model CollaborationMember {
-  id        String                  @id @default(cuid())
-  sessionId String
-  session   CollaborationSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role      CollaborationMemberRole
-  invitedAt DateTime                @default(now())
-  joinedAt  DateTime?
-
-  @@unique([sessionId, userId])
-  @@index([userId, sessionId])
-}
-
-model CollaborationGuestInvite {
-  id        String               @id @default(cuid())
-  sessionId String
-  session   CollaborationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  tokenHash String               @unique
-  label     String?
-  expiresAt DateTime?
-  revokedAt DateTime?
-  createdAt DateTime             @default(now())
-
-  @@index([sessionId, revokedAt])
-}
-
-model CollaborationComment {
-  id           String                @id @default(cuid())
-  sessionId    String
-  session      CollaborationSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  authorUserId String?
-  author       User?                 @relation("CollaborationCommentAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
-  guestLabel   String?
-  body         String                @db.Text
-  parentId     String?
-  parent       CollaborationComment? @relation("CollaborationCommentThread", fields: [parentId], references: [id], onDelete: SetNull)
-  replies      CollaborationComment[] @relation("CollaborationCommentThread")
-  createdAt    DateTime              @default(now())
-
-  @@index([sessionId, createdAt])
 }

@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { auth, type AppSession } from "@/auth";
 import { isOnboardingComplete, isOnboardingExemptRole } from "@/lib/onboarding";
 import { prisma } from "@/lib/prisma";
 
@@ -68,7 +68,7 @@ export async function getOnboardingStatusForUser(userId: string) {
 }
 
 /** Use in server pages under (main) to send incomplete users to onboarding. */
-export async function requireOnboardingCompleteOrRedirect() {
+export async function requireOnboardingCompleteOrRedirect(): Promise<AppSession> {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) {
@@ -82,10 +82,21 @@ export async function requireOnboardingCompleteOrRedirect() {
     return session;
   }
 
-  const { complete } = await getOnboardingStatusForUser(userId);
-  if (!complete) {
-    const { redirect } = await import("next/navigation");
-    redirect("/onboarding");
+  const profile = await prisma.profile.findUnique({
+    where: { userId },
+    select: {
+      onboardingCompletedAt: true,
+      targetDegree: true,
+      researchInterests: true,
+      countriesOfInterest: true,
+    },
+  });
+
+  if (profile?.onboardingCompletedAt || isOnboardingComplete(profile)) {
+    return session;
   }
-  return session;
+
+  const { redirect } = await import("next/navigation");
+  redirect("/onboarding");
+  throw new Error("redirect");
 }

@@ -15,5 +15,6 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     version: result.version,
+    dbMs: result.dbMs,
   });
 }

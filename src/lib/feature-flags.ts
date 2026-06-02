@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
 
 export type KnownFeatureFlagKey =
-  | "collaboration"
   | "homepage_pricing_section"
   | "support_tab";
 
@@ -24,7 +23,7 @@ export async function isFeatureFlagEnabled(
     select: { enabled: true },
   });
   if (!row) {
-    return key === "collaboration" && process.env.NODE_ENV === "development";
+    return false;
   }
   return row.enabled;
 }

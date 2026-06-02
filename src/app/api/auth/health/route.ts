@@ -3,24 +3,14 @@ import { NextResponse } from "next/server";
 import { getAuthSetupStatus } from "@/auth";
 import { appOrigin } from "@/lib/app-origin";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
+import { requestPublicOrigin } from "@/lib/request-origin";
 
 export const runtime = "nodejs";
-
-function requestOrigin(req: Request): string {
-  const forwardedProto =
-    req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || "https";
-  const forwardedHost =
-    req.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ||
-    req.headers.get("host")?.trim() ||
-    "";
-  if (!forwardedHost) return "";
-  return `${forwardedProto}://${forwardedHost}`;
-}
 
 export async function GET(req: Request) {
   const setup = getAuthSetupStatus();
   const configuredOrigin = appOrigin();
-  const derivedOrigin = requestOrigin(req);
+  const derivedOrigin = requestPublicOrigin(req);
 
   return NextResponse.json(
     {

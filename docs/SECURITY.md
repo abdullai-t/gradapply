@@ -24,18 +24,13 @@ Operational checklist for GradApply. Items marked **done** are enforced in code;
 | AI billing fail-closed in production | done | Missing Paystack config blocks AI in `NODE_ENV=production` |
 | Atomic AI debit | done | Conditional `updateMany` in `finalizeAiConsumptionForAction`; throws on 0 rows |
 
-## Collaboration & guest links
+## Google Docs sync
 
 | Item | Status | Notes |
 |------|--------|--------|
-| Guest tokens hashed (pepper) | done | `COLLAB_TOKEN_PEPPER` or `AUTH_SECRET`; production rejects dev-only pepper |
-| Default guest link TTL | done | 14 days if `expiresInDays` omitted |
-| Guest cookie `Secure` in prod | done | `collab_guest` HttpOnly, SameSite=Lax |
-| Cookie max-age tied to invite expiry | done | Capped at 30 days |
-| Server-side HTML sanitization (artifacts) | done | `sanitizeArtifactBody` on snapshot create/refresh |
-| Client snapshot render | done | DOMPurify via shared `sanitizeRichHtml` |
-| Guest comment rate limit | done | `assertGuestCommentAllowed` |
-| Revoke guest links | done | Owner revokes via API |
+| Entity-scoped links (SOP, prof email) | done | `GoogleDocLink` unique per `(entityType, entityId)` |
+| OAuth via user Google Drive connector | done | Requires connected Drive; no cross-user file access |
+| Server-side HTML sanitization on import | done | `sanitizeRichHtml` when applying doc content to entities |
 
 ## Data & AI
 
@@ -63,6 +58,5 @@ See `.env.example` and `DEPLOY.md` for:
 
 - `ALLOW_SUPERADMIN_BOOTSTRAP`
 - `FIREBASE_*` / `NEXT_PUBLIC_FIREBASE_*`
-- `COLLAB_TOKEN_PEPPER`
 - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`
 - `PAYSTACK_SECRET_KEY` / `PAYSTACK_WEBHOOK_SECRET`

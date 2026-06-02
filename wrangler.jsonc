@@ -19,6 +19,15 @@
     "compatibility_flags": [
         "nodejs_compat"
     ],
+    "vars": {
+        "CF_WORKERS": "1"
+    },
+    "hyperdrive": [
+        {
+            "binding": "HYPERDRIVE",
+            "id": "5956745febb74a23b28169b36595d55c"
+        }
+    ],
     "assets": {
         "directory": ".open-next/assets"
     },

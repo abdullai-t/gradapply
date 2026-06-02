@@ -12,6 +12,10 @@ export function useAuth() {
   return ctx;
 }
 
+export function useHydrateServerSession() {
+  return useAuth().hydrateServerSession;
+}
+
 /** Drop-in shape for components that used `useSession` from next-auth. */
 export function useSession() {
   const { session, status } = useAuth();

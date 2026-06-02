@@ -7,7 +7,7 @@ import { Icon } from "@/components/icon";
 import { useCreateGoogleDocLink, useGoogleDocLink } from "./api";
 
 type Props = {
-  entityType: "SOP_VARIANT" | "PROF_EMAIL" | "COLLABORATION_SESSION";
+  entityType: "SOP_VARIANT" | "PROF_EMAIL";
   entityId: string;
   className?: string;
 };

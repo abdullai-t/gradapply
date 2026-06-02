@@ -12,11 +12,35 @@ function originFromUrl(url: string): string | null {
   }
 }
 
+/** Public origin for this HTTP request (Workers / reverse proxies). */
+export function requestPublicOrigin(req: Request): string | null {
+  const forwardedProto =
+    req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || "https";
+  const forwardedHost =
+    req.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ||
+    req.headers.get("host")?.trim() ||
+    "";
+  if (!forwardedHost) return null;
+  return `${forwardedProto}://${forwardedHost}`;
+}
+
+function collectTrustedOrigins(req: Request): Set<string> {
+  const trustedOrigins = new Set<string>();
+  for (const candidate of [
+    appOrigin(),
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, ""),
+    requestPublicOrigin(req),
+  ]) {
+    if (!candidate) continue;
+    const o = originFromUrl(candidate);
+    if (o) trustedOrigins.add(o);
+  }
+  return trustedOrigins;
+}
+
 /** Require same-origin browser mutation for sensitive routes. */
 export function isTrustedMutationOrigin(req: Request): boolean {
-  const trustedOrigins = new Set<string>();
-  const configured = originFromUrl(appOrigin());
-  if (configured) trustedOrigins.add(configured);
+  const trustedOrigins = collectTrustedOrigins(req);
 
   const origin = req.headers.get("origin");
   if (origin) {

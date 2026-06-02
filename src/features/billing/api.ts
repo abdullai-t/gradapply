@@ -6,6 +6,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
+import { useShellOptional } from "@/components/providers/shell-provider";
+
 export const billingKeys = {
   all: ["billing"] as const,
   status: () => ["billing", "status"] as const,
@@ -56,12 +58,18 @@ async function jsonOrThrow<T>(res: Response): Promise<T> {
 }
 
 export function useBillingStatus() {
+  const shell = useShellOptional();
+  const initialData = shell?.billingStatus ?? undefined;
+
   return useQuery({
     queryKey: billingKeys.status(),
     queryFn: async () =>
       jsonOrThrow<BillingStatus>(await fetch("/api/billing/status")),
+    initialData,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
+    // Server snapshot is fresh for this navigation; refetch in background after staleTime.
+    refetchOnMount: initialData ? false : true,
   });
 }
 

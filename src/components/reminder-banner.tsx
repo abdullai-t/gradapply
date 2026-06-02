@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 
@@ -16,11 +17,24 @@ type ReminderSchool = {
 };
 
 export function ReminderBanner() {
+  const pathname = usePathname();
   const [items, setItems] = useState<ReminderSchool[]>([]);
   const [dismissed, setDismissed] = useState(false);
 
+  const shouldLoad =
+    pathname === "/dashboard" ||
+    pathname === "/timeline" ||
+    pathname.startsWith("/dashboard/") ||
+    pathname.startsWith("/timeline/");
+
   useEffect(() => {
+    if (!shouldLoad) {
+      setItems([]);
+      return;
+    }
+
     let active = true;
+
     const load = async () => {
       const res = await fetch("/api/reminders");
       if (!res.ok || !active) return;
@@ -28,11 +42,25 @@ export function ReminderBanner() {
       if (!active) return;
       setItems(data);
     };
-    void load();
+
+    const run = () => {
+      void load();
+    };
+
+    if (typeof requestIdleCallback === "function") {
+      const id = requestIdleCallback(run, { timeout: 2500 });
+      return () => {
+        active = false;
+        cancelIdleCallback(id);
+      };
+    }
+
+    const id = window.setTimeout(run, 0);
     return () => {
       active = false;
+      clearTimeout(id);
     };
-  }, []);
+  }, [shouldLoad]);
 
   const banner = useMemo(() => {
     const reminders = items

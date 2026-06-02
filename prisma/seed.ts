@@ -23,18 +23,6 @@ async function main() {
     },
   });
 
-  await prisma.featureFlag.upsert({
-    where: { key: "collaboration" },
-    update: { enabled: true },
-    create: {
-      key: "collaboration",
-      name: "Scholar collaboration",
-      description:
-        "Async review sessions and live co-editing between GradApply scholars.",
-      enabled: true,
-    },
-  });
-
   console.log("\nSeed DB user (for local data only — sign in via Firebase at /login):\n");
   console.log(`  Email:    ${TEST_EMAIL}`);
   console.log(`  (legacy password hash kept for migrations; auth is Firebase)\n`);

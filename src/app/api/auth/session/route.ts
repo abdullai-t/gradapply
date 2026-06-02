@@ -1,15 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { getCurrentUserRole } from "@/lib/admin-auth";
-import { getFirebaseAdminAuth } from "@/lib/firebase/admin";
-import { log } from "@/lib/logger";
 import {
-  FIREBASE_SESSION_COOKIE_EXPIRES_MS,
   SESSION_COOKIE_NAME,
   sessionCookieOptions,
 } from "@/lib/firebase/session-cookie";
-import { ensureAppUserFromFirebaseToken } from "@/lib/firebase/user-sync";
-import { verifyFirebaseIdTokenNode } from "@/lib/firebase/verify-token-node";
+import { verifyFirebaseIdTokenEdge } from "@/lib/firebase/verify-token-edge";
 import {
   assertSessionPostAllowedByIp,
   getClientIpFromRequest,
@@ -26,46 +21,21 @@ function isSecureRequest(req: Request): boolean {
   return forwarded?.split(",")[0]?.trim() === "https";
 }
 
-async function establishSession(req: Request, idToken: string) {
-  const decoded = await verifyFirebaseIdTokenNode(idToken);
+/**
+ * Stores a verified Firebase ID token in an HttpOnly cookie.
+ * App user rows are provisioned in GET /api/auth/me — not here — so sign-in
+ * does not depend on Postgres during the cookie step.
+ */
+async function establishFirebaseSessionCookie(req: Request, idToken: string) {
+  const decoded = await verifyFirebaseIdTokenEdge(idToken);
   if (!decoded?.sub) {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
 
-  const isAdminLogin =
-    new URL(req.url).searchParams.get("admin") === "1" ||
-    req.headers.get("x-gradapply-admin-login") === "1";
-
-  const appUser = await ensureAppUserFromFirebaseToken(decoded, {
-    syncProfile: true,
-  });
-
-  if (isAdminLogin) {
-    const role = await getCurrentUserRole(appUser.id);
-    if (role !== "ADMIN" && role !== "SUPERADMIN") {
-      return forbidden("Admin access required");
-    }
-  }
-
-  const adminAuth = getFirebaseAdminAuth();
-  let cookieValue = idToken;
-  if (adminAuth) {
-    try {
-      cookieValue = await adminAuth.createSessionCookie(idToken, {
-        expiresIn: FIREBASE_SESSION_COOKIE_EXPIRES_MS,
-      });
-    } catch (error) {
-      log.warn("[auth/session] createSessionCookie failed; using ID token cookie", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      cookieValue = idToken;
-    }
-  }
-
-  const res = NextResponse.json({ ok: true });
+  const res = NextResponse.json({ ok: true, uid: decoded.sub });
   res.cookies.set(
     SESSION_COOKIE_NAME,
-    cookieValue,
+    idToken,
     sessionCookieOptions(isSecureRequest(req)),
   );
   return res;
@@ -95,7 +65,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing idToken" }, { status: 400 });
   }
 
-  return establishSession(req, idToken);
+  return establishFirebaseSessionCookie(req, idToken);
 }
 
 export async function DELETE(req: Request) {

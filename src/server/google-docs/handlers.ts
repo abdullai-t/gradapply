@@ -104,7 +104,7 @@ export const createLink = withAuth(async (req, { userId }) => {
     if (message === "not_found") return notFound();
     if (message === "document_not_text" || message === "document_requires_extract") {
       return bad(
-        "Google Docs sync is only available for text drafts (SOP, emails, collaboration sessions).",
+        "Google Docs sync is only available for SOP variants and professor emails.",
       );
     }
     return bad(message);

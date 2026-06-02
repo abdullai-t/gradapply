@@ -1,6 +1,6 @@
 import sanitizeHtmlLib from "sanitize-html";
 
-/** Tags allowed in SOP/email/collaboration artifact HTML. */
+/** Tags allowed in SOP/email HTML. */
 const ALLOWED_TAGS = [
   "p",
   "br",

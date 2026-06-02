@@ -1,6 +1,11 @@
+import { unstable_cache } from "next/cache";
 import { PlanTier } from "@prisma/client";
 
-import { BILLING_SETTING_KEYS, getAppSettingValue } from "@/lib/app-settings";
+import {
+  BILLING_SETTING_KEYS,
+  getAppSettingValue,
+  prefetchAppSettings,
+} from "@/lib/app-settings";
 
 function parseNum(raw: string | undefined, fallback: number): number {
   if (!raw) return fallback;
@@ -30,7 +35,11 @@ export type BillingAdminConfig = {
   creditsPackSize: number;
 };
 
-export async function getBillingAdminConfig(): Promise<BillingAdminConfig> {
+const BILLING_CONFIG_CACHE_SECONDS = 120;
+
+async function loadBillingAdminConfig(): Promise<BillingAdminConfig> {
+  await prefetchAppSettings(Object.values(BILLING_SETTING_KEYS));
+
   const [
     paystackSecretKey,
     paystackCurrency,
@@ -160,3 +169,10 @@ export async function getBillingAdminConfig(): Promise<BillingAdminConfig> {
     creditsPackSize: parseNum(creditsPackSize, 50),
   };
 }
+
+/** Cached across requests (critical on Cloudflare Workers — avoids 16+ DB reads per /api/billing/status). */
+export const getBillingAdminConfig = unstable_cache(
+  loadBillingAdminConfig,
+  ["billing-admin-config"],
+  { revalidate: BILLING_CONFIG_CACHE_SECONDS, tags: ["billing-admin-config"] },
+);

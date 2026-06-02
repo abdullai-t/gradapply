@@ -58,12 +58,26 @@ async function linkLegacyUserByEmail(
   });
 }
 
+const DEFAULT_FREE_SIGNUP_CREDITS = 10;
+
+async function resolveFreeSignupCredits(): Promise<number> {
+  try {
+    const cfg = await getBillingAdminConfig();
+    return cfg.freeSignupCredits;
+  } catch (error) {
+    log.warn("firebase.create_user.billing_config_fallback", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return DEFAULT_FREE_SIGNUP_CREDITS;
+  }
+}
+
 async function createFirebaseUser(
   token: VerifiedFirebaseToken,
 ): Promise<User> {
   const id = token.sub;
   const email = token.email?.trim().toLowerCase() || null;
-  const cfg = await getBillingAdminConfig();
+  const freeSignupCredits = await resolveFreeSignupCredits();
 
   try {
     return await prisma.user.create({
@@ -74,7 +88,7 @@ async function createFirebaseUser(
         name: token.name?.trim() || null,
         image: token.picture || null,
         role: "USER",
-        aiCreditsBalance: cfg.freeSignupCredits,
+        aiCreditsBalance: freeSignupCredits,
       },
     });
   } catch (error) {

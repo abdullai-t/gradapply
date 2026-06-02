@@ -7,7 +7,6 @@ export type NavRoute =
   | "timeline"
   | "schools"
   | "emails"
-  | "collaboration"
   | "assistant"
   | "documents"
   | "profile"
@@ -70,16 +69,6 @@ export const NAV_ITEMS: NavItem[] = [
     title: "Outreach",
     searchPlaceholder: "Search threads...",
     showFab: true,
-  },
-  {
-    key: "collaboration",
-    href: "/collaboration",
-    label: "Collaboration",
-    icon: "groups",
-    title: "Review sessions",
-    searchPlaceholder: "Search sessions...",
-    showFab: false,
-    freeHidden: true,
   },
   {
     key: "assistant",

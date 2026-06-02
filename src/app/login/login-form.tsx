@@ -150,8 +150,12 @@ function LoginInner({ setup }: { setup: LoginSetup }) {
       await signInWithGoogle();
       router.push(callbackUrl);
       router.refresh();
-    } catch {
-      setFormError("Google sign-in failed. Try again.");
+    } catch (err) {
+      const msg =
+        err instanceof Error && err.message.trim()
+          ? err.message
+          : "Google sign-in failed. Try again.";
+      setFormError(msg);
     } finally {
       setGoogleBusy(false);
     }

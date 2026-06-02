@@ -21,15 +21,6 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.9.1
         version: 3.10.0(react-hook-form@7.72.1(react@19.2.6))
-      '@liveblocks/client':
-        specifier: ^3.19.3
-        version: 3.19.3(@types/json-schema@7.0.15)
-      '@liveblocks/node':
-        specifier: ^3.19.3
-        version: 3.19.3(@types/json-schema@7.0.15)
-      '@liveblocks/react':
-        specifier: ^3.19.3
-        version: 3.19.3(@types/json-schema@7.0.15)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react@19.2.6)
       '@prisma/adapter-pg':
         specifier: 5.22.0
         version: 5.22.0(pg@8.20.0)
@@ -1653,29 +1644,6 @@ packages:
 
   '@js-sdsl/ordered-map@4.4.2':
     resolution: {integrity: sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw==}
-
-  '@liveblocks/client@3.19.3':
-    resolution: {integrity: sha512-3w8yo2YJWoWkkReBS2NHfQTt5JxqPFtSCLG0OyWLwEQvKNN4syogC9cA6xaz4U7YKKVcT1R5n4MOnUUV4/q9Xg==}
-
-  '@liveblocks/core@3.19.3':
-    resolution: {integrity: sha512-SR3QsXoVapJmMUI0RDaVuHZMllJIyrFw+9Gj7atZaq2Tpdf1qANzaBWrI2Jij85/tsqYA46T8ouQnzOhvZKzpQ==}
-    peerDependencies:
-      '@types/json-schema': ^7
-
-  '@liveblocks/node@3.19.3':
-    resolution: {integrity: sha512-TF4FJ1BRMqnZ1ofVcpIWowjWZf5ZeGR/Ej01GXQA/4J4ukuLSD4AXUqZA1fZox64gbpopolSCx8Q1BgKhAfRwA==}
-
-  '@liveblocks/react@3.19.3':
-    resolution: {integrity: sha512-FcLSiYK34gtfzmXk6Pcec60dIQBxH2SAlIxUESr68rlMS+R5Gcydww2EYJQt4+jbdeQZcPuNU+oEoiq3fHlZ5Q==}
-    peerDependencies:
-      '@types/react': 19.2.14
-      '@types/react-dom': 19.2.3
-      react: ^18 || ^19 || ^19.0.0-rc
-    peerDependenciesMeta:
-      '@types/react':
-        optional: true
-      '@types/react-dom':
-        optional: true
 
   '@napi-rs/canvas-android-arm64@0.1.80':
     resolution: {integrity: sha512-sk7xhN/MoXeuExlggf91pNziBxLPVUqF2CAVnB57KLG/pz7+U5TKG8eXdc3pm0d7Od0WreB6ZKLj37sX9muGOQ==}
@@ -5312,11 +5280,6 @@ packages:
   markdown-table@3.0.4:
     resolution: {integrity: sha512-wiYz4+JrLyb/DqW2hkFJxP7Vd7JuTDm77fvbM8VfEQdmSMqcImWeeRbHwZjBjIFki/VaMK2BhFi7oUUZeM5bqw==}
 
-  marked@15.0.12:
-    resolution: {integrity: sha512-8dD6FusOQSrpv9Z1rdNMdlSgQOIP880DHqnohobOmYLElGEqAL/JvxvuxZO16r4HtjTlfPRDC1hbvxC9dPN2nA==}
-    engines: {node: '>= 18'}
-    hasBin: true
-
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
@@ -8767,38 +8730,6 @@ snapshots:
 
   '@js-sdsl/ordered-map@4.4.2':
     optional: true
-
-  '@liveblocks/client@3.19.3(@types/json-schema@7.0.15)':
-    dependencies:
-      '@liveblocks/core': 3.19.3(@types/json-schema@7.0.15)
-    transitivePeerDependencies:
-      - '@types/json-schema'
-
-  '@liveblocks/core@3.19.3(@types/json-schema@7.0.15)':
-    dependencies:
-      '@types/json-schema': 7.0.15
-
-  '@liveblocks/node@3.19.3(@types/json-schema@7.0.15)':
-    dependencies:
-      '@liveblocks/core': 3.19.3(@types/json-schema@7.0.15)
-      '@stablelib/base64': 1.0.1
-      fast-sha256: 1.3.0
-      marked: 15.0.12
-      node-fetch: 2.7.0
-    transitivePeerDependencies:
-      - '@types/json-schema'
-      - encoding
-
-  '@liveblocks/react@3.19.3(@types/json-schema@7.0.15)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react@19.2.6)':
-    dependencies:
-      '@liveblocks/client': 3.19.3(@types/json-schema@7.0.15)
-      '@liveblocks/core': 3.19.3(@types/json-schema@7.0.15)
-      react: 19.2.6
-    optionalDependencies:
-      '@types/react': 19.2.14
-      '@types/react-dom': 19.2.3(@types/react@19.2.14)
-    transitivePeerDependencies:
-      - '@types/json-schema'
 
   '@napi-rs/canvas-android-arm64@0.1.80':
     optional: true
@@ -13009,8 +12940,6 @@ snapshots:
       uc.micro: 2.1.0
 
   markdown-table@3.0.4: {}
-
-  marked@15.0.12: {}
 
   math-intrinsics@1.1.0: {}
 

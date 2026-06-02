@@ -46,25 +46,6 @@ export async function loadWriteupContent(
     };
   }
 
-  if (entityType === "COLLABORATION_SESSION") {
-    const session = await db.collaborationSession.findFirst({
-      where: { id: entityId, ownerId: userId },
-      include: {
-        artifacts: { orderBy: { version: "desc" }, take: 1 },
-      },
-    });
-    if (!session) throw new Error("not_found");
-    const snap = session.artifacts[0]?.snapshot as
-      | { body?: string; title?: string; emailSubject?: string }
-      | undefined;
-    const body = snap?.body ?? "";
-    return {
-      title: session.title,
-      htmlBody: body,
-      updatedAt: session.updatedAt,
-    };
-  }
-
   if (entityType === "DOCUMENT_TEXT") {
     const row = await db.document.findFirst({
       where: { id: entityId, userId },
@@ -103,52 +84,6 @@ export async function applyWriteupContent(
       data: { emailBody: htmlBody, updatedAt: now },
     });
     if (row.count === 0) throw new Error("not_found");
-    return now;
-  }
-
-  if (entityType === "COLLABORATION_SESSION") {
-    const session = await db.collaborationSession.findFirst({
-      where: { id: entityId, ownerId: userId },
-      include: {
-        artifacts: { orderBy: { version: "desc" }, take: 1 },
-      },
-    });
-    if (!session) throw new Error("not_found");
-    const latest = session.artifacts[0];
-    if (!latest) throw new Error("no_artifact");
-
-    const snap = latest.snapshot as Record<string, unknown>;
-    const nextSnap = { ...snap, body: htmlBody };
-
-    await db.$transaction([
-      db.collaborationArtifact.create({
-        data: {
-          sessionId: entityId,
-          type: latest.type,
-          sourceEntityId: latest.sourceEntityId,
-          snapshot: nextSnap,
-          version: latest.version + 1,
-        },
-      }),
-      db.collaborationSession.update({
-        where: { id: entityId },
-        data: { updatedAt: now },
-      }),
-    ]);
-
-    if (latest.sourceEntityId && latest.type === "SOP_VARIANT") {
-      await db.sopVariant.updateMany({
-        where: { id: latest.sourceEntityId, userId },
-        data: { body: htmlBody, updatedAt: now },
-      });
-    }
-    if (latest.sourceEntityId && latest.type === "PROF_EMAIL") {
-      await db.profEmail.updateMany({
-        where: { id: latest.sourceEntityId, userId },
-        data: { emailBody: htmlBody, updatedAt: now },
-      });
-    }
-
     return now;
   }
 
