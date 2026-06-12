@@ -18,10 +18,30 @@ export type VerifiedFirebaseToken = JWTPayload & {
   admin?: boolean;
 };
 
+/** E2E-only fixture tokens: `e2e:<uid>:<email>` when ALLOW_E2E_FIXTURES=1. */
+function tryVerifyE2eFixtureToken(
+  idToken: string,
+): VerifiedFirebaseToken | null {
+  if (process.env.ALLOW_E2E_FIXTURES !== "1") return null;
+  const prefix = "e2e:";
+  if (!idToken.startsWith(prefix)) return null;
+  const rest = idToken.slice(prefix.length);
+  const [sub, email = "e2e@test.local"] = rest.split(":");
+  if (!sub?.trim()) return null;
+  return {
+    sub: sub.trim(),
+    email: email.trim(),
+    email_verified: true,
+  };
+}
+
 /** Edge / Workers-safe Firebase JWT verification (ID token or session cookie JWT). */
 export async function verifyFirebaseIdTokenEdge(
   idToken: string,
 ): Promise<VerifiedFirebaseToken | null> {
+  const fixture = tryVerifyE2eFixtureToken(idToken);
+  if (fixture) return fixture;
+
   const projectId = firebaseProjectId();
   if (!projectId) return null;
 

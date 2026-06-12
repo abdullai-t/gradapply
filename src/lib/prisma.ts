@@ -14,8 +14,8 @@ function resolveDatabaseUrl(): string {
 /** Cloudflare Hyperdrive binding (see wrangler.jsonc + DEPLOY.md). */
 function resolveHyperdriveConnectionString(): string | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { getCloudflareContext } =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy Workers binding
       require("@opennextjs/cloudflare") as typeof import("@opennextjs/cloudflare");
     const ctx = getCloudflareContext();
     const hyperdrive = (
@@ -31,8 +31,8 @@ function resolveHyperdriveConnectionString(): string | null {
 function isCloudflareWorkersRuntime(): boolean {
   if (process.env.CF_WORKERS === "1") return true;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { getCloudflareContext } =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy Workers binding
       require("@opennextjs/cloudflare") as typeof import("@opennextjs/cloudflare");
     getCloudflareContext();
     return true;

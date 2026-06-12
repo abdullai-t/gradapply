@@ -22,7 +22,7 @@ import {
 // Regex fast-path intent classifier (zero-cost, no LLM call)
 // ---------------------------------------------------------------------------
 
-function inferTaskFromGeneralMessage(text: string): string | null {
+export function inferTaskFromGeneralMessage(text: string): string | null {
   const t = text.toLowerCase();
   if (
     /\b(statement of purpose|\bsop\b|personal statement|ps\b|motivation letter)\b/.test(t)

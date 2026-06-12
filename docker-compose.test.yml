@@ -1,0 +1,17 @@
+# Ephemeral Postgres for local *.db.test.ts and optional E2E seeding.
+# Start: pnpm run test:db:up
+# URL:   postgresql://postgres:pass@localhost:5433/gradapply_test
+services:
+  postgres:
+    image: postgres:16
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: gradapply_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gradapply_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 15

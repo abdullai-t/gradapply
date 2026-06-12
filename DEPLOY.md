@@ -400,6 +400,12 @@ Vercel may still **build** the deployment, but it will **not assign your product
 - **`/status`** — public status page (reflects `/api/health`); **`/api/health`** returns JSON for monitors
 - **`/support`** — contact page (requires **`NEXT_PUBLIC_SUPPORT_EMAIL`** for a visible support address)
 
+### Automated tests (CI / staging nightly)
+
+- **Every PR:** Vitest unit + handler tests and Playwright smoke (`tests/e2e/smoke`) — see `tests/README.md`.
+- **Nightly:** real Postgres `*.db.test.ts` and optional staging Playwright when `STAGING_URL` is set as a GitHub repository variable.
+- **Staging nightly:** configure `vars.STAGING_URL` (e.g. `https://staging.mygradapply.com`) and Firebase/Paystack test credentials in GitHub Actions secrets for full billing/auth flows.
+
 ## 8) Operations (Phase 3): uptime, database recovery, migration discipline
 
 Target audience: **public launch** operators. This section is process + platform configuration; the app exposes probes you can wire to external tools.

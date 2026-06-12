@@ -1,0 +1,14 @@
+{
+  "event": "charge.success",
+  "data": {
+    "reference": "fixture-ref-001",
+    "status": "success",
+    "amount": 5000,
+    "currency": "GHS",
+    "metadata": {
+      "userId": "user-fixture",
+      "checkoutKind": "credits_pack",
+      "creditsAmount": "25"
+    }
+  }
+}

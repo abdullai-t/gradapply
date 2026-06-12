@@ -27,7 +27,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install
@@ -42,3 +42,66 @@ jobs:
 
       - name: TypeScript
         run: pnpm run typecheck
+
+  unit-and-handler:
+    name: Unit and handler tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NODE_ENV: test
+      AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      PAYSTACK_SECRET_KEY: sk_test_dummy
+      OPENROUTER_API_KEY: sk-or-test
+      GROQ_API_KEY: gsk_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
+      - run: pnpm run test:unit
+      - run: pnpm run test:integration
+      - run: pnpm run test:coverage
+
+  e2e-smoke:
+    name: Playwright smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: pass
+          POSTGRES_DB: gradapply_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:pass@localhost:5432/gradapply_test
+      NODE_ENV: production
+      ALLOW_E2E_FIXTURES: "1"
+      AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+      PAYSTACK_SECRET_KEY: sk_test_dummy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
+      - run: pnpm exec playwright install chromium --with-deps
+      - run: pnpm run build
+      - run: pnpm run test:e2e:smoke

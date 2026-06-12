@@ -1,0 +1,35 @@
+/**
+ * Files measured for coverage thresholds (see tests/README.md).
+ * UI pages/components and large P2 modules are intentionally out of scope.
+ */
+export const coverageInclude = [
+  "src/lib/auth-redirect.ts",
+  "src/lib/request-origin.ts",
+  "src/lib/llm-credits.ts",
+  "src/lib/onboarding.ts",
+  "src/lib/sanitize-html.ts",
+  "src/lib/billing-allowance.ts",
+  "src/lib/billing-credits.ts",
+  "src/lib/paystack-fulfillment.ts",
+  "src/lib/paystack-api.ts",
+  "src/lib/health-check.ts",
+  "src/lib/plan-gates.ts",
+  "src/lib/api-error-json.ts",
+  "src/lib/app-origin.ts",
+  "src/lib/pricing-model-rollout.ts",
+  "src/lib/firebase/session-cookie.ts",
+  "src/lib/firebase/verify-token-edge.ts",
+  "src/lib/agents/router-prompt.ts",
+  "src/server/_with-auth.ts",
+  "src/server/_with-plan-gate.ts",
+  "src/server/_responses.ts",
+  "src/server/chat/history-handler.ts",
+  "src/server/chat/schemas.ts",
+  "src/server/chat/send-handler.ts",
+  "src/server/chat/shared.ts",
+  "src/auth.ts",
+  "src/middleware.ts",
+  "src/app/api/auth/**/route.ts",
+  "src/app/api/webhooks/paystack/route.ts",
+  "src/app/api/health/route.ts",
+] as const;
