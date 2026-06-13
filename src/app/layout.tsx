@@ -4,6 +4,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
 import { BuildVersionBadge } from "@/components/build-version-badge";
+import { ConfirmProvider } from "@/components/confirm-dialog";
 import { QueryProvider } from "@/components/providers";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { ThemeProvider, themeBootScript } from "@/components/theme-provider";
@@ -43,7 +44,9 @@ export default function RootLayout({
       <body className={`${jakarta.variable} font-sans antialiased`}>
         <ThemeProvider>
           <QueryProvider>
-            <SessionProvider>{children}</SessionProvider>
+            <SessionProvider>
+              <ConfirmProvider>{children}</ConfirmProvider>
+            </SessionProvider>
           </QueryProvider>
           <BuildVersionBadge />
         </ThemeProvider>

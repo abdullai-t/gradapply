@@ -118,11 +118,16 @@ export function buildSchoolPatchFromInfer(
   return patch;
 }
 
+export type SchoolInferResponse = Record<string, unknown> & {
+  /** Present when infer saved to Postgres server-side (schoolId flow). */
+  school?: SchoolRow;
+};
+
 export async function fetchSchoolInfer(input: {
   schoolId?: string;
   name?: string;
   term?: SchoolRow["term"];
-}): Promise<Record<string, unknown>> {
+}): Promise<SchoolInferResponse> {
   const res = await fetch("/api/schools/infer", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -140,5 +145,24 @@ export async function fetchSchoolInfer(input: {
           : `Request failed (${res.status})`;
     throw new Error(msg);
   }
-  return data;
+  return data as SchoolInferResponse;
+}
+
+/** Apply infer API response: use server-saved school or fall back to client PATCH. */
+export async function applySchoolInferResponse(opts: {
+  data: SchoolInferResponse;
+  existing: SchoolRow;
+  onPatch: (
+    body: Partial<SchoolRow> & Record<string, unknown>,
+  ) => void | Promise<unknown>;
+  onSaved?: (school: SchoolRow) => void;
+}): Promise<SchoolRow | null> {
+  if (opts.data.school) {
+    opts.onSaved?.(opts.data.school);
+    return opts.data.school;
+  }
+  const patch = buildSchoolPatchFromInfer(opts.data, opts.existing);
+  if (Object.keys(patch).length === 0) return null;
+  const saved = await opts.onPatch(patch);
+  return (saved as SchoolRow | undefined) ?? null;
 }

@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/confirm-dialog";
 import { FreePlanGate } from "@/components/free-plan-gate";
 import { Icon } from "@/components/icon";
 import { PageLoader } from "@/components/page-loader";
@@ -48,6 +49,7 @@ import { usePlanTier } from "@/hooks/use-plan-tier";
 
 export default function DocumentsPage() {
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const { planTier } = usePlanTier();
 
   const [activeFolder, setActiveFolder] = useState<string | "none" | null>(
@@ -130,8 +132,15 @@ export default function DocumentsPage() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Remove this document from your library?")) return;
-    await deleteDocument.mutateAsync(id);
+    const ok = await confirm({
+      title: "Remove this document?",
+      description:
+        "The file will be removed from your library. Uploaded copies in cloud storage are not deleted.",
+      variant: "destructive",
+      confirmLabel: "Remove",
+    });
+    if (!ok) return;
+    void deleteDocument.mutateAsync(id);
   };
 
   const move = (docId: string, folderId: string | null) =>
@@ -145,9 +154,9 @@ export default function DocumentsPage() {
     await renameFolderMutation.mutateAsync({ id, name });
   };
 
-  const deleteFolder = async (id: string) => {
+  const deleteFolder = (id: string) => {
     if (activeFolder === id) setActiveFolder(null);
-    await deleteFolderMutation.mutateAsync(id);
+    void deleteFolderMutation.mutateAsync(id);
   };
 
   const pendingDeleteId = deleteDocument.isPending

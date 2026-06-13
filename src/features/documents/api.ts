@@ -13,6 +13,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type InfiniteData,
 } from "@tanstack/react-query";
 
 import type { DocRow } from "@/features/documents/documents-table";
@@ -160,8 +161,25 @@ export function useDeleteDocument() {
       jsonOrThrow<{ ok: true }>(
         await fetch(`/api/documents/${id}`, { method: "DELETE" }),
       ),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: documentsKeys.all });
+    onSuccess: (_data, id) => {
+      qc.setQueriesData<InfiniteData<DocumentsPage>>(
+        { queryKey: documentsKeys.all },
+        (old) => {
+          if (!old?.pages) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              items: page.items.filter((doc) => doc.id !== id),
+            })),
+          };
+        },
+      );
+      qc.setQueryData<DocumentsSummary>(documentsKeys.summary(), (old) =>
+        old
+          ? { ...old, total: Math.max(0, old.total - 1) }
+          : old,
+      );
       void qc.invalidateQueries({ queryKey: foldersKeys.all });
     },
   });
@@ -238,8 +256,10 @@ export function useDeleteFolder() {
       jsonOrThrow<{ ok: true }>(
         await fetch(`/api/folders/${id}`, { method: "DELETE" }),
       ),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: foldersKeys.all });
+    onSuccess: (_data, id) => {
+      qc.setQueriesData<FolderSummary[]>({ queryKey: foldersKeys.all }, (old) =>
+        Array.isArray(old) ? old.filter((f) => f.id !== id) : old,
+      );
       void qc.invalidateQueries({ queryKey: documentsKeys.all });
     },
   });

@@ -14,11 +14,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import {
-  buildSchoolPatchFromInfer,
   fetchSchoolInfer,
+  applySchoolInferResponse,
 } from "@/lib/school-infer-patch";
 
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/confirm-dialog";
 import { PageLoader } from "@/components/page-loader";
 
 // Add-school modal is dynamically imported so it doesn't bloat the initial
@@ -44,6 +45,7 @@ import { AddSchoolCard } from "@/features/schools/add-school-card";
 import { AIInsightCard } from "@/features/schools/ai-insight-card";
 import {
   schoolsKeys,
+  syncSchoolInCache,
   useDeleteSchool,
   useSchools,
   useUpdateSchool,
@@ -54,6 +56,7 @@ import { isMutationPendingForId } from "@/lib/mutation-pending";
 function SchoolsPageInner() {
   const qc = useQueryClient();
   const router = useRouter();
+  const confirm = useConfirm();
   const searchParams = useSearchParams();
   const schoolIdFromUrl = searchParams.get("schoolId");
 
@@ -148,29 +151,38 @@ function SchoolsPageInner() {
       setSuggestingSchoolId(school.id);
       try {
         const data = await fetchSchoolInfer({ schoolId: school.id });
-        const patch = buildSchoolPatchFromInfer(data, school);
+        const saved = await applySchoolInferResponse({
+          data,
+          existing: school,
+          onPatch: (patch) =>
+            updateSchool.mutateAsync({ id: school.id, data: patch }),
+          onSaved: (row) => syncSchoolInCache(qc, row),
+        });
 
-        if (Object.keys(patch).length === 0) {
+        if (!saved) {
           alert(
             "AI did not return enough confident details to update this school. You can try again or edit fields manually.",
           );
           return;
         }
-
-        await updateSchool.mutateAsync({ id: school.id, data: patch });
       } catch (e) {
         alert(e instanceof Error ? e.message : "Suggest failed");
       } finally {
         setSuggestingSchoolId(null);
       }
     },
-    [updateSchool],
+    [updateSchool, qc],
   );
 
   const deleteSchool = async (id: string) => {
-    if (!confirm("Delete this school record?")) return;
+    const ok = await confirm({
+      title: "Delete this school?",
+      description: "This removes the school record from your list. This cannot be undone.",
+      variant: "destructive",
+    });
+    if (!ok) return;
     if (expandedId === id) setExpandedId(null);
-    await deleteSchoolMutation.mutateAsync(id);
+    void deleteSchoolMutation.mutateAsync(id);
   };
 
   const toggleExpanded = (id: string) => {

@@ -15,7 +15,11 @@ type Props = {
   school: SchoolRow;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onPatch: (body: Partial<SchoolRow> & Record<string, unknown>) => void;
+  onPatch: (
+    body: Partial<SchoolRow> & Record<string, unknown>,
+  ) => void | Promise<unknown>;
+  onInferSaved?: (school: SchoolRow) => void;
+  patchPending?: boolean;
 };
 
 /**
@@ -27,6 +31,8 @@ export function SchoolEditDialog({
   open,
   onOpenChange,
   onPatch,
+  onInferSaved,
+  patchPending,
 }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -41,7 +47,12 @@ export function SchoolEditDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-8 px-6 py-5">
-          <ApplicationTracker school={school} onPatch={onPatch} />
+          <ApplicationTracker
+            school={school}
+            onPatch={onPatch}
+            onInferSaved={onInferSaved}
+            patchPending={patchPending}
+          />
           <div className="border-t border-[var(--outline-variant)] pt-6">
             <p className="mb-4 text-xs font-bold uppercase tracking-[0.08em] text-[var(--outline)]">
               Timeline & reminders

@@ -118,7 +118,7 @@ const T2_SCHOOL_INTEL: ModelConfig = {
     },
     { provider: "groq", model: "llama-3.3-70b-versatile" },
   ],
-  maxTokens: 8192,
+  maxTokens: 2048,
 };
 
 const T2_PROF_AUDIT: ModelConfig = {

@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 
 import { Icon } from "@/components/icon";
+import { useConfirm } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,8 +18,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  buildSchoolPatchFromInfer,
   fetchSchoolInfer,
+  applySchoolInferResponse,
 } from "@/lib/school-infer-patch";
 import { formatDeadlineDateInput } from "@/lib/school-deadline";
 import {
@@ -31,12 +33,27 @@ import { SCHOOL_STATUSES } from "@/features/schools/types";
 
 type Props = {
   school: SchoolRow;
-  onPatch: (body: Partial<SchoolRow> & Record<string, unknown>) => void;
+  onPatch: (
+    body: Partial<SchoolRow> & Record<string, unknown>,
+  ) => void | Promise<unknown>;
+  onInferSaved?: (school: SchoolRow) => void;
+  /** True while a PATCH (material/letter/field save) is in flight. */
+  patchPending?: boolean;
 };
 
-export function ApplicationTracker({ school, onPatch }: Props) {
+export function ApplicationTracker({
+  school,
+  onPatch,
+  onInferSaved,
+  patchPending = false,
+}: Props) {
+  const confirm = useConfirm();
   const [inferBusy, setInferBusy] = useState(false);
   const [inferError, setInferError] = useState<string | null>(null);
+  const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(
+    null,
+  );
+  const [removingLetterId, setRemovingLetterId] = useState<string | null>(null);
   const materials = school.requiredMaterials ?? [];
   const letters = school.letterRecommenders ?? [];
   const matProg = materialsProgress(materials);
@@ -50,19 +67,65 @@ export function ApplicationTracker({ school, onPatch }: Props) {
     onPatch({ letterRecommenders: next });
   };
 
+  const removeMaterial = async (id: string) => {
+    const material = materials.find((x) => x.id === id);
+    const ok = await confirm({
+      title: "Remove material?",
+      description: material
+        ? `"${material.label}" will be removed from your checklist.`
+        : "This item will be removed from your checklist.",
+      variant: "destructive",
+      confirmLabel: "Remove",
+    });
+    if (!ok) return;
+    setRemovingMaterialId(id);
+    try {
+      await onPatch({
+        requiredMaterials: materials.filter((x) => x.id !== id),
+      });
+    } finally {
+      setRemovingMaterialId(null);
+    }
+  };
+
+  const removeLetter = async (id: string) => {
+    const letter = letters.find((x) => x.id === id);
+    const ok = await confirm({
+      title: "Remove recommender?",
+      description: letter?.name.trim()
+        ? `${letter.name} will be removed from your letters list.`
+        : "This recommender will be removed from your letters list.",
+      variant: "destructive",
+      confirmLabel: "Remove",
+    });
+    if (!ok) return;
+    setRemovingLetterId(id);
+    try {
+      await onPatch({
+        letterRecommenders: letters.filter((x) => x.id !== id),
+      });
+    } finally {
+      setRemovingLetterId(null);
+    }
+  };
+
   const fetchRequirementsWithAi = async () => {
     setInferBusy(true);
     setInferError(null);
     try {
       const data = await fetchSchoolInfer({ schoolId: school.id });
-      const patch = buildSchoolPatchFromInfer(data, school);
-      if (Object.keys(patch).length === 0) {
+      const saved = await applySchoolInferResponse({
+        data,
+        existing: school,
+        onPatch,
+        onSaved: onInferSaved,
+      });
+      if (!saved) {
         setInferError(
           "AI could not find confident requirements for this program. Try adding department/program names, then retry.",
         );
         return;
       }
-      await onPatch(patch);
     } catch (e) {
       setInferError(e instanceof Error ? e.message : "Could not fetch requirements");
     } finally {
@@ -91,6 +154,12 @@ export function ApplicationTracker({ school, onPatch }: Props) {
               <span className="rounded-full bg-[var(--secondary-container)] px-2.5 py-1 text-xs font-bold text-[var(--on-secondary-container)]">
                 Letters {letterProg.done}/{letterProg.total}
               </span>
+            ) : null}
+            {patchPending ? (
+              <Loader2
+                className="h-4 w-4 animate-spin text-[var(--primary)]"
+                aria-label="Saving changes"
+              />
             ) : null}
             <Button
               type="button"
@@ -300,13 +369,16 @@ export function ApplicationTracker({ school, onPatch }: Props) {
                 />
                 <button
                   type="button"
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[var(--outline)] hover:bg-[var(--error-container)] hover:text-[var(--error)]"
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[var(--outline)] hover:bg-[var(--error-container)] hover:text-[var(--error)] disabled:opacity-50"
                   aria-label={`Remove ${m.label}`}
-                  onClick={() =>
-                    patchMaterials(materials.filter((x) => x.id !== m.id))
-                  }
+                  disabled={removingMaterialId === m.id}
+                  onClick={() => void removeMaterial(m.id)}
                 >
-                  <Icon name="close" size={16} />
+                  {removingMaterialId === m.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  ) : (
+                    <Icon name="close" size={16} />
+                  )}
                 </button>
               </li>
             ))}
@@ -369,13 +441,16 @@ export function ApplicationTracker({ school, onPatch }: Props) {
                 />
                 <button
                   type="button"
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[var(--outline)] hover:bg-[var(--error-container)] hover:text-[var(--error)]"
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[var(--outline)] hover:bg-[var(--error-container)] hover:text-[var(--error)] disabled:opacity-50"
                   aria-label="Remove recommender"
-                  onClick={() =>
-                    patchLetters(letters.filter((x) => x.id !== r.id))
-                  }
+                  disabled={removingLetterId === r.id}
+                  onClick={() => void removeLetter(r.id)}
                 >
-                  <Icon name="close" size={16} />
+                  {removingLetterId === r.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  ) : (
+                    <Icon name="close" size={16} />
+                  )}
                 </button>
               </li>
             ))}

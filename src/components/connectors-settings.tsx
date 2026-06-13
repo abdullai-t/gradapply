@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/confirm-dialog";
 import { Icon } from "@/components/icon";
 import {
   type ConnectorRow,
@@ -63,6 +64,7 @@ const CONNECTORS: ConnectorMeta[] = [
 export function ConnectorsSettings({ planTier }: { planTier: string }) {
   const searchParams = useSearchParams();
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const connectorsQuery = useConnectors();
   const disconnectMutation = useDisconnect();
 
@@ -146,7 +148,14 @@ export function ConnectorsSettings({ planTier }: { planTier: string }) {
 
   const disconnect = async (which: "gmail" | "google_drive") => {
     const meta = CONNECTORS.find((c) => c.provider === which)!;
-    if (!confirm(`Disconnect ${meta.label} from GradApply?`)) return;
+    const ok = await confirm({
+      title: `Disconnect ${meta.label}?`,
+      description: `${meta.label} will no longer sync with GradApply. You can reconnect anytime from Settings.`,
+      variant: "warning",
+      icon: meta.icon,
+      confirmLabel: "Disconnect",
+    });
+    if (!ok) return;
     setDisconnecting(which);
     try {
       // The mutation's `provider` arg is the URL slug ("gmail" | "google-drive"),

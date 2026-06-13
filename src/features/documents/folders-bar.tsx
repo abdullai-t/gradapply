@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
+import { useConfirm } from "@/components/confirm-dialog";
 import { Icon } from "@/components/icon";
 
 import type { FolderSummary } from "./types";
@@ -186,6 +187,7 @@ function FolderChip({
   onDelete?: () => Promise<void> | void;
   deleteLoading?: boolean;
 }) {
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(label);
   const editable = !!onRename && !!onDelete;
@@ -257,15 +259,15 @@ function FolderChip({
             type="button"
             disabled={deleteLoading}
             onClick={async () => {
-              if (
-                count > 0
-                  ? confirm(
-                      `Delete "${label}"? The ${count} ${count === 1 ? "file" : "files"} inside will move to Uncategorized.`,
-                    )
-                  : confirm(`Delete "${label}"?`)
-              ) {
-                await onDelete?.();
-              }
+              const ok = await confirm({
+                title: `Delete "${label}"?`,
+                description:
+                  count > 0
+                    ? `The ${count} ${count === 1 ? "file" : "files"} inside will move to Uncategorized.`
+                    : "This empty folder will be removed.",
+                variant: "destructive",
+              });
+              if (ok) await onDelete?.();
             }}
             aria-label={`Delete ${label}`}
             className="grid h-5 w-5 place-items-center rounded-full text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)] hover:text-[var(--error)] disabled:pointer-events-none disabled:opacity-50"

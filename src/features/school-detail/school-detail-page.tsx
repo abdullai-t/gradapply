@@ -3,15 +3,18 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { differenceInCalendarDays, format } from "date-fns";
 
 import { Icon } from "@/components/icon";
+import { useConfirm } from "@/components/confirm-dialog";
 import { PageLoader } from "@/components/page-loader";
 import { SealAvatar } from "@/components/seal-avatar";
 import { StatTile } from "@/components/stat-tile";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
+  syncSchoolInCache,
   useDeleteSchool,
   useSchool,
   useUpdateSchool,
@@ -26,7 +29,10 @@ import { admissionTermLabel } from "@/lib/admission-term";
 import { progressFromStatus } from "@/lib/school-progress";
 import { FitScoreBadge, FitScoreMeter } from "@/components/fit-score-badge";
 import { cn } from "@/lib/utils";
-import { isMutationPendingForId } from "@/lib/mutation-pending";
+import {
+  isMutationPendingForId,
+  isMutationPendingForObjectId,
+} from "@/lib/mutation-pending";
 
 import {
   materialsProgress,
@@ -66,6 +72,8 @@ type Props = {
 
 export function SchoolDetailPage({ schoolId }: Props) {
   const router = useRouter();
+  const qc = useQueryClient();
+  const confirm = useConfirm();
   const schoolQuery = useSchool(schoolId);
   const variantQuery = useSopVariant(schoolId);
   const profEmailsQuery = useProfEmails();
@@ -156,9 +164,19 @@ export function SchoolDetailPage({ schoolId }: Props) {
     updateSchool.mutateAsync({ id: school.id, data: body });
 
   const handleDelete = async () => {
-    if (!confirm("Delete this school and its tailored SOP?")) return;
-    await deleteSchool.mutateAsync(school.id);
-    router.push("/schools");
+    const ok = await confirm({
+      title: "Delete this school?",
+      description:
+        "This removes the school record and its tailored SOP draft. This cannot be undone.",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    try {
+      await deleteSchool.mutateAsync(school.id);
+      router.push("/schools");
+    } catch {
+      // Error surfaced via mutation state; keep user on page.
+    }
   };
 
   return (
@@ -190,6 +208,8 @@ export function SchoolDetailPage({ schoolId }: Props) {
         open={editModalOpen}
         onOpenChange={setEditModalOpen}
         onPatch={patchSchool}
+        onInferSaved={(saved) => syncSchoolInCache(qc, saved)}
+        patchPending={isMutationPendingForObjectId(updateSchool, school.id)}
       />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
@@ -233,7 +253,12 @@ export function SchoolDetailPage({ schoolId }: Props) {
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-8">
-          <ApplicationTracker school={school} onPatch={patchSchool} />
+          <ApplicationTracker
+            school={school}
+            onPatch={patchSchool}
+            onInferSaved={(saved) => syncSchoolInCache(qc, saved)}
+            patchPending={isMutationPendingForObjectId(updateSchool, school.id)}
+          />
           <SopDraftSection
             school={school}
             variant={variant}

@@ -74,8 +74,13 @@ export function useDeleteProfEmail() {
       jsonOrThrow<{ ok: true }>(
         await fetch(`/api/prof-emails/${id}`, { method: "DELETE" }),
       ),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: profEmailsKeys.all });
+    onSuccess: (_data, id) => {
+      qc.setQueriesData<unknown[]>({ queryKey: profEmailsKeys.all }, (old) =>
+        Array.isArray(old)
+          ? old.filter((row) => (row as { id?: string }).id !== id)
+          : old,
+      );
+      qc.removeQueries({ queryKey: profEmailsKeys.detail(id) });
     },
   });
 }

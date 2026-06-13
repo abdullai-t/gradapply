@@ -7,6 +7,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Plus, Search, Sparkles } from "lucide-react";
 
 import { Icon } from "@/components/icon";
+import { useConfirm } from "@/components/confirm-dialog";
 import { PageLoader } from "@/components/page-loader";
 import { SealAvatar } from "@/components/seal-avatar";
 import { StatTile } from "@/components/stat-tile";
@@ -27,6 +28,7 @@ import { EMAIL_STATUSES } from "./types";
 
 export function ProfEmailsListPage() {
   const router = useRouter();
+  const confirm = useConfirm();
   const searchParams = useSearchParams();
   const profEmailsQuery = useProfEmails();
   const deleteProfEmail = useDeleteProfEmail();
@@ -107,8 +109,13 @@ export function ProfEmailsListPage() {
   }, [rows]);
 
   const remove = async (id: string, name: string | null) => {
-    if (!confirm(`Delete outreach draft for ${name ?? "this professor"}?`)) return;
-    await deleteProfEmail.mutateAsync(id);
+    const ok = await confirm({
+      title: "Delete outreach draft?",
+      description: `This permanently removes the draft for ${name ?? "this professor"}.`,
+      variant: "destructive",
+    });
+    if (!ok) return;
+    void deleteProfEmail.mutateAsync(id);
   };
 
   if (profEmailsQuery.isLoading) {

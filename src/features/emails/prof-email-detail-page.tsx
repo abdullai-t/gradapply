@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PageLoader } from "@/components/page-loader";
+import { useConfirm } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +48,7 @@ type Props = {
 export function ProfEmailDetailPage({ emailId }: Props) {
   const qc = useQueryClient();
   const router = useRouter();
+  const confirm = useConfirm();
 
   const profEmailsQuery = useProfEmails();
   const deleteProfEmail = useDeleteProfEmail();
@@ -206,9 +208,19 @@ export function ProfEmailDetailPage({ emailId }: Props) {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Delete this outreach record?")) return;
-    await deleteProfEmail.mutateAsync(id);
-    router.push(profEmailsIndexPath());
+    const ok = await confirm({
+      title: "Delete outreach record?",
+      description:
+        "This permanently removes the professor outreach draft and its history from GradApply.",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    try {
+      await deleteProfEmail.mutateAsync(id);
+      router.push(profEmailsIndexPath());
+    } catch {
+      // Keep user on page if delete fails.
+    }
   };
 
   const sendViaGmail = async (id: string) => {

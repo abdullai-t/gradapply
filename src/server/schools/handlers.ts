@@ -19,6 +19,7 @@ import {
   parseRecommendSchoolsFromLlmText,
 } from "@/lib/parse-llm-json";
 import { pickInferApplicationFee } from "@/lib/school-infer-application-fee";
+import { buildSchoolPatchFromInfer } from "@/lib/school-infer-patch";
 import { parseDeadlineBody, coerceSchoolInferDeadlineToFuture } from "@/lib/school-deadline";
 import { progressFromStatus } from "@/lib/school-progress";
 import {
@@ -764,6 +765,7 @@ export const infer = withAuth(async (req, { userId }) => {
     const result = await runTask("school-intel", message, userId, {
       schoolName: contextName,
       term: termHint ?? null,
+      inferOnly: true,
       ...(parsed.data.schoolId ? { schoolId: parsed.data.schoolId } : {}),
     });
 
@@ -859,6 +861,48 @@ export const infer = withAuth(async (req, { userId }) => {
     };
 
     await finalizeAiConsumptionForAction(userId, "school_infer");
+
+    if (parsed.data.schoolId && existingRow) {
+      const patch = buildSchoolPatchFromInfer(
+        out,
+        serializeSchool(existingRow),
+      );
+      const patchParsed = updateSchoolSchema.safeParse(patch);
+      if (patchParsed.success && Object.keys(patchParsed.data).length > 0) {
+        const readOnly = await requireWritableAccount(userId);
+        if (readOnly) return readOnly;
+
+        const { deadline, reminderAt, ...rest } = patchParsed.data;
+        const updated = await prisma.school.update({
+          where: { id: existingRow.id },
+          data: {
+            ...rest,
+            ...(rest.status !== undefined
+              ? { progress: progressFromStatus(rest.status) }
+              : {}),
+            ...(deadline !== undefined
+              ? {
+                  deadline:
+                    deadline === null || deadline === ""
+                      ? null
+                      : parseDeadlineBody(deadline),
+                }
+              : {}),
+            ...(reminderAt !== undefined
+              ? {
+                  reminderAt:
+                    reminderAt === null || reminderAt === ""
+                      ? null
+                      : parseDeadlineBody(reminderAt),
+                }
+              : {}),
+          },
+        });
+        touchUserActivityAsync(userId);
+        return ok({ ...out, school: serializeSchool(updated) });
+      }
+    }
+
     return ok(out);
   } catch (e) {
     return bad(formatLlmFailureMessage(e), 500);

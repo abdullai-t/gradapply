@@ -9,6 +9,7 @@ import { notFound } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/confirm-dialog";
 import { Sidebar } from "@/features/shell/sidebar";
 import { TopBar } from "@/features/shell/topbar";
 import { FAB } from "@/features/shell/fab";
@@ -116,18 +117,23 @@ const MOCK_SCHOOLS: SchoolRow[] = [
 ];
 
 export default function PreviewSchoolsPage() {
-  if (process.env.NODE_ENV === "production") notFound();
-
+  const confirm = useConfirm();
   const [schools, setSchools] = useState<SchoolRow[]>(MOCK_SCHOOLS);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  if (process.env.NODE_ENV === "production") notFound();
 
   function patchSchool(id: string, body: Partial<SchoolRow>) {
     setSchools((prev) =>
       prev.map((s) => (s.id === id ? { ...s, ...body } : s)),
     );
   }
-  function deleteSchool(id: string) {
-    if (!confirm("Delete this school record?")) return;
+  async function deleteSchool(id: string) {
+    const ok = await confirm({
+      title: "Delete this school?",
+      description: "This removes the school record from your list.",
+      variant: "destructive",
+    });
+    if (!ok) return;
     setSchools((prev) => prev.filter((s) => s.id !== id));
     if (expandedId === id) setExpandedId(null);
   }

@@ -446,11 +446,18 @@ async function preloadTools(
 ): Promise<Record<string, unknown>> {
   const data: Record<string, unknown> = {};
   const tools = getToolsForAgent(agent.tools);
+  const inferOnly = payload.inferOnly === true;
 
   // Parallel-load all zero-input or payload-driven tools
   const loads: Promise<void>[] = [];
 
   for (const tool of tools) {
+    if (
+      inferOnly &&
+      (tool.name === "getProfile" || tool.name === "getExistingSchools")
+    ) {
+      continue;
+    }
     // Auto-load profile if the agent has access to it
     if (tool.name === "getProfile") {
       loads.push(
