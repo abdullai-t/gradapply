@@ -4,8 +4,6 @@ import * as XLSX from "xlsx";
 
 import { profEmailMatchesSchool } from "@/lib/prof-email-school-match";
 import {
-  defaultLetterRecommenders,
-  defaultRequiredMaterials,
   normalizeLetterRecommenders,
   normalizeRequiredMaterials,
   type LetterRecommenderItem,
@@ -151,7 +149,7 @@ function parseGeneralTrackerMaterialsCell(value: string): RequiredMaterialItem[]
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean);
-  if (labels.length === 0) return defaultRequiredMaterials();
+  if (labels.length === 0) return [];
   return labels.map((label) => ({
     id: newId(),
     label,
@@ -190,7 +188,7 @@ export function parseGeneralTrackerRows(rows: unknown[][]): SchoolExcelRow[] {
       requiredMaterials: parseGeneralTrackerMaterialsCell(
         r[GENERAL_COL.MATERIALS] ?? "",
       ),
-      letterRecommenders: defaultLetterRecommenders(),
+      letterRecommenders: [],
     });
   }
   return schools;
@@ -214,9 +212,7 @@ function mergeGeneralTrackerFields(
     notes: school.notes ?? fromGeneral.notes,
     primaryProfessor: school.primaryProfessor ?? fromGeneral.primaryProfessor,
     requiredMaterials:
-      school.requiredMaterials.length > 0 &&
-      JSON.stringify(school.requiredMaterials) !==
-        JSON.stringify(defaultRequiredMaterials())
+      school.requiredMaterials.length > 0
         ? school.requiredMaterials
         : fromGeneral.requiredMaterials,
   };
@@ -277,15 +273,6 @@ export function isGeneralTrackerSheetName(sheetName: string): boolean {
 }
 
 export function schoolToGeneralTrackerRow(school: SchoolExcelRow): unknown[] {
-  const materials =
-    school.requiredMaterials.length > 0
-      ? school.requiredMaterials
-      : defaultRequiredMaterials();
-  const letters =
-    school.letterRecommenders.length > 0
-      ? school.letterRecommenders
-      : defaultLetterRecommenders();
-
   return [
     school.name,
     school.program,
@@ -295,9 +282,9 @@ export function schoolToGeneralTrackerRow(school: SchoolExcelRow): unknown[] {
     statusLabel(school.status),
     formatGeneralContact(school),
     school.applicationFee ?? "",
-    formatMaterialsMultiline(materials),
+    formatMaterialsMultiline(school.requiredMaterials),
     "",
-    formatLorColumn(letters),
+    formatLorColumn(school.letterRecommenders),
     school.funding ?? "",
     school.notes ?? "",
     "",
@@ -499,10 +486,8 @@ function parseSchoolBlock(
       funding: null,
       applicationFee: null,
       professorOutreach: sheetMeta?.professors ?? [],
-      requiredMaterials:
-        materials.length > 0 ? materials : defaultRequiredMaterials(),
-      letterRecommenders:
-        letterSlots.length > 0 ? letterSlots : defaultLetterRecommenders(),
+      requiredMaterials: materials,
+      letterRecommenders: letterSlots,
     },
     errors,
   };
@@ -744,14 +729,8 @@ export function schoolToTrackerRows(school: SchoolExcelRow): unknown[][] {
   out.push([]);
   out.push([...TRACKER_HEADER_ROW]);
 
-  const materials =
-    school.requiredMaterials.length > 0
-      ? school.requiredMaterials
-      : defaultRequiredMaterials();
-  const letters =
-    school.letterRecommenders.length > 0
-      ? school.letterRecommenders
-      : defaultLetterRecommenders();
+  const materials = school.requiredMaterials;
+  const letters = school.letterRecommenders;
   const rowCount = Math.max(materials.length, letters.length, 1);
 
   for (let i = 0; i < rowCount; i++) {

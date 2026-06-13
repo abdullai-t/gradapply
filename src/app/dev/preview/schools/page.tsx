@@ -19,21 +19,26 @@ import { SchoolGridCard } from "@/features/schools/school-grid-card";
 import { SchoolDetailForm } from "@/features/schools/school-detail-form";
 import { AddSchoolCard } from "@/features/schools/add-school-card";
 import { AIInsightCard } from "@/features/schools/ai-insight-card";
-import {
-  defaultLetterRecommenders,
-  defaultRequiredMaterials,
-} from "@/lib/school-tracker-defaults";
 import type { SchoolRow } from "@/features/schools/types";
 
-const TRACKER_DEFAULTS = {
+const TRACKER_DEFAULTS: Pick<
+  SchoolRow,
+  | "programUrl"
+  | "department"
+  | "college"
+  | "primaryProfessor"
+  | "backupProfessors"
+  | "requiredMaterials"
+  | "letterRecommenders"
+> = {
   programUrl: null,
   department: null,
   college: null,
   primaryProfessor: null,
   backupProfessors: null,
-  requiredMaterials: defaultRequiredMaterials(),
-  letterRecommenders: defaultLetterRecommenders(),
-} as const;
+  requiredMaterials: [],
+  letterRecommenders: [],
+};
 
 const MOCK_SCHOOLS: SchoolRow[] = [
   {

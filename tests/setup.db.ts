@@ -6,6 +6,6 @@ if (process.env.DATABASE_URL_TEST?.trim()) {
   process.env.DATABASE_URL = process.env.DATABASE_URL_TEST.trim();
 }
 
-process.env.NODE_ENV = process.env.NODE_ENV ?? "test";
-process.env.PAYSTACK_SECRET_KEY =
-  process.env.PAYSTACK_SECRET_KEY ?? "sk_test_dummy";
+const env = process.env as Record<string, string | undefined>;
+env.NODE_ENV = env.NODE_ENV ?? "test";
+env.PAYSTACK_SECRET_KEY = env.PAYSTACK_SECRET_KEY ?? "sk_test_dummy";

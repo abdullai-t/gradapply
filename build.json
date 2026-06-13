@@ -1,4 +1,4 @@
 {
-  "version": "1.9.0",
-  "buildNotes": "This build includes the following changes:\n- Removed Liveblocks collaboration; Google Docs sync for SOPs and prof emails remains\n- Cloudflare Workers: Hyperdrive Postgres, shell session hydration, billing config cache\n- Vitest + Playwright test suite (134+ tests), ≥80% coverage gates, CI on every push\n- Styled confirmation modal replaces native confirm for all deletes and disconnects\n- School AI infer: server-side save, faster infer path, instant UI cache sync\n- Pessimistic delete UX: items stay visible with loader until API succeeds\n- Run `pnpm exec prisma migrate deploy` for collaboration table removal migration"
+  "version": "1.9.1",
+  "buildNotes": "This build includes the following changes:\n- School tracker: no default materials or recommenders on new schools\n- Delete all materials/recommenders individually or via Clear all (with loader)\n- Fixed empty checklist persistence and blur/delete race on tracker saves\n- SOP sync only marks Personal Statement done when that row exists\n- Hyperdrive local URL fix for passwordless Postgres during cf:build/cf:deploy\n- Unit tests for school tracker normalize/serialize behavior"
 }

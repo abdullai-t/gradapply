@@ -34,10 +34,7 @@ import {
   isMutationPendingForObjectId,
 } from "@/lib/mutation-pending";
 
-import {
-  materialsProgress,
-  syncPersonalStatementFromSop,
-} from "@/lib/school-tracker-defaults";
+import { materialsProgress } from "@/lib/school-tracker-defaults";
 
 import {
   buildApplicationChecklist,
@@ -110,15 +107,16 @@ export function SchoolDetailPage({ schoolId }: Props) {
     if (!school || !variant?.body?.trim()) return;
     const len = variant.body.trim().length;
     if (len < 80) return;
-    const next = syncPersonalStatementFromSop(
-      school.requiredMaterials ?? [],
-      len,
+    const materials = school.requiredMaterials ?? [];
+    const psIndex = materials.findIndex(
+      (m) => m.label.trim().toLowerCase() === "personal statement",
     );
-    const prev = school.requiredMaterials ?? [];
-    const changed =
-      JSON.stringify(next) !== JSON.stringify(prev);
-    if (!changed || sopSyncRef.current) return;
+    if (psIndex === -1) return;
+    if (materials[psIndex]?.done) return;
+    if (sopSyncRef.current) return;
     sopSyncRef.current = true;
+    const next = [...materials];
+    next[psIndex] = { ...next[psIndex], done: true };
     void updateSchool
       .mutateAsync({ id: school.id, data: { requiredMaterials: next } })
       .finally(() => {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { Icon } from "@/components/icon";
@@ -54,58 +54,105 @@ export function ApplicationTracker({
     null,
   );
   const [removingLetterId, setRemovingLetterId] = useState<string | null>(null);
+  const [clearingMaterials, setClearingMaterials] = useState(false);
+  const [clearingLetters, setClearingLetters] = useState(false);
+  /** Blocks label/name onBlur PATCH while delete confirm + PATCH is in flight (H6). */
+  const skipMaterialBlurPatchRef = useRef(false);
+  const skipLetterBlurPatchRef = useRef(false);
   const materials = school.requiredMaterials ?? [];
   const letters = school.letterRecommenders ?? [];
   const matProg = materialsProgress(materials);
   const letterProg = lettersProgress(letters);
 
   const patchMaterials = (next: RequiredMaterialItem[]) => {
+    if (skipMaterialBlurPatchRef.current) return;
     onPatch({ requiredMaterials: next });
   };
 
   const patchLetters = (next: LetterRecommenderItem[]) => {
+    if (skipLetterBlurPatchRef.current) return;
     onPatch({ letterRecommenders: next });
   };
 
   const removeMaterial = async (id: string) => {
-    const material = materials.find((x) => x.id === id);
-    const ok = await confirm({
-      title: "Remove material?",
-      description: material
-        ? `"${material.label}" will be removed from your checklist.`
-        : "This item will be removed from your checklist.",
-      variant: "destructive",
-      confirmLabel: "Remove",
-    });
-    if (!ok) return;
-    setRemovingMaterialId(id);
+    skipMaterialBlurPatchRef.current = true;
     try {
+      const material = materials.find((x) => x.id === id);
+      const ok = await confirm({
+        title: "Remove material?",
+        description: material
+          ? `"${material.label}" will be removed from your checklist.`
+          : "This item will be removed from your checklist.",
+        variant: "destructive",
+        confirmLabel: "Remove",
+      });
+      if (!ok) return;
+      setRemovingMaterialId(id);
       await onPatch({
         requiredMaterials: materials.filter((x) => x.id !== id),
       });
     } finally {
       setRemovingMaterialId(null);
+      skipMaterialBlurPatchRef.current = false;
     }
   };
 
   const removeLetter = async (id: string) => {
-    const letter = letters.find((x) => x.id === id);
-    const ok = await confirm({
-      title: "Remove recommender?",
-      description: letter?.name.trim()
-        ? `${letter.name} will be removed from your letters list.`
-        : "This recommender will be removed from your letters list.",
-      variant: "destructive",
-      confirmLabel: "Remove",
-    });
-    if (!ok) return;
-    setRemovingLetterId(id);
+    skipLetterBlurPatchRef.current = true;
     try {
+      const letter = letters.find((x) => x.id === id);
+      const ok = await confirm({
+        title: "Remove recommender?",
+        description: letter?.name.trim()
+          ? `${letter.name} will be removed from your letters list.`
+          : "This recommender will be removed from your letters list.",
+        variant: "destructive",
+        confirmLabel: "Remove",
+      });
+      if (!ok) return;
+      setRemovingLetterId(id);
       await onPatch({
         letterRecommenders: letters.filter((x) => x.id !== id),
       });
     } finally {
       setRemovingLetterId(null);
+      skipLetterBlurPatchRef.current = false;
+    }
+  };
+
+  const clearAllMaterials = async () => {
+    skipMaterialBlurPatchRef.current = true;
+    try {
+      const ok = await confirm({
+        title: "Remove all materials?",
+        description: `This clears all ${materials.length} item${materials.length === 1 ? "" : "s"} from your checklist.`,
+        variant: "destructive",
+        confirmLabel: "Clear all",
+      });
+      if (!ok) return;
+      setClearingMaterials(true);
+      await onPatch({ requiredMaterials: [] });
+    } finally {
+      setClearingMaterials(false);
+      skipMaterialBlurPatchRef.current = false;
+    }
+  };
+
+  const clearAllLetters = async () => {
+    skipLetterBlurPatchRef.current = true;
+    try {
+      const ok = await confirm({
+        title: "Remove all recommenders?",
+        description: `This clears all ${letters.length} recommender${letters.length === 1 ? "" : "s"} from your list.`,
+        variant: "destructive",
+        confirmLabel: "Clear all",
+      });
+      if (!ok) return;
+      setClearingLetters(true);
+      await onPatch({ letterRecommenders: [] });
+    } finally {
+      setClearingLetters(false);
+      skipLetterBlurPatchRef.current = false;
     }
   };
 
@@ -315,27 +362,52 @@ export function ApplicationTracker({
             <h3 className="text-sm font-bold text-[var(--on-surface)]">
               Required materials
             </h3>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs font-bold"
-              icon="add"
-              onClick={() =>
-                patchMaterials([
-                  ...materials,
-                  {
-                    id: `m-${Date.now()}`,
-                    label: "New item",
-                    done: false,
-                  },
-                ])
-              }
-            >
+            <div className="flex flex-wrap items-center gap-2">
+              {materials.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs font-bold text-[var(--error)]"
+                  icon="delete_sweep"
+                  loading={clearingMaterials}
+                  disabled={clearingMaterials || removingMaterialId !== null}
+                  onClick={() => void clearAllMaterials()}
+                >
+                  {clearingMaterials ? "Clearing…" : "Clear all"}
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs font-bold"
+                icon="add"
+                disabled={clearingMaterials}
+                onClick={() =>
+                  patchMaterials([
+                    ...materials,
+                    {
+                      id: `m-${Date.now()}`,
+                      label: "New item",
+                      done: false,
+                    },
+                  ])
+                }
+              >
               Add material
             </Button>
           </div>
-          <ul className="space-y-2">
+        </div>
+          <ul
+            className={`space-y-2${clearingMaterials ? " pointer-events-none opacity-60" : ""}`}
+            aria-busy={clearingMaterials || undefined}
+          >
+            {materials.length === 0 ? (
+              <li className="rounded-xl border border-dashed border-[var(--outline-variant)] px-3 py-4 text-center text-xs text-[var(--on-surface-variant)]">
+                No materials yet. Add items manually or use Fetch requirements.
+              </li>
+            ) : null}
             {materials.map((m) => (
               <li
                 key={m.id}
@@ -359,7 +431,7 @@ export function ApplicationTracker({
                   className="h-8 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
                   onBlur={(e) => {
                     const label = e.target.value.trim();
-                    if (!label) return;
+                    if (!label || label === m.label) return;
                     patchMaterials(
                       materials.map((x) =>
                         x.id === m.id ? { ...x, label } : x,
@@ -371,7 +443,8 @@ export function ApplicationTracker({
                   type="button"
                   className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[var(--outline)] hover:bg-[var(--error-container)] hover:text-[var(--error)] disabled:opacity-50"
                   aria-label={`Remove ${m.label}`}
-                  disabled={removingMaterialId === m.id}
+                  disabled={removingMaterialId === m.id || clearingMaterials}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => void removeMaterial(m.id)}
                 >
                   {removingMaterialId === m.id ? (
@@ -390,23 +463,48 @@ export function ApplicationTracker({
             <h3 className="text-sm font-bold text-[var(--on-surface)]">
               Letters of recommendation
             </h3>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs font-bold"
-              icon="add"
-              onClick={() =>
-                patchLetters([
-                  ...letters,
-                  { id: `l-${Date.now()}`, name: "", done: false },
-                ])
-              }
-            >
+            <div className="flex flex-wrap items-center gap-2">
+              {letters.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs font-bold text-[var(--error)]"
+                  icon="delete_sweep"
+                  loading={clearingLetters}
+                  disabled={clearingLetters || removingLetterId !== null}
+                  onClick={() => void clearAllLetters()}
+                >
+                  {clearingLetters ? "Clearing…" : "Clear all"}
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs font-bold"
+                icon="add"
+                disabled={clearingLetters}
+                onClick={() =>
+                  patchLetters([
+                    ...letters,
+                    { id: `l-${Date.now()}`, name: "", done: false },
+                  ])
+                }
+              >
               Add recommender
             </Button>
           </div>
-          <ul className="space-y-2">
+        </div>
+          <ul
+            className={`space-y-2${clearingLetters ? " pointer-events-none opacity-60" : ""}`}
+            aria-busy={clearingLetters || undefined}
+          >
+            {letters.length === 0 ? (
+              <li className="rounded-xl border border-dashed border-[var(--outline-variant)] px-3 py-4 text-center text-xs text-[var(--on-surface-variant)]">
+                No recommenders yet. Add names manually or use Fetch requirements.
+              </li>
+            ) : null}
             {letters.map((r) => (
               <li
                 key={r.id}
@@ -432,6 +530,7 @@ export function ApplicationTracker({
                   className="h-8 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
                   onBlur={(e) => {
                     const name = e.target.value.trim();
+                    if (name === r.name) return;
                     patchLetters(
                       letters.map((x) =>
                         x.id === r.id ? { ...x, name } : x,
@@ -443,7 +542,8 @@ export function ApplicationTracker({
                   type="button"
                   className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[var(--outline)] hover:bg-[var(--error-container)] hover:text-[var(--error)] disabled:opacity-50"
                   aria-label="Remove recommender"
-                  disabled={removingLetterId === r.id}
+                  disabled={removingLetterId === r.id || clearingLetters}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => void removeLetter(r.id)}
                 >
                   {removingLetterId === r.id ? (

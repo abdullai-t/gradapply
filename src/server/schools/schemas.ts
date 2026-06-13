@@ -34,8 +34,8 @@ export const createSchoolSchema = z.object({
   college: z.string().nullable().optional(),
   primaryProfessor: z.string().nullable().optional(),
   backupProfessors: z.string().nullable().optional(),
-  requiredMaterials: z.array(requiredMaterialSchema).optional(),
-  letterRecommenders: z.array(letterRecommenderSchema).optional(),
+  requiredMaterials: z.array(requiredMaterialSchema).max(50).optional(),
+  letterRecommenders: z.array(letterRecommenderSchema).max(20).optional(),
 });
 
 export const updateSchoolSchema = z.object({
@@ -57,8 +57,8 @@ export const updateSchoolSchema = z.object({
   college: z.string().nullable().optional(),
   primaryProfessor: z.string().nullable().optional(),
   backupProfessors: z.string().nullable().optional(),
-  requiredMaterials: z.array(requiredMaterialSchema).optional(),
-  letterRecommenders: z.array(letterRecommenderSchema).optional(),
+  requiredMaterials: z.array(requiredMaterialSchema).max(50).optional(),
+  letterRecommenders: z.array(letterRecommenderSchema).max(20).optional(),
 });
 
 const schoolIdentitySchema = z.object({

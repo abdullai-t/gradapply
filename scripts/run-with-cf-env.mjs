@@ -38,11 +38,33 @@ loadEnvFile(path.join(root, ".env.local"));
 const hyperdriveLocalKey =
   "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE";
 
+/**
+ * Wrangler/Miniflare validates Hyperdrive local URLs and rejects auth without
+ * `user:password@`. Local Postgres often uses `postgresql://user@host/...` (peer
+ * auth, no password). Insert an empty password segment so deploy/build succeeds.
+ */
+function hyperdriveLocalConnectionString(databaseUrl) {
+  const trimmed = databaseUrl.trim();
+  const match = trimmed.match(/^(postgres(?:ql)?):\/\/([^/]+)@/i);
+  if (!match) return trimmed;
+  const [, scheme, auth] = match;
+  if (auth.includes(":")) return trimmed;
+  return trimmed.replace(
+    /^(postgres(?:ql)?):\/\/([^/]+)@/i,
+    `${scheme.toLowerCase()}://${auth}:@`,
+  );
+}
+
 if (!process.env[hyperdriveLocalKey]?.trim()) {
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (databaseUrl) {
-    process.env[hyperdriveLocalKey] = databaseUrl;
+    process.env[hyperdriveLocalKey] =
+      hyperdriveLocalConnectionString(databaseUrl);
   }
+} else {
+  process.env[hyperdriveLocalKey] = hyperdriveLocalConnectionString(
+    process.env[hyperdriveLocalKey],
+  );
 }
 
 if (!process.env[hyperdriveLocalKey]?.trim()) {

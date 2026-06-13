@@ -23,8 +23,6 @@ import { buildSchoolPatchFromInfer } from "@/lib/school-infer-patch";
 import { parseDeadlineBody, coerceSchoolInferDeadlineToFuture } from "@/lib/school-deadline";
 import { progressFromStatus } from "@/lib/school-progress";
 import {
-  defaultLetterRecommenders,
-  defaultRequiredMaterials,
   materialsFromInferLabels,
   normalizeLetterRecommenders,
   normalizeRequiredMaterials,
@@ -96,10 +94,8 @@ export const create = withAuth(async (req, { userId }) => {
       ...rest,
       status,
       progress: progressFromStatus(status),
-      requiredMaterials:
-        requiredMaterials ?? defaultRequiredMaterials(),
-      letterRecommenders:
-        letterRecommenders ?? defaultLetterRecommenders(),
+      requiredMaterials: requiredMaterials ?? [],
+      letterRecommenders: letterRecommenders ?? [],
       userId,
       deadline:
         deadline === undefined
@@ -152,10 +148,8 @@ export const bulkCreate = withAuth(async (req, { userId }) => {
           ...rest,
           status,
           progress: progressFromStatus(status),
-          requiredMaterials:
-            requiredMaterials ?? defaultRequiredMaterials(),
-          letterRecommenders:
-            letterRecommenders ?? defaultLetterRecommenders(),
+          requiredMaterials: requiredMaterials ?? [],
+          letterRecommenders: letterRecommenders ?? [],
           userId,
           deadline:
             deadline === undefined
@@ -201,12 +195,15 @@ export const update = withAuth<{ id: string }>(
     });
     if (!existing) return notFound();
 
-    const { deadline, reminderAt, ...rest } = parsed.data;
+    const { deadline, reminderAt, requiredMaterials, letterRecommenders, ...rest } =
+      parsed.data;
 
     const school = await prisma.school.update({
       where: { id },
       data: {
         ...rest,
+        ...(requiredMaterials !== undefined ? { requiredMaterials } : {}),
+        ...(letterRecommenders !== undefined ? { letterRecommenders } : {}),
         ...(rest.status !== undefined
           ? { progress: progressFromStatus(rest.status) }
           : {}),

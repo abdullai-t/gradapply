@@ -6,6 +6,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
+import { useRef } from "react";
 
 import type { SchoolRow } from "@/features/schools/types";
 
@@ -97,16 +98,28 @@ export function useCreateSchool() {
 
 export function useUpdateSchool() {
   const qc = useQueryClient();
+  const patchGenRef = useRef(0);
   return useMutation({
-    mutationFn: async (input: { id: string; data: Partial<SchoolRow> }) =>
-      jsonOrThrow<SchoolRow>(
-        await fetch(`/api/schools/${input.id}`, {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(input.data),
-        }),
-      ),
-    onSuccess: (saved) => {
+    onMutate: () => {
+      const generation = ++patchGenRef.current;
+      return { generation };
+    },
+    mutationFn: async (input: { id: string; data: Partial<SchoolRow> }) => {
+      const res = await fetch(`/api/schools/${input.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(input.data),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(body?.error ?? `Request failed (${res.status})`);
+      }
+      return (await res.json()) as SchoolRow;
+    },
+    onSuccess: (saved, _input, context) => {
+      if (context?.generation !== patchGenRef.current) return;
       syncSchoolInCache(qc, saved);
     },
   });

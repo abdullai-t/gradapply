@@ -26,6 +26,7 @@ function newId(): string {
   return `trk-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/** Optional template checklist (not applied automatically on new schools). */
 export function defaultRequiredMaterials(): RequiredMaterialItem[] {
   return DEFAULT_MATERIAL_LABELS.map((label) => ({
     id: newId(),
@@ -34,6 +35,7 @@ export function defaultRequiredMaterials(): RequiredMaterialItem[] {
   }));
 }
 
+/** Optional template recommender slots (not applied automatically on new schools). */
 export function defaultLetterRecommenders(): LetterRecommenderItem[] {
   return Array.from({ length: DEFAULT_LETTER_SLOT_COUNT }, () => ({
     id: newId(),
@@ -62,45 +64,26 @@ function isRecommenderItem(v: unknown): v is LetterRecommenderItem {
   );
 }
 
-/** Merge saved JSON with template defaults (preserves user edits, adds missing template rows). */
+/** Normalize saved JSON; missing or invalid values become an empty list. */
 export function normalizeRequiredMaterials(
   raw: unknown,
 ): RequiredMaterialItem[] {
-  const defaults = defaultRequiredMaterials();
-  if (!Array.isArray(raw) || raw.length === 0) return defaults;
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) return [];
+  if (raw.length === 0) return [];
 
   const saved = raw.filter(isMaterialItem);
-  if (saved.length === 0) return defaults;
-
-  const byLabel = new Map(
-    saved.map((m) => [m.label.trim().toLowerCase(), m]),
-  );
-  const merged: RequiredMaterialItem[] = [];
-
-  for (const d of defaults) {
-    const hit = byLabel.get(d.label.toLowerCase());
-    if (hit) {
-      merged.push(hit);
-      byLabel.delete(d.label.toLowerCase());
-    } else {
-      merged.push(d);
-    }
-  }
-  for (const extra of byLabel.values()) {
-    merged.push(extra);
-  }
-  return merged;
+  return saved;
 }
 
 export function normalizeLetterRecommenders(
   raw: unknown,
 ): LetterRecommenderItem[] {
-  if (!Array.isArray(raw) || raw.length === 0) {
-    return defaultLetterRecommenders();
-  }
-  const saved = raw.filter(isRecommenderItem);
-  if (saved.length === 0) return defaultLetterRecommenders();
-  return saved;
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) return [];
+  if (raw.length === 0) return [];
+
+  return raw.filter(isRecommenderItem);
 }
 
 export function materialsProgress(materials: RequiredMaterialItem[]): {
@@ -143,9 +126,7 @@ export function materialsFromInferLabels(
   const cleaned = labels
     .map((l) => l.trim())
     .filter((l) => l.length > 0 && l.length <= 200);
-  if (cleaned.length === 0) {
-    return existing.length > 0 ? existing : defaultRequiredMaterials();
-  }
+  if (cleaned.length === 0) return existing;
 
   const doneByLabel = new Map(
     existing.map((m) => [m.label.trim().toLowerCase(), m.done]),
@@ -173,9 +154,7 @@ export function recommendersFromInferCount(
     typeof count === "number" && Number.isFinite(count)
       ? Math.min(8, Math.max(0, Math.round(count)))
       : 0;
-  if (n === 0) {
-    return existing.length > 0 ? existing : defaultLetterRecommenders();
-  }
+  if (n === 0) return existing;
 
   const out: LetterRecommenderItem[] = [];
   for (let i = 0; i < n; i++) {

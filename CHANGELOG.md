@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.9.1] - 2026-06-02
+
+### Added
+
+- **Clear all** on school application tracker — remove every material or recommender in one step, with confirmation and loading state.
+- **Unit tests** for `normalizeRequiredMaterials`, `normalizeLetterRecommenders`, and tracker serialize behavior (`tests/unit/school-tracker-defaults.test.ts`).
+
+### Changed
+
+- **New schools start with empty tracker lists** — no auto-filled Res/CV, Personal Statement, or blank recommender slots.
+- Excel import/export and AI infer no longer fall back to template checklist rows when lists are empty.
+- SOP auto-sync only marks **Personal Statement** done when that row already exists (avoids re-adding materials after a clear).
+
+### Fixed
+
+- Deleting the last material or recommender persists `[]` instead of restoring template defaults.
+- Tracker label blur no longer races with delete/clear-all PATCH requests (stale response guard on `useUpdateSchool`).
+- Cloudflare `cf:build` / `cf:deploy` Hyperdrive local URL when Postgres uses peer auth without a password.
+- TypeScript build: exclude `tests/` from main `tsconfig.json`; avoid assigning read-only `NODE_ENV` in test setup.
+
+---
+
 ## [1.9.0] - 2026-06-12
 
 ### Added
@@ -68,5 +90,6 @@ Firebase authentication and security hardening release.
 
 ---
 
+[1.9.1]: https://github.com/abdullai-t/gradapply/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/abdullai-t/gradapply/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/abdullai-t/gradapply/releases/tag/v1.8.0
