@@ -25,6 +25,16 @@ export function isFirebaseConfigured(): boolean {
   return getFirebaseClientConfig() !== null;
 }
 
+export function getFirebaseVapidKey(): string | null {
+  return process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY?.trim() || null;
+}
+
+/** True when web push can register tokens in the browser. */
+export function isFirebaseMessagingConfigured(): boolean {
+  const config = getFirebaseClientConfig();
+  return Boolean(config?.messagingSenderId && getFirebaseVapidKey());
+}
+
 export function firebaseProjectId(): string | null {
   return process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim() || null;
 }

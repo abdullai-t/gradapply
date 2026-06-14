@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CountryPicker } from "@/components/country-picker";
+import { SchoolTierInterestPicker } from "@/components/school-tier-interest-picker";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -20,6 +21,11 @@ import {
   optionsWithFallback,
 } from "@/lib/grad-options";
 import { profileMeetsOnboardingMinimum } from "@/lib/onboarding";
+import {
+  DEFAULT_SCHOOL_TIER_INTERESTS,
+  resolveSchoolTierInterests,
+  type SchoolTierBucket,
+} from "@/lib/school-tier-options";
 const SELECT_NONE = "__none__";
 
 export type ProfileStepForm = {
@@ -27,6 +33,7 @@ export type ProfileStepForm = {
   focusArea: string;
   researchInterests: string;
   countriesOfInterest: string[];
+  schoolTierInterests: SchoolTierBucket[];
   bio: string;
 };
 
@@ -42,6 +49,7 @@ export function OnboardingProfileStep({ onContinue }: Props) {
     focusArea: "",
     researchInterests: "",
     countriesOfInterest: [],
+    schoolTierInterests: [...DEFAULT_SCHOOL_TIER_INTERESTS],
     bio: "",
   });
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +65,9 @@ export function OnboardingProfileStep({ onContinue }: Props) {
       countriesOfInterest: Array.isArray(p.countriesOfInterest)
         ? (p.countriesOfInterest as string[])
         : [],
+      schoolTierInterests: resolveSchoolTierInterests(
+        p.schoolTierInterests as string[] | undefined,
+      ),
       bio: (p.bio as string) ?? "",
     });
     setHydrated(true);
@@ -92,6 +103,7 @@ export function OnboardingProfileStep({ onContinue }: Props) {
         focusArea: form.focusArea || null,
         researchInterests: form.researchInterests || null,
         countriesOfInterest: form.countriesOfInterest,
+        schoolTierInterests: form.schoolTierInterests,
         bio: form.bio || null,
       });
       onContinue();
@@ -115,8 +127,8 @@ export function OnboardingProfileStep({ onContinue }: Props) {
           Tell us about your goals
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-[var(--on-surface-variant)]">
-          We use this to recommend 15 graduate programs — 5 reach, 5 match, and
-          5 safety — tailored to you.
+          We use this to recommend programs in the tiers you care about — ranked
+          by admission likelihood with full funding (stipend + tuition).
         </p>
       </div>
 
@@ -188,8 +200,18 @@ export function OnboardingProfileStep({ onContinue }: Props) {
             setForm((f) => ({ ...f, countriesOfInterest }))
           }
           max={5}
-          hint="Click a country in the list to add it. We use these for reach / match / safety recommendations."
+          hint="Click a country in the list to add it. Recommendations stay within these countries."
         />
+
+        <Field label="School tiers you're interested in *">
+          <SchoolTierInterestPicker
+            value={form.schoolTierInterests}
+            onChange={(schoolTierInterests) =>
+              setForm((f) => ({ ...f, schoolTierInterests }))
+            }
+            hint="Select one or more tiers. Each tier reflects how likely you are to be admitted with full funding (stipend and tuition covered)."
+          />
+        </Field>
 
         <Field label="Short bio (optional)">
           <Textarea

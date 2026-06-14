@@ -189,6 +189,20 @@ Outbound mail uses [`src/lib/mail.ts`](src/lib/mail.ts) (Nodemailer). Configure 
 
 **User time zone:** Profile → **Notifications** → Time zone (IANA). Defaults to browser time zone on first load.
 
+### Browser push (FCM web)
+
+Optional deadline/reminder **browser push** supplements email (same cron triggers). Users opt in from Profile → Notifications.
+
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase web app sender ID (Project settings → General) |
+| `NEXT_PUBLIC_FIREBASE_VAPID_KEY` | Web Push key pair (Project settings → Cloud Messaging → Web Push certificates) |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Same service account as auth; used for FCM HTTP v1 sends |
+
+**Firebase Console:** enable Cloud Messaging on the project; add your production domain to **Authorized domains** (Authentication) and ensure the site is served over **HTTPS**.
+
+**Build:** `scripts/generate-firebase-messaging-sw.mjs` runs before `next build` / `cf:build` and writes `public/firebase-messaging-sw.js` with your public Firebase config. Rebuild after changing any `NEXT_PUBLIC_FIREBASE_*` push variable.
+
 **Scheduled job:** `GET` or `POST` `/api/cron/notifications` with header `Authorization: Bearer <CRON_SECRET>`.
 
 | Variable | Purpose |

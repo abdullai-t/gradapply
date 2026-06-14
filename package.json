@@ -1,15 +1,18 @@
 {
   "name": "gradapply",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "private": true,
   "packageManager": "pnpm@9.15.9",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "dev": "next dev",
-    "build": "prisma generate && next build",
-    "build:cf": "prisma generate && CF_BUILD=1 next build",
+    "dev": "node scripts/generate-firebase-messaging-sw.mjs && next dev",
+    "build": "node scripts/generate-firebase-messaging-sw.mjs && prisma generate && next build",
+    "build:cf": "node scripts/generate-firebase-messaging-sw.mjs && prisma generate && CF_BUILD=1 next build",
+    "generate:fcm-sw": "node scripts/generate-firebase-messaging-sw.mjs",
+    "verify:firebase-sa": "node scripts/verify-firebase-service-account.mjs",
+    "format:firebase-sa": "node scripts/format-firebase-service-account-env.mjs",
     "cf:build": "node scripts/run-with-cf-env.mjs pnpm run cf:build:inner",
     "cf:build:inner": "pnpm run build:cf && opennextjs-cloudflare build --skipNextBuild && node scripts/prune-cf-worker-bundle.mjs",
     "cf:deploy": "node scripts/run-with-cf-env.mjs pnpm run cf:deploy:inner",

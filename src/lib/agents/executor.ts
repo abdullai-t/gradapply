@@ -600,6 +600,9 @@ function formatToolContext(data: Record<string, unknown>): string {
       p.fullName && `Name: ${p.fullName}`,
       p.targetDegree && `Target degree: ${p.targetDegree}`,
       p.focusArea && `Focus area: ${p.focusArea}`,
+      Array.isArray(p.schoolTierInterests) &&
+        p.schoolTierInterests.length > 0 &&
+        `School tiers of interest: ${(p.schoolTierInterests as string[]).join(", ")}`,
       p.researchInterests && `Research interests: ${p.researchInterests}`,
       p.undergradDegree && `Undergrad: ${p.undergradDegree}${p.undergradSchool ? ` from ${p.undergradSchool}` : ""}`,
       p.yearsExperience && `Experience: ${p.yearsExperience}`,

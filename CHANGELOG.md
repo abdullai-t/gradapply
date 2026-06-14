@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.10.0] - 2026-06-15
+
+### Added
+
+- **FCM web push** for school deadline and custom reminder alerts — opt-in from Profile → Notifications; test notification button; supplements email cron.
+- **`PushToken` model**, `Profile.deadlinePushEnabled`, and Workers-safe FCM HTTP v1 send path.
+- **Firebase tooling:** `pnpm run verify:firebase-sa`, `format:firebase-sa`, `generate:fcm-sw` (build/dev).
+- **School tier interests** (top / mid / safety by admission + full funding) on profile, onboarding, and recommend API.
+- **Faculty discovery filters** — active faculty at selected schools only; server-side validation after LLM parse.
+- **Prof email discovery UX** — loading overlay when adding drafts from suggestions.
+
+### Changed
+
+- School recommend prompts and onboarding distribution use per-tier fetches and funding-aware tier definitions.
+- Profile and onboarding include tier interest picker; schools page hints updated.
+
+### Fixed
+
+- Push enable flow surfaces actionable Firebase errors; service worker loads config from `.env` at build time.
+- Hydration warning on `<body>` from browser extensions (e.g. Grammarly).
+- Professor draft add loading state uses index-based pending + row overlay.
+
+---
+
 ## [1.9.1] - 2026-06-02
 
 ### Added

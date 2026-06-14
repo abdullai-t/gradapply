@@ -23,6 +23,13 @@ import { buildSchoolPatchFromInfer } from "@/lib/school-infer-patch";
 import { parseDeadlineBody, coerceSchoolInferDeadlineToFuture } from "@/lib/school-deadline";
 import { progressFromStatus } from "@/lib/school-progress";
 import {
+  distributeOnboardingSchoolCounts,
+  formatSchoolTierDefinitionsForPrompt,
+  resolveSchoolTierInterests,
+  SCHOOL_TIER_LLM_DEFINITIONS,
+  type SchoolTierBucket,
+} from "@/lib/school-tier-options";
+import {
   materialsFromInferLabels,
   normalizeLetterRecommenders,
   normalizeRequiredMaterials,
@@ -261,6 +268,7 @@ function buildProfileContextBlock(profile: {
   researchInterests: string | null;
   bio: string | null;
   countriesOfInterest: string[];
+  schoolTierInterests?: string[];
 } | null): string {
   if (!profile) return "";
   const lines: string[] = ["Applicant profile for fit:"];
@@ -269,6 +277,15 @@ function buildProfileContextBlock(profile: {
   }
   if (profile.focusArea?.trim()) {
     lines.push(`- Program focus: ${profile.focusArea.trim()}`);
+  }
+  const tiers = resolveSchoolTierInterests(profile.schoolTierInterests);
+  if (tiers.length > 0) {
+    lines.push(
+      "- School tiers requested (ranked by admission likelihood WITH full funding — stipend plus tuition coverage):",
+    );
+    for (const bucket of tiers) {
+      lines.push(`  · ${SCHOOL_TIER_LLM_DEFINITIONS[bucket]}`);
+    }
   }
   if (profile.researchInterests?.trim()) {
     lines.push(`- Research interests: ${profile.researchInterests.trim()}`);
@@ -284,40 +301,6 @@ function buildProfileContextBlock(profile: {
   return lines.length > 1 ? lines.join("\n") : "";
 }
 
-function buildOnboardingRecommendPrompt(opts: {
-  countryHint: string;
-  profileContext: string;
-  excludeBlock: string;
-  variationBlock: string;
-  retry: boolean;
-}): string {
-  const { countryHint, profileContext, excludeBlock, variationBlock, retry } =
-    opts;
-  const lines = [
-    "Recommend exactly 5 graduate schools for an onboarding shortlist.",
-    "Balance tiers: roughly 2 top_tier (reach), 2 mid_tier (match), 1 safety.",
-    'Set tierBucket on each row to "top_tier", "mid_tier", or "safety".',
-    "Selection criteria (in order): (1) research fit to my profile and interests, (2) realistic funding availability (RA/TA, stipend, tuition waiver, or competitive scholarships).",
-    "Deprioritize programs that are typically unfunded unless the research fit is exceptional.",
-    "whyFit: one sentence on research fit only (<= 22 words).",
-    "funding: one sentence on typical funding availability for this program (<= 22 words).",
-    "notes: optional deadline or GRE caveat (<= 12 words) or null.",
-    excludeBlock,
-    variationBlock,
-    countryHint,
-    profileContext,
-    'Return ONLY minified JSON: {"schools":[{"name","program","degree","country","tierBucket","whyFit","funding","notes","portalUrl":null}]}',
-    "Never include a school on the exclusion list (same institution or same program).",
-    "No markdown fences or prose before or after the JSON.",
-  ];
-  if (retry) {
-    lines.push(
-      "Previous output was invalid JSON. Output a single minified JSON object only.",
-    );
-  }
-  return lines.join("\n");
-}
-
 function buildTierRecommendPrompt(opts: {
   tier: (typeof RECOMMEND_TIERS)[number];
   countryHint: string;
@@ -328,13 +311,22 @@ function buildTierRecommendPrompt(opts: {
 }): string {
   const { tier, countryHint, profileContext, excludeBlock, variationBlock, retry } =
     opts;
+  const tierDefinition = SCHOOL_TIER_LLM_DEFINITIONS[tier.bucket];
   const lines = [
-    `Recommend exactly 5 ${tier.label} graduate schools for my tracking list.`,
+    `Recommend exactly 5 graduate schools for my tracking list in this tier only.`,
+    `Target tier: ${tierDefinition}`,
     `Set tierBucket to "${tier.bucket}" on every row.`,
-    "Selection criteria (in order): (1) research fit to my profile and interests, (2) realistic funding availability (RA/TA, stipend, tuition waiver, or competitive scholarships).",
-    "Deprioritize programs that are typically unfunded unless the research fit is exceptional.",
-    "whyFit: one sentence on research fit only (<= 22 words).",
-    "funding: one sentence on typical funding availability for this program (<= 22 words).",
+    "",
+    "Tier assignment rules (both admission likelihood AND full funding must match the tier):",
+    formatSchoolTierDefinitionsForPrompt([...RECOMMEND_TIERS.map((t) => t.bucket)]),
+    "",
+    "Selection criteria (in order):",
+    "(1) Admission likelihood for THIS tier given the applicant profile.",
+    "(2) Full funding availability — stipend plus tuition remission (RA/TA/fellowship). Do NOT recommend programs that are usually unfunded, tuition-only, or partial-funding unless the user explicitly wants unfunded options.",
+    "(3) Research and program fit to the applicant's interests.",
+    "",
+    "whyFit: one sentence on program fit (<= 22 words).",
+    'funding: one sentence on likelihood of FULL funding for admitted students — stipend plus tuition coverage (<= 22 words).',
     "notes: optional deadline or GRE caveat (<= 12 words) or null.",
     excludeBlock,
     variationBlock,
@@ -367,7 +359,7 @@ function buildExcludeBlock(excludeFrom: SchoolIdentity[]): string {
 function buildVariationBlock(searchSeed: string): string {
   return [
     `Search run id: ${searchSeed}.`,
-    "Pick different institutions than any prior search for this user; explore diverse departments and regions that still match profile and funding goals.",
+    "Pick different institutions than any prior search for this user; explore diverse departments and regions that still match profile, admission tier, and full-funding goals.",
   ].join("\n");
 }
 
@@ -397,48 +389,25 @@ async function fetchOnboardingSchools(
   profileContext: string,
   excludeFrom: SchoolIdentity[],
   searchSeed: string,
+  tierInterests: SchoolTierBucket[],
 ): Promise<unknown[]> {
-  const excludeBlock = buildExcludeBlock(excludeFrom);
-  const variationBlock = buildVariationBlock(searchSeed);
+  const tiers = RECOMMEND_TIERS.filter((t) => tierInterests.includes(t.bucket));
+  if (tiers.length === 0) return [];
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const prompt = buildOnboardingRecommendPrompt({
-      countryHint,
-      profileContext,
-      excludeBlock,
-      variationBlock,
-      retry: attempt > 0,
-    });
-    try {
-      const result = await runTask("school-intel", prompt, userId, {
-        recommendSearchSeed: searchSeed,
-      });
-      const raw = result.reply.trim();
-      try {
-        const schools = parseRecommendSchoolsFromLlmText(raw);
-        log.debug("schools/recommend.onboarding", {
-          userId,
-          attempt: attempt + 1,
-          schoolCount: schools.length,
-        });
-        return schools.slice(0, 5);
-      } catch (e) {
-        log.warn("schools/recommend.onboarding.invalid-json", {
-          userId,
-          attempt: attempt + 1,
-          preview: raw.slice(0, 400),
-          reason: e instanceof Error ? e.message : "unknown",
-        });
-      }
-    } catch (e) {
-      log.warn("schools/recommend.onboarding-error", {
+  const perTier = distributeOnboardingSchoolCounts(tiers.length);
+  const batches = await Promise.all(
+    tiers.map((tier, index) =>
+      fetchTierSchools(
         userId,
-        attempt: attempt + 1,
-        reason: e instanceof Error ? e.message : String(e),
-      });
-    }
-  }
-  return [];
+        tier,
+        countryHint,
+        profileContext,
+        excludeFrom,
+        `${searchSeed}-${tier.bucket}`,
+      ).then((rows) => rows.slice(0, perTier[index] ?? 1)),
+    ),
+  );
+  return batches.flat();
 }
 
 async function fetchTierSchools(
@@ -535,6 +504,7 @@ export const recommend = withAuth(async (req, { userId }) => {
           focusArea: true,
           researchInterests: true,
           bio: true,
+          schoolTierInterests: true,
           onboardingRecommendSeenAt: true,
         },
       }),
@@ -556,8 +526,14 @@ export const recommend = withAuth(async (req, { userId }) => {
                   (c) => typeof c === "string" && c.trim(),
                 )
               : [],
+            schoolTierInterests: profile.schoolTierInterests,
           }
         : null,
+    );
+
+    const tierInterests = resolveSchoolTierInterests(profile?.schoolTierInterests);
+    const activeTiers = RECOMMEND_TIERS.filter((t) =>
+      tierInterests.includes(t.bucket),
     );
 
     const excludeFrom: SchoolIdentity[] = isOnboardingRequest
@@ -568,7 +544,7 @@ export const recommend = withAuth(async (req, { userId }) => {
         ];
 
     const searchSeed = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-    const tierOrder = shuffleWithSeed(RECOMMEND_TIERS, searchSeed.length + userId.length);
+    const tierOrder = shuffleWithSeed(activeTiers, searchSeed.length + userId.length);
 
     const countriesOfInterest = Array.isArray(profile?.countriesOfInterest)
       ? profile.countriesOfInterest.filter((c) => typeof c === "string" && c.trim())
@@ -585,6 +561,7 @@ export const recommend = withAuth(async (req, { userId }) => {
           profileContext,
           excludeFrom,
           searchSeed,
+          tierInterests,
         )
       : (
           await Promise.all(

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "@/hooks/use-auth";
 
+import { PushNotificationsSettings } from "@/components/push-notifications-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Icon } from "@/components/icon";
 import { AIEnhanceTextarea } from "@/components/ai-enhance-textarea";
+import { SchoolTierInterestPicker } from "@/components/school-tier-interest-picker";
 import { useProfile, useUpdateProfile } from "@/features/profile/api";
 import {
   DEGREE_OPTIONS,
@@ -26,6 +28,11 @@ import {
   detectBrowserTimezone,
   TIMEZONE_OPTIONS,
 } from "@/lib/timezone-options";
+import {
+  DEFAULT_SCHOOL_TIER_INTERESTS,
+  resolveSchoolTierInterests,
+  type SchoolTierBucket,
+} from "@/lib/school-tier-options";
 
 const SELECT_NONE = "__none__";
 
@@ -42,8 +49,10 @@ type ProfileForm = {
   yearsExperience: string;
   researchInterests: string;
   countriesOfInterest: string[];
+  schoolTierInterests: SchoolTierBucket[];
   bio: string;
   timezone: string;
+  deadlinePushEnabled: boolean;
 };
 
 const empty: ProfileForm = {
@@ -59,8 +68,10 @@ const empty: ProfileForm = {
   yearsExperience: "",
   researchInterests: "",
   countriesOfInterest: [],
+  schoolTierInterests: [...DEFAULT_SCHOOL_TIER_INTERESTS],
   bio: "",
   timezone: "UTC",
+  deadlinePushEnabled: false,
 };
 
 export default function ProfilePage() {
@@ -106,11 +117,15 @@ export default function ProfilePage() {
       countriesOfInterest: Array.isArray(p.countriesOfInterest)
         ? (p.countriesOfInterest as string[])
         : [],
+      schoolTierInterests: resolveSchoolTierInterests(
+        p.schoolTierInterests as string[] | undefined,
+      ),
       bio: (p.bio as string) ?? "",
       timezone:
         typeof p.timezone === "string" && p.timezone.trim()
           ? (p.timezone as string)
           : detectBrowserTimezone(),
+      deadlinePushEnabled: Boolean(p.deadlinePushEnabled),
     });
     setHydrated(true);
   }, [hydrated, profileQuery.data]);
@@ -133,8 +148,10 @@ export default function ProfilePage() {
       yearsExperience: form.yearsExperience || null,
       researchInterests: form.researchInterests || null,
       countriesOfInterest: form.countriesOfInterest,
+      schoolTierInterests: form.schoolTierInterests,
       bio: form.bio || null,
       timezone: form.timezone || null,
+      deadlinePushEnabled: form.deadlinePushEnabled,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 4000);
@@ -239,7 +256,7 @@ export default function ProfilePage() {
         <>
           <Section
             title="Notifications"
-            description="Deadline and reminder emails use your local calendar date."
+            description="Deadline and reminder alerts use your local calendar date."
             icon="notifications"
           >
             <div className="max-w-md">
@@ -266,10 +283,18 @@ export default function ProfilePage() {
                 </SelectContent>
               </Select>
               <p className="mt-2 text-xs text-[var(--on-surface-variant)]">
-                We email you 30 days before a school deadline and on dates you
+                We notify you 30 days before a school deadline and on dates you
                 set under &quot;Remind me on&quot; in the application tracker.
               </p>
             </div>
+            <PushNotificationsSettings
+              enabled={form.deadlinePushEnabled}
+              saving={saving}
+              onEnabledChange={(deadlinePushEnabled) =>
+                setForm((prev) => ({ ...prev, deadlinePushEnabled }))
+              }
+              onSaveProfile={save}
+            />
           </Section>
 
           {/* Section: Basics */}
@@ -300,6 +325,18 @@ export default function ProfilePage() {
                 label="GRE score (combined or label)"
                 value={form.greScore}
                 onChange={(v) => setForm({ ...form, greScore: v })}
+              />
+            </div>
+            <div className="mt-5 space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--outline)]">
+                School tiers of interest
+              </Label>
+              <SchoolTierInterestPicker
+                value={form.schoolTierInterests}
+                onChange={(schoolTierInterests) =>
+                  setForm({ ...form, schoolTierInterests })
+                }
+                hint="AI school suggestions use only your selected tiers — ranked by admission likelihood with full funding."
               />
             </div>
           </Section>

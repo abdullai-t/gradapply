@@ -1,4 +1,4 @@
 {
-  "version": "1.9.1",
-  "buildNotes": "This build includes the following changes:\n- School tracker: no default materials or recommenders on new schools\n- Delete all materials/recommenders individually or via Clear all (with loader)\n- Fixed empty checklist persistence and blur/delete race on tracker saves\n- SOP sync only marks Personal Statement done when that row exists\n- Hyperdrive local URL fix for passwordless Postgres during cf:build/cf:deploy\n- Unit tests for school tracker normalize/serialize behavior"
+  "version": "1.10.0",
+  "buildNotes": "This build includes the following changes:\n- FCM web push for deadline/reminder alerts (Profile opt-in + test notification)\n- School tier interests (admission + full funding) on profile, onboarding, and recommend API\n- Faculty discovery: active professors at selected schools only\n- Firebase service account verify/format scripts and FCM service worker build step\n- Prof email discovery add-draft loading UX; hydration fix for extension-modified body tag"
 }

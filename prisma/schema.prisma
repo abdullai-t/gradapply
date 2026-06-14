@@ -124,6 +124,7 @@ model User {
   sopReviews      SopReview[]
   llmCostLogs         LlmCostLog[]
   notificationLogs    NotificationLog[]
+  pushTokens          PushToken[]
 
   googleDocLinks           GoogleDocLink[]
   activityDays             UserActivityDay[]
@@ -384,12 +385,30 @@ model Profile {
   yearsExperience     String?
   researchInterests   String?
   countriesOfInterest String[] @default([])
+  /// Admission/funding tiers for recommendations (top_tier, mid_tier, safety).
+  schoolTierInterests String[] @default(["top_tier", "mid_tier", "safety"])
   bio                 String?
   onboardingCompletedAt   DateTime?
   onboardingRecommendSeenAt DateTime?
   /// IANA timezone for deadline/reminder notification scheduling (e.g. America/New_York).
   timezone            String?
+  /// Opt-in for browser push on deadline/reminder alerts (FCM web).
+  deadlinePushEnabled Boolean  @default(false)
   updatedAt           DateTime @updatedAt
+}
+
+/// FCM device token for web push notifications.
+model PushToken {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String   @unique @db.VarChar(512)
+  platform   String   @default("web")
+  userAgent  String?  @db.VarChar(512)
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 /// Idempotent log of transactional emails sent to users.

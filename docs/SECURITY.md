@@ -42,6 +42,7 @@ Operational checklist for GradApply. Items marked **done** are enforced in code;
 | Upload MIME allowlist on presign | done | PDF, Office, text, common images only |
 | Distributed rate limits (prod) | optional | Set `UPSTASH_REDIS_REST_*` (chat, session, contact, register) |
 | Webhook secrets (`CRON_SECRET`, etc.) | deploy | Rotate if leaked |
+| FCM push tokens user-scoped | done | Stored in `PushToken`; never log full token values; send via FCM HTTP v1 with service account |
 
 ## Recommended next steps
 

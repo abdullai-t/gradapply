@@ -41,7 +41,10 @@ export default function RootLayout({
         {/* Theme boot script — sets .dark before paint to avoid FOUC */}
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
-      <body className={`${jakarta.variable} font-sans antialiased`}>
+      <body
+        className={`${jakarta.variable} font-sans antialiased`}
+        suppressHydrationWarning
+      >
         <ThemeProvider>
           <QueryProvider>
             <SessionProvider>

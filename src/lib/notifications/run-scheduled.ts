@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { log } from "@/lib/logger";
+import { sendSchoolScheduledPush } from "@/lib/push/send-school-scheduled";
 
 import {
   localTodayYmd,
@@ -14,6 +15,9 @@ export type ScheduledNotificationsSummary = {
   sent: number;
   skipped: number;
   failed: number;
+  pushSent: number;
+  pushSkipped: number;
+  pushFailed: number;
 };
 
 const USERS_PER_CRON_RUN = 100;
@@ -28,17 +32,34 @@ export async function runScheduledSchoolNotifications(
     sent: 0,
     skipped: 0,
     failed: 0,
+    pushSent: 0,
+    pushSkipped: 0,
+    pushFailed: 0,
   };
 
   const users = await prisma.user.findMany({
     where: {
-      email: { not: null },
+      schools: {
+        some: {
+          OR: [{ deadline: { not: null } }, { reminderAt: { not: null } }],
+        },
+      },
+      OR: [
+        { email: { not: null } },
+        {
+          AND: [
+            { profile: { is: { deadlinePushEnabled: true } } },
+            { pushTokens: { some: {} } },
+          ],
+        },
+      ],
     },
     select: {
       id: true,
       email: true,
       name: true,
-      profile: { select: { timezone: true } },
+      profile: { select: { timezone: true, deadlinePushEnabled: true } },
+      pushTokens: { select: { id: true, token: true } },
       schools: {
         where: {
           OR: [{ deadline: { not: null } }, { reminderAt: { not: null } }],
@@ -61,7 +82,11 @@ export async function runScheduledSchoolNotifications(
   });
 
   for (const user of users) {
-    if (!user.email?.trim() || user.schools.length === 0) continue;
+    const hasEmail = Boolean(user.email?.trim());
+    const hasPush =
+      Boolean(user.profile?.deadlinePushEnabled) && user.pushTokens.length > 0;
+    if ((!hasEmail && !hasPush) || user.schools.length === 0) continue;
+
     summary.usersScanned += 1;
 
     const timezone = resolveUserTimezone(user.profile?.timezone);
@@ -79,21 +104,45 @@ export async function runScheduledSchoolNotifications(
 
       if (!flags.sendDeadline30d && !flags.sendReminderToday) {
         summary.skipped += 1;
+        summary.pushSkipped += 1;
         continue;
       }
 
-      const result = await sendSchoolScheduledEmail({
-        user: { id: user.id, email: user.email, name: user.name },
-        school,
-        timezone,
-        sendDeadline30d: flags.sendDeadline30d,
-        sendReminderToday: flags.sendReminderToday,
-        localToday,
-      });
+      if (hasEmail) {
+        const result = await sendSchoolScheduledEmail({
+          user: { id: user.id, email: user.email, name: user.name },
+          school,
+          timezone,
+          sendDeadline30d: flags.sendDeadline30d,
+          sendReminderToday: flags.sendReminderToday,
+          localToday,
+        });
 
-      if (result.status === "sent") summary.sent += 1;
-      else if (result.status === "failed") summary.failed += 1;
-      else summary.skipped += 1;
+        if (result.status === "sent") summary.sent += 1;
+        else if (result.status === "failed") summary.failed += 1;
+        else summary.skipped += 1;
+      } else {
+        summary.skipped += 1;
+      }
+
+      if (hasPush) {
+        const pushResult = await sendSchoolScheduledPush({
+          userId: user.id,
+          pushEnabled: Boolean(user.profile?.deadlinePushEnabled),
+          tokens: user.pushTokens,
+          school,
+          timezone,
+          sendDeadline30d: flags.sendDeadline30d,
+          sendReminderToday: flags.sendReminderToday,
+          localToday,
+        });
+
+        if (pushResult.status === "sent") summary.pushSent += 1;
+        else if (pushResult.status === "failed") summary.pushFailed += 1;
+        else summary.pushSkipped += 1;
+      } else {
+        summary.pushSkipped += 1;
+      }
     }
   }
 

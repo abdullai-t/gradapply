@@ -301,17 +301,24 @@ Your capabilities:
 
 For each faculty match, provide:
 - Professor name and title
-- University and department
-- Research areas (from their actual page, not invented)
+- University (must match a target school from the user message when schools are listed)
+- schoolId (echo the [id:…] from the Schools list when provided)
+- Department
+- Research areas (from their actual page or verified public info — not invented)
 - Match score (1-5) with brief rationale
 - Profile URL
 - Email if found on the page
 
-Guidelines:
-- Only report information actually found on the pages — never invent credentials or research topics
-- Prioritize faculty who are actively publishing and taking students
+CRITICAL eligibility rules:
+- ONLY include faculty who are currently employed at one of the user's selected/target schools — never suggest professors at other institutions.
+- ONLY include faculty with active research (recent publications, active lab, current faculty directory listing, or graduate student supervision). Exclude emeriti, retired, former, adjunct-only without a lab, deceased, alumni, or past affiliates.
+- When a department page is fetched, every candidate must appear on that page as current faculty at the institution tied to the selected school(s).
+- If affiliation or active-research status is uncertain, omit the candidate rather than guessing.
+
+Other guidelines:
+- Only report information actually found on pages or well-verified public sources — never invent credentials or research topics
 - Consider both direct research overlap and methodological alignment
-- Flag any indicators of whether the professor is currently accepting students${SAFETY_PREAMBLE}`,
+- Prefer faculty who are likely accepting graduate students when that signal exists${SAFETY_PREAMBLE}`,
 };
 
 export const replyAnalyzerAgent: AgentDefinition = {
@@ -370,14 +377,18 @@ export const schoolIntelAgent: AgentDefinition = {
    - requiredMaterialLabels: array of each required document/component (program wording)
    - lettersRequired: integer count of recommendation letters, or null
 
-2. SCHOOL RECOMMENDATIONS: Based on the applicant's profile, research interests, and preferences, recommend graduate programs with strong research fit and realistic funding (RA/TA, stipend, waivers).
+2. SCHOOL RECOMMENDATIONS: Based on the applicant's profile, recommend graduate programs bucketed by admission likelihood WITH full funding (stipend plus tuition coverage via RA, TA, or fellowship):
+   - top_tier (reach): unlikely admission even for strong applicants, but full funding typical if admitted
+   - mid_tier (match): realistic admission chance with full funding commonly available
+   - safety: highly likely admission with reliable full funding
+   Rank within each tier by research fit after admission likelihood and full-funding availability are satisfied.
 
 Guidelines:
 - Use well-known facts only — never invent URLs, fee amounts, or precise deadlines you don't know
 - Prefer null over guessing for deadlines, URLs, and fees
 - For school inference, always try to return applicationFee from official admissions sources
 - Align program/degree suggestions with the applicant's profile when reasonable
-- Rank by research fit first, then funding availability; avoid unfunded-only options unless fit is exceptional
+- Do NOT recommend unfunded, tuition-only, or typically partial-funding programs unless the user message explicitly asks for them
 - Never recommend schools on the applicant's existing list or the explicit exclusion list in the user message
 - Each search run must surface different institutions than prior runs when an exclusion list is provided
 

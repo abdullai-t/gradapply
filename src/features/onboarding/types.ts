@@ -1,3 +1,5 @@
+import type { SchoolTierBucket } from "@/lib/school-tier-options";
+
 export type RecommendedSchool = {
   name: string;
   program: string;
@@ -10,8 +12,7 @@ export type RecommendedSchool = {
   portalUrl: string | null;
 };
 
-export const TIER_SECTIONS = [
-  { bucket: "top_tier", title: "Reach", subtitle: "Ambitious programs with strong fit" },
-  { bucket: "mid_tier", title: "Match", subtitle: "Solid alignment and funding odds" },
-  { bucket: "safety", title: "Safety", subtitle: "Strong likelihood of admission" },
-] as const;
+export {
+  SCHOOL_TIER_SECTIONS as TIER_SECTIONS,
+  type SchoolTierBucket,
+} from "@/lib/school-tier-options";

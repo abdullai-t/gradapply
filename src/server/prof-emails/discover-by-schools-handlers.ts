@@ -19,6 +19,10 @@ import { bad, ok } from "../_responses";
 import { withAuth } from "../_with-auth";
 
 import { sanitizeField } from "@/lib/agents/sanitize";
+import {
+  FACULTY_DISCOVERY_SCHOOL_RULES,
+  filterFacultyDiscoveryCandidates,
+} from "@/lib/faculty-discovery-filter";
 import { discoverBySchoolsBodySchema } from "./schemas";
 
 export const discoverBySchools = withAuth(async (req, { userId }) => {
@@ -64,19 +68,22 @@ export const discoverBySchools = withAuth(async (req, { userId }) => {
 
   try {
     const schoolSummary = schools
-      .map(
-        (s) =>
-          `- [id:${s.id}] ${sanitizeField(s.name)} (${sanitizeField(s.program) || "N/A"}, ${sanitizeField(s.degree) || "N/A"}, ${sanitizeField(s.country) || "N/A"})`,
-      )
+      .map((s) => {
+        const dept = s.department?.trim();
+        const parts = [
+          sanitizeField(s.program) || "N/A",
+          sanitizeField(s.degree) || "N/A",
+          sanitizeField(s.country) || "N/A",
+        ];
+        return `- [id:${s.id}] ${sanitizeField(s.name)} (${parts.join(", ")})${dept ? ` — department: ${sanitizeField(dept)}` : ""}`;
+      })
       .join("\n");
-    // Ask the model for explicit, normalised fields and require it to echo
-    // the school id back so we can re-attach the school context client-side
-    // without a second pass of fuzzy name matching.
     const message = [
       `Discover research-aligned faculty from these school programs based on my profile.`,
-      `\nSchools:\n${schoolSummary}`,
+      `\nSchools (candidates must be current active faculty at one of these only):\n${schoolSummary}`,
+      `\nRules:\n${FACULTY_DISCOVERY_SCHOOL_RULES}`,
       `\nReturn ONLY JSON in this exact shape (no prose, no fences):`,
-      `{ "candidates": [{ "schoolId": "<echo the [id:..] of the school>", "profName": "<full name>", "university": "<school name>", "department": "<dept>", "researchArea": "<short summary>", "matchScore": 1-5, "rationale": "<one sentence>", "profileUrl": "<url or null>", "email": "<email or null>" }] }`,
+      `{ "candidates": [{ "schoolId": "<echo the [id:..] of the school>", "profName": "<full name>", "university": "<must match the school name above>", "department": "<dept>", "researchArea": "<short summary of active research>", "matchScore": 1-5, "rationale": "<one sentence on research fit AND active status>", "profileUrl": "<url or null>", "email": "<email or null>" }] }`,
     ].join("\n");
 
     const result = await runTask("faculty-discovery", message, userId);
@@ -136,40 +143,47 @@ export const discoverBySchools = withAuth(async (req, { userId }) => {
     const rawCandidates = Array.isArray(parsedJson.candidates)
       ? (parsedJson.candidates as Array<Record<string, unknown>>)
       : [];
-    const candidates = rawCandidates.map((c) => {
-      const profName =
-        (typeof c.profName === "string" && c.profName) ||
-        (typeof c.name === "string" && c.name) ||
-        "";
-      const email =
-        (typeof c.email === "string" && c.email) ||
-        (typeof c.profEmail === "string" && c.profEmail) ||
-        null;
-      const schoolId =
-        typeof c.schoolId === "string" && knownSchoolIds.has(c.schoolId)
-          ? c.schoolId
-          : undefined;
-      const universityLabel =
-        typeof c.university === "string" && c.university
-          ? c.university
-          : undefined;
-      return {
-        name: profName,
-        profileUrl:
-          typeof c.profileUrl === "string" && c.profileUrl ? c.profileUrl : null,
-        profEmail: email,
-        schoolId,
-        targetSchoolLabel: universityLabel,
-        matchScore:
-          typeof c.matchScore === "number"
-            ? Math.max(1, Math.min(5, Math.round(c.matchScore)))
-            : 3,
-        researchArea:
-          typeof c.researchArea === "string" ? c.researchArea : "",
-        rationale: typeof c.rationale === "string" ? c.rationale : "",
-        source: "school_program" as const,
-      };
-    }).filter((c) => c.name.trim().length > 0);
+    const candidates = filterFacultyDiscoveryCandidates(
+      rawCandidates
+        .map((c) => {
+          const profName =
+            (typeof c.profName === "string" && c.profName) ||
+            (typeof c.name === "string" && c.name) ||
+            "";
+          const email =
+            (typeof c.email === "string" && c.email) ||
+            (typeof c.profEmail === "string" && c.profEmail) ||
+            null;
+          const schoolId =
+            typeof c.schoolId === "string" && knownSchoolIds.has(c.schoolId)
+              ? c.schoolId
+              : undefined;
+          const universityLabel =
+            typeof c.university === "string" && c.university
+              ? c.university
+              : undefined;
+          return {
+            name: profName,
+            profileUrl:
+              typeof c.profileUrl === "string" && c.profileUrl
+                ? c.profileUrl
+                : null,
+            profEmail: email,
+            schoolId,
+            targetSchoolLabel: universityLabel,
+            matchScore:
+              typeof c.matchScore === "number"
+                ? Math.max(1, Math.min(5, Math.round(c.matchScore)))
+                : 3,
+            researchArea:
+              typeof c.researchArea === "string" ? c.researchArea : "",
+            rationale: typeof c.rationale === "string" ? c.rationale : "",
+            source: "school_program" as const,
+          };
+        })
+        .filter((c) => c.name.trim().length > 0),
+      schools.map((s) => ({ id: s.id, name: s.name })),
+    );
 
     await Promise.all([
       finalizeAiConsumption(userId),

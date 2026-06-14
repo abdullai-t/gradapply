@@ -218,7 +218,7 @@ function SchoolsPageInner() {
             Build your school list
           </h2>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[var(--on-surface-variant)]">
-            Add programs manually or let AI suggest reach, match, and safety
+            Add programs manually or let AI suggest schools by funding tier
             schools based on your profile.
           </p>
           <Button

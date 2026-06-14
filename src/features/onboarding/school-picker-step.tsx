@@ -247,8 +247,8 @@ export function OnboardingSchoolPickerStep() {
           Pick programs to track
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-[var(--on-surface-variant)]">
-          We picked 5 programs matched to your profile. Select any you want on
-          your list — you can add more later.
+          Programs matched to your profile and selected tiers. Select any you
+          want on your list — you can add more later.
         </p>
       </div>
 

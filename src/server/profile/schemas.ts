@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { COUNTRY_OPTIONS } from "@/lib/country-options";
+import { SCHOOL_TIER_BUCKETS } from "@/lib/school-tier-options";
 
 export const updateProfileSchema = z.object({
   targetDegree: z.string().nullable().optional(),
@@ -18,8 +19,14 @@ export const updateProfileSchema = z.object({
     .array(z.enum(COUNTRY_OPTIONS as [string, ...string[]]))
     .max(5)
     .optional(),
+  schoolTierInterests: z
+    .array(z.enum(SCHOOL_TIER_BUCKETS))
+    .min(1)
+    .max(3)
+    .optional(),
   bio: z.string().nullable().optional(),
   timezone: z.string().max(64).nullable().optional(),
+  deadlinePushEnabled: z.boolean().optional(),
   onboardingCompletedAt: z.union([z.string(), z.null()]).optional(),
   onboardingRecommendSeenAt: z.union([z.string(), z.null()]).optional(),
 });

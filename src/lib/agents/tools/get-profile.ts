@@ -22,6 +22,7 @@ const outputSchema = z.object({
   yearsExperience: z.string().nullable(),
   researchInterests: z.string().nullable(),
   countriesOfInterest: z.array(z.string()),
+  schoolTierInterests: z.array(z.string()),
   bio: z.string().nullable(),
 }).nullable();
 
@@ -64,6 +65,7 @@ export const getProfileTool: ToolDefinition<z.infer<typeof inputSchema>, Profile
       yearsExperience: user.profile?.yearsExperience ?? null,
       researchInterests: user.profile?.researchInterests ?? null,
       countriesOfInterest: user.profile?.countriesOfInterest ?? [],
+      schoolTierInterests: user.profile?.schoolTierInterests ?? [],
       bio: user.profile?.bio ?? null,
     };
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { Loader2, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,9 @@ export function CreateProfEmailDialog({
     [],
   );
   const [discovering, setDiscovering] = useState(false);
-  const [draftingDiscoverId, setDraftingDiscoverId] = useState<string | null>(null);
+  const [addingDiscoveryIndex, setAddingDiscoveryIndex] = useState<number | null>(
+    null,
+  );
 
   const schools: SchoolPick[] = useMemo(() => {
     const list = (schoolsQuery.data ?? []) as Array<{
@@ -87,7 +90,7 @@ export function CreateProfEmailDialog({
     setCreateDraftTab("schools");
     setDiscovering(false);
     setWorking(false);
-    setDraftingDiscoverId(null);
+    setAddingDiscoveryIndex(null);
   }, []);
 
   const close = useCallback(() => {
@@ -96,7 +99,9 @@ export function CreateProfEmailDialog({
   }, [onOpenChange, resetForm]);
 
   const invalidateList = () =>
-    void qc.invalidateQueries({ queryKey: profEmailsKeys.all });
+    qc.invalidateQueries({ queryKey: profEmailsKeys.all });
+
+  const addingDiscoveryDraft = addingDiscoveryIndex !== null;
 
   const toggleSchool = (id: string) => {
     setSelectedSchoolIds((prev) =>
@@ -171,14 +176,13 @@ export function CreateProfEmailDialog({
     }
   };
 
-  const addFromDiscovery = async (c: DiscoveryCand) => {
+  const addFromDiscovery = async (c: DiscoveryCand, index: number) => {
     const normalizedEmail = (c.profEmail ?? "").trim().toLowerCase();
     if (normalizedEmail && existingProfessorEmails.has(normalizedEmail)) {
       alert("This professor email already exists in your drafts.");
       return;
     }
-    const key = `${c.name}\0${c.profileUrl ?? ""}`;
-    setDraftingDiscoverId(key);
+    flushSync(() => setAddingDiscoveryIndex(index));
     try {
       const univ =
         schools.find((s) => s.id === c.schoolId)?.name ??
@@ -203,12 +207,13 @@ export function CreateProfEmailDialog({
       }
       await invalidateList();
     } finally {
-      setDraftingDiscoverId(null);
+      setAddingDiscoveryIndex(null);
     }
   };
 
-  const discoverBlocked = discovering || working || selectedSchoolIds.length === 0;
-  const analyzeUrlBlocked = working || !profileUrlInput.trim();
+  const discoverBlocked =
+    discovering || working || addingDiscoveryDraft || selectedSchoolIds.length === 0;
+  const analyzeUrlBlocked = working || addingDiscoveryDraft || !profileUrlInput.trim();
 
   return (
     <Dialog
@@ -274,7 +279,7 @@ export function CreateProfEmailDialog({
                 placeholder="https://...faculty-page..."
                 value={profileUrlInput}
                 onChange={(e) => setProfileUrlInput(e.target.value)}
-                disabled={discovering || working}
+                disabled={discovering || working || addingDiscoveryDraft}
                 className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]"
               />
             </div>
@@ -286,7 +291,7 @@ export function CreateProfEmailDialog({
                   value={analyzeProfName}
                   onChange={(e) => setAnalyzeProfName(e.target.value)}
                   placeholder="e.g. Jane Smith"
-                  disabled={discovering || working}
+                  disabled={discovering || working || addingDiscoveryDraft}
                   className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]"
                 />
               </div>
@@ -297,7 +302,7 @@ export function CreateProfEmailDialog({
                   value={analyzeUniversity}
                   onChange={(e) => setAnalyzeUniversity(e.target.value)}
                   placeholder="e.g. Stanford University"
-                  disabled={discovering || working}
+                  disabled={discovering || working || addingDiscoveryDraft}
                   className="border-[var(--outline-variant)] bg-[var(--surface-container-low)]"
                 />
               </div>
@@ -341,6 +346,7 @@ export function CreateProfEmailDialog({
                       className="mt-1 h-4 w-4"
                       checked={selectedSchoolIds.includes(s.id)}
                       onChange={() => toggleSchool(s.id)}
+                      disabled={discovering || addingDiscoveryDraft}
                     />
                     <span>
                       <span className="font-medium">{s.name}</span>
@@ -369,7 +375,7 @@ export function CreateProfEmailDialog({
             {discoveryCandidates.length > 0 ? (
               <ul className="max-h-[180px] space-y-2 overflow-y-auto rounded-lg border border-[var(--outline-variant)] bg-[var(--surface-container-low)] p-2">
                 {discoveryCandidates.map((c, idx) => {
-                  const dk = `${c.name}\0${c.profileUrl ?? ""}`;
+                  const addingThis = addingDiscoveryIndex === idx;
                   const duplicateByEmail = Boolean(
                     c.profEmail?.trim() &&
                       existingProfessorEmails.has(c.profEmail.trim().toLowerCase()),
@@ -377,8 +383,23 @@ export function CreateProfEmailDialog({
                   return (
                     <li
                       key={`${c.name}-${idx}`}
-                      className="flex items-start justify-between gap-2 rounded-md border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-2"
+                      aria-busy={addingThis || undefined}
+                      className={cn(
+                        "relative flex items-start justify-between gap-2 rounded-md border border-[var(--outline-variant)] bg-[var(--surface-container-lowest)] p-2",
+                        addingThis && "border-primary/40",
+                      )}
                     >
+                      {addingThis ? (
+                        <div
+                          className="absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-md bg-[var(--surface-container-lowest)]/90"
+                          aria-hidden
+                        >
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                          <span className="text-xs font-medium text-primary">
+                            Adding draft…
+                          </span>
+                        </div>
+                      ) : null}
                       <div className="min-w-0">
                         <p className="line-clamp-1 text-sm font-medium">{c.name}</p>
                         <p className="line-clamp-1 text-xs text-muted-foreground">
@@ -392,8 +413,12 @@ export function CreateProfEmailDialog({
                         type="button"
                         size="sm"
                         variant="secondary"
-                        disabled={draftingDiscoverId === dk || duplicateByEmail}
-                        onClick={() => void addFromDiscovery(c)}
+                        className="min-w-[6.75rem] shrink-0"
+                        disabled={
+                          duplicateByEmail ||
+                          addingDiscoveryDraft
+                        }
+                        onClick={() => void addFromDiscovery(c, idx)}
                       >
                         {duplicateByEmail ? "Already added" : "Add draft"}
                       </Button>
