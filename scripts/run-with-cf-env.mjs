@@ -45,14 +45,25 @@ const hyperdriveLocalKey =
  */
 function hyperdriveLocalConnectionString(databaseUrl) {
   const trimmed = databaseUrl.trim();
-  const match = trimmed.match(/^(postgres(?:ql)?):\/\/([^/]+)@/i);
-  if (!match) return trimmed;
-  const [, scheme, auth] = match;
-  if (auth.includes(":")) return trimmed;
-  return trimmed.replace(
-    /^(postgres(?:ql)?):\/\/([^/]+)@/i,
-    `${scheme.toLowerCase()}://${auth}:@`,
-  );
+  try {
+    const normalized = trimmed.replace(/^postgres(ql)?:\/\//i, "https://");
+    const url = new URL(normalized);
+    if (!url.password) {
+      url.password = "localdev";
+    }
+    const out = url.toString().replace(/^https:\/\//, "postgresql://");
+    return out;
+  } catch {
+    const match = trimmed.match(/^(postgres(?:ql)?):\/\/([^/]+)@/i);
+    if (!match) return trimmed;
+    const [, scheme, auth] = match;
+    if (auth.includes(":") && !auth.endsWith(":")) return trimmed;
+    const user = auth.replace(/:$/, "");
+    return trimmed.replace(
+      /^(postgres(?:ql)?):\/\/([^/]+)@/i,
+      `${scheme.toLowerCase()}://${user}:localdev@`,
+    );
+  }
 }
 
 if (!process.env[hyperdriveLocalKey]?.trim()) {
